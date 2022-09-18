@@ -1,0 +1,32 @@
+[build-system]
+requires = [ "setuptools>=40.8.0", "wheel"]
+build-backend = "setuptools.build_meta:__legacy__"
+
+[tool.black]
+line-length = 88
+skip-string-normalization = 1
+force-exclude = '(^/tests/smpp/samples\.py)'
+
+[tool.blue]
+line-length = 88
+force-exclude = '(^/tests/smpp/samples\.py)'
+
+[tool.pydocstyle]
+ignore = [
+    "D105",
+    "D107",
+    "D203",
+    "D213",
+]
+
+[tool.pytest.ini_options]
+# https://docs.pytest.org/en/latest/reference/customize.html
+minversion = "6.0"
+addopts = "--doctest-modules -vv --cov=smppai --capture=no --log-cli-level=DEBUG --import-mode=importlib tests"
+testpaths = [
+    "tests",
+]
+
+# Reminder:
+# '^file1\.py$',   # TOML literal string (single-quotes, no escaping necessary)
+# "^file2\\.py$",  # TOML basic string (double-quotes, backslash and other characters need escaping)

@@ -1,0 +1,9 @@
+pytest
+pytest-cov
+mypy
+pylint
+pydocstyle
+flake8
+black
+blue
+toml  # for pydocstyle to recognize pyproject.toml
