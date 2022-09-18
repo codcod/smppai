@@ -49,7 +49,7 @@ async def send_data(operation: Operation, writer: asyncio.streams.StreamWriter):
     await writer.drain()
 
 
-class Sequence(object):
+class Sequence:
     """Sequence generator used while preparing PDU."""
 
     MIN_SEQUENCE = 0x00000001
