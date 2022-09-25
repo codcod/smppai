@@ -13,6 +13,8 @@ from .const import OperationID
 __all__ = [
     'unpack', 'pack',
 
+    'read_data', 'send_data', 'Sequence',
+
     'BindTransmitter', 'BindTransmitterResp'
 ]
 
