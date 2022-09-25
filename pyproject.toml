@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta:__legacy__"
 name = "smppai"
 description = "SMPP protocol, ESME, and SMSC"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 keywords = ["smpp", "protocol", "esme", "smsc", "gsm", "sms"]
 license = {text = "BSD 3-Clause License"}
 classifiers = [
