@@ -2,7 +2,7 @@ from smppai.smpp import pack, unpack, BindTransmitter
 from .samples import *
 
 
-def x_test_load():
+def test_unpack():
     samples = [
         (BindTransmitterPDUSample1(), BindTransmitter),
         (BindTransmitterPDUSample2(), BindTransmitter),
@@ -14,7 +14,7 @@ def x_test_load():
         assert type(pdu) == klass
 
 
-def x_test_dump():
+def test_pack():
     samples = [
         (BindTransmitterPDUSample1(), BindTransmitter),
         (BindTransmitterPDUSample2(), BindTransmitter),

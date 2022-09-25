@@ -6,16 +6,20 @@ import struct
 import logging
 from .proto import Operation
 from .operations import BindTransmitter
+from .const import OperationID
 
 __all__ = ['unpack', 'pack', 'BindTransmitter']
 
 
 def unpack(frame: bytes) -> Operation:
     """Create PDU out of binary frame (factory method)."""
-    # pdu = BindTransmitter()
-    # pdu.load(frame)
-    # return pdu
-    raise NotADirectoryError()
+    header = struct.Struct('>LLLL')
+    assert len(frame) > header.size
+    _, id, _, _ = header.unpack(frame[:header.size])
+    cls = OperationID.get_operation(id)
+    pdu = cls()
+    pdu.load(frame)
+    return pdu
 
 
 def pack(operation: Operation) -> bytes:

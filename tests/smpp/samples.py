@@ -44,8 +44,7 @@ class PDUSample:
 
 def str2bin(s: str, endswith: str = '00') -> bytes:
     r = ''.join([f'{c:X} ' for c in s.encode()]) + endswith
-    if endswith == '':
-        r = r.strip()
+    if endswith == '': r = r.strip()
     return r.encode()
 
 
@@ -89,9 +88,9 @@ class BindTransmitterPDUSample3(PDUSample):
     id: bytes               = b'00 00 00 02'
     status: bytes           = b'00 00 00 00'
     sequence: bytes         = b'00 00 00 01'
-    sys_id: bytes           = str2bin( 'SMPP3TEST012345')
-    password: bytes         = str2bin( 'PASSWORD1')
-    sys_type: bytes         = str2bin( 'SYSTEMTYPE123')
+    sys_id: bytes           = str2bin('SMPP3TEST012345')
+    password: bytes         = str2bin('PASSWORD1')
+    sys_type: bytes         = str2bin('SYSTEMTYPE123')
     iface_version: bytes    = b'50'
     addr_ton: bytes         = b'01'
     addr_npi: bytes         = b'01'

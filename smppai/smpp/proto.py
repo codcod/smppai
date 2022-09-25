@@ -94,7 +94,7 @@ def unpack_string(fmt: str, frame: bytes, offset: int) -> tp.Tuple[str, int]:
     """Unpack string from frame."""
     pos = frame[offset:].find(NULL)
     fmt_ = f'>{pos}s'
-    r = struct.unpack(fmt_, frame[offset : offset + pos])
+    r = struct.unpack(fmt_, frame[offset:offset + pos])
     r = r[0] if len(r) == 1 else r
     return r, pos + 1
 
