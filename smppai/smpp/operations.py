@@ -18,5 +18,13 @@ class BindTransmitter(Operation):
     addr_npi = Integer('addr_npi', '>B')
     addr_range = Bytes('addr_range', '>41s')
 
+class BindTransmitterResp(Operation):
+    """Bind Transmitter Resp operation."""
+
+    length = Integer('length', '>L')
+    id = Integer('id', '>L')
+    status = Integer('status', '>L')
+    sequence = Integer('sequence', '>L')
+    sys_id = Bytes('sys_id', '>16s')
 
 # vim: sw=4:et:ai

@@ -1,8 +1,9 @@
 # smppai
 
-![starter workflow](https://github.com/codcod/smppai/actions/workflows/starter.yaml/badge.svg)
+![workflow](https://github.com/codcod/smppai/actions/workflows/starter.yaml/badge.svg)
 
-SMPP protocol implementaion. At some point ESME (client) and SMSC (server).
+[SMPP](https://smpp.org) protocol (v3.4) implementation. At some point in time
+also ESME (client) and SMSC (server).
 
 ## Installation
 

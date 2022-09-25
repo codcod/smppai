@@ -1,5 +1,7 @@
 import enum
-from .operations import BindTransmitter
+from .operations import (
+    BindTransmitter, BindTransmitterResp
+)
 
 # SMPP_CMD_ALERT_NOTIFICATION = 'alert_notification'
 # SMPP_CMD_BIND_RECEIVER = 'bind_receiver'
@@ -32,7 +34,7 @@ from .operations import BindTransmitter
 
 class OperationID(enum.Enum):
     BIND_TRANSMITTER = 0x00000002, BindTransmitter
-    BIND_TRANSMITTER_RESP = 0x80000002, 'BindTransmitterResp'
+    BIND_TRANSMITTER_RESP = 0x80000002, BindTransmitterResp
 
     @classmethod
     def get_operation(cls, id):
