@@ -2,6 +2,20 @@
 requires = [ "setuptools>=40.8.0", "wheel"]
 build-backend = "setuptools.build_meta:__legacy__"
 
+[project]
+name = "smppai"
+description = "SMPP protocol, ESME, and SMSC"
+readme = "README.md"
+requires-python = ">=3.7"
+keywords = ["smpp", "protocol", "esme", "smsc", "gsm", "sms"]
+license = {text = "BSD 3-Clause License"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+]
+dynamic = ["version"]
+
 [tool.black]
 line-length = 88
 skip-string-normalization = 1
