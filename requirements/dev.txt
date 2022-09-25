@@ -3,7 +3,7 @@ pytest-cov
 mypy
 pylint
 pydocstyle
-flake8
+flake8<5.0.0
 black
 blue
 toml  # for pydocstyle to recognize pyproject.toml
