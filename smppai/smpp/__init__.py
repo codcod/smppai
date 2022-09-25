@@ -5,10 +5,16 @@ import binascii
 import struct
 import logging
 from .proto import Operation
-from .operations import BindTransmitter
+from .operations import (
+    BindTransmitter, BindTransmitterResp
+)
 from .const import OperationID
 
-__all__ = ['unpack', 'pack', 'BindTransmitter']
+__all__ = [
+    'unpack', 'pack',
+
+    'BindTransmitter', 'BindTransmitterResp'
+]
 
 
 def unpack(frame: bytes) -> Operation:

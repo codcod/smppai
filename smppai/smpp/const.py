@@ -1,3 +1,4 @@
+"""Constant values defined by SMPP protocol."""
 import enum
 from .operations import (
     BindTransmitter, BindTransmitterResp
@@ -33,11 +34,14 @@ from .operations import (
 
 
 class OperationID(enum.Enum):
+    """Operation ID and a class representing this operation."""
+
     BIND_TRANSMITTER = 0x00000002, BindTransmitter
     BIND_TRANSMITTER_RESP = 0x80000002, BindTransmitterResp
 
     @classmethod
     def get_operation(cls, id):
+        """Use Operation id to return class representing this Operation."""
         for m in cls.__members__:
             id_, klass = (getattr(cls, m)).value
             if id_ == id: return klass
