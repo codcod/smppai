@@ -1,4 +1,4 @@
-from smppai.smpp import pack, unpack, BindTransmitter
+from smppai.smpp import pack, unpack, BindTransmitter, BindTransmitterResp
 from .samples import *
 
 
@@ -35,6 +35,13 @@ def test_bind_transmitter_load():
         p = BindTransmitter()
         p.load(sample.frame)
         assert p.__dict__ == sample.asdict()
+
+
+def test_bind_transmitter_resp():
+    params = {'status': 0x00000000, 'sys_id': 'login'}
+    p = BindTransmitterResp.load
+    assert p.sys_id == 'login'
+    assert p.status == 0x00000000
 
 
 # vim: sw=4:et:ai

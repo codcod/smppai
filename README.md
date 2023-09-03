@@ -10,3 +10,7 @@ also ESME (client) and SMSC (server).
     $ make venv           # one time only
     $ source .venv/bin/activate
     $ make test
+
+## Start server
+
+    $ make start-server   # Ctrl+C to stop

@@ -1,4 +1,4 @@
-.PHONY = venv check test
+.PHONY = venv check test start-server
 
 export PYTHONPATH=.
 
@@ -14,3 +14,6 @@ check:
 
 test:
 	pytest  # configured via pyproject.toml
+
+start-server:
+	python smppai/smsc/app.py

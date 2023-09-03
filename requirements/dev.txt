@@ -8,3 +8,4 @@ black
 click<8.1
 blue
 toml  # for pydocstyle to recognize pyproject.toml
+smpplib  # temporary, to use client to send requests

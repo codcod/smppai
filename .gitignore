@@ -5,5 +5,7 @@ venv/
 .coverage
 .python-version  # pyenv
 
+*.log
+
 # Get comprehensive list with:
 # curl -s -o .gitignore -O https://raw.githubusercontent.com/github/gitignore/master/Python.gitignore
