@@ -1,8 +1,19 @@
-from smppai import __version__
+import pytest as pt
+from smppai.experiment.session import Session
 
 
-def test_version():
-    assert __version__ == '0.1.0'
+@pt.fixture
+def session() -> Session:
+    return Session(system_id='smppclient1', password='password')
 
 
-# vim: sw=4:et:ai
+def test_send_one(session: Session):
+    with session:
+        session.send_message(sender='aaa', recipient='bbb', message='Hi')
+
+# def test_send_batch_many_small(connector: Connector):
+#     with connector as conn:
+#         for _ in range(1_000):
+#             m = Message()
+#             conn.batch(m)
+#         conn.flush()

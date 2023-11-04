@@ -3,10 +3,9 @@
 Typing system to use when building PDUs defined by SMPP protocol. PDUs are
 sometimes called Commands (SMPPv3), or Operations (SMPPv5).
 """
-import struct
 import collections
+import struct
 import typing as tp
-
 
 NULL = b'\x00'
 
@@ -94,7 +93,7 @@ def unpack_string(fmt: str, frame: bytes, offset: int) -> tp.Tuple[str, int]:
     """Unpack string from frame."""
     pos = frame[offset:].find(NULL)
     fmt_ = f'>{pos}s'
-    r = struct.unpack(fmt_, frame[offset:offset + pos])
+    r = struct.unpack(fmt_, frame[offset : offset + pos])
     r = r[0] if len(r) == 1 else r
     return r, pos + 1
 

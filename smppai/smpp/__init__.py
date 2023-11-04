@@ -2,28 +2,30 @@
 
 import asyncio
 import binascii
-import struct
 import logging
-from .proto import Operation
-from .operations import (
-    BindTransmitter, BindTransmitterResp
-)
-from .const import OperationID
+import struct
 
+from .const import OperationID
+from .operations import BindTransmitter
+from .operations import BindTransmitterResp
+from .proto import Operation
+
+# fmt: off
 __all__ = [
     'unpack', 'pack',
 
-    'read_data', 'send_data', 'Sequence',
+    'read_data', 'send_data',
 
-    'BindTransmitter', 'BindTransmitterResp'
+    'Sequence', 'BindTransmitter', 'BindTransmitterResp',
 ]
+# fmt: on
 
 
 def unpack(frame: bytes) -> Operation:
     """Create PDU out of binary frame (factory method)."""
     header = struct.Struct('>LLLL')
     assert len(frame) > header.size
-    _, id, _, _ = header.unpack(frame[:header.size])
+    _, id, _, _ = header.unpack(frame[: header.size])
     cls = OperationID.get_operation(id)
     pdu = cls()
     pdu.load(frame)

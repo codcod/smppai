@@ -1,16 +1,22 @@
-.PHONY = venv check test
+.PHONY = venv fix test run
+
+APP_DIR=smppai
 
 export PYTHONPATH=.
 
 venv:
-	python -m venv .venv
-	( bash -c "source .venv/bin/activate && python -m pip install --upgrade pip setuptools wheel"; )
-	( bash -c "source .venv/bin/activate && pip install -r requirements/all.txt"; )
+	rm -rf ".venv"
+	poetry install
 	@printf "\nDone. You can now activate the virtual environment:\n  source .venv/bin/activate\n"
 
-check:
-	mypy --strict --scripts-are-modules --implicit-reexport smppai
-		#scripts/*
+fix:
+	poetry run black $(APP_DIR)
+	poetry run flake8 $(APP_DIR)
+	poetry run isort $(APP_DIR)
+	poetry run ruff $(APP_DIR)/**
 
 test:
-	pytest  # configured via pyproject.toml
+	poetry run pytest
+
+run:
+	poetry run python smppai/app2.py

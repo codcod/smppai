@@ -1,26 +1,30 @@
-name: CI starter
+# https://jacobian.org/til/github-actions-poetry/ 
+# https://github.com/marketplace/actions/install-poetry-action
+# https://github.com/marketplace/actions/python-poetry-action
 
-on: [push]
+# name: CI starter
 
-jobs:
-  build:
+# on: [push]
 
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+# jobs:
+#   build:
 
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install flake8 pytest
-          if [ -f requirements/dev.txt ]; then pip install -r requirements/dev.txt; fi
-      - name: Test with pytest
-        run: |
-          PYTHONPATH=. pytest
+#     runs-on: ubuntu-latest
+#     strategy:
+#       matrix:
+#         python-version: ["3.8", "3.9", "3.10"]
+
+#     steps:
+#       - uses: actions/checkout@v3
+#       - name: Set up Python ${{ matrix.python-version }}
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: ${{ matrix.python-version }}
+#       - name: Install dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install flake8 pytest
+#           if [ -f requirements/dev.txt ]; then pip install -r requirements/dev.txt; fi
+#       - name: Test with pytest
+#         run: |
+#           PYTHONPATH=. pytest

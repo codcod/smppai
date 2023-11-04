@@ -1,0 +1,13 @@
+---
+version: "3.8"
+
+services:
+  opensmpp:
+    image: codcod66/opensmpp-sim
+    container_name: opensmpp-sim
+    ports:
+      - 2775:2775
+
+networks:
+  opensmpp_network:
+    driver: bridge

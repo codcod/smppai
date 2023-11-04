@@ -1,8 +1,8 @@
 """Constant values defined by SMPP protocol."""
 import enum
-from .operations import (
-    BindTransmitter, BindTransmitterResp
-)
+
+from .operations import BindTransmitter
+from .operations import BindTransmitterResp
 
 # SMPP_CMD_ALERT_NOTIFICATION = 'alert_notification'
 # SMPP_CMD_BIND_RECEIVER = 'bind_receiver'
@@ -44,6 +44,8 @@ class OperationID(enum.Enum):
         """Use Operation id to return class representing this Operation."""
         for m in cls.__members__:
             id_, klass = (getattr(cls, m)).value
-            if id_ == id: return klass
+            if id_ == id:
+                return klass
+
 
 # vim: sw=4:et:ai

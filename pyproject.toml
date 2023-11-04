@@ -1,29 +1,69 @@
 [build-system]
-requires = [ "setuptools>=40.8.0", "wheel"]
-build-backend = "setuptools.build_meta:__legacy__"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]  # [project]
+authors = ["codcod"]
+description = "SMPP protocol implementation, ESME, SMSC"
 name = "smppai"
-description = "SMPP protocol, ESME, and SMSC"
 readme = "README.md"
-requires-python = ">=3.8"
 keywords = ["smpp", "protocol", "esme", "smsc", "gsm", "sms"]
-license = {text = "BSD 3-Clause License"}
+license = "LICENSE"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
-dependencies = [
-]
-dynamic = ["version"]
+version = "0.1.0"
+
+[tool.poetry.dependencies]
+python = "~3.11"
+smpplib = "^2.2.3"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.10.0"
+flake8 = "^6.1.0"
+isort = "^5.12.0"
+mypy = "^1.6.1"
+pylint = "^3.0.2"
+pytest-coverage = "^0.0"
+ruff = "^0.1.1"
+structlog = "^23.2.0"
 
 [tool.black]
 line-length = 88
 skip-string-normalization = 1
-force-exclude = '(^/tests/smpp/samples\.py)'
+target-version = ["py310"]
+include = '\.pyi?$'
+extend-exclude = '''
+# A regex preceded with ^/ will apply only to files and directories
+# in the root of the project.
+(
+  ^/foo.py       # exclude a file named foo.py in the root of the project
+  | settings.py  # exclude settings file anywhere in the project
+)
+'''
 
-[tool.blue]
+[tool.isort]
+profile = "black"
+line_length = 88
+auto_identify_namespace_packages = false
+force_single_line = true
+known_first_party = ["esme"]
+
+[tool.ruff]
+fixable = ["ALL"]
+unfixable = []
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pypackages__",
+    "build",
+    "dist",
+]
 line-length = 88
-force-exclude = '(^/tests/smpp/samples\.py)'
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+target-version = "py310"
 
 [tool.pydocstyle]
 ignore = [
@@ -43,4 +83,4 @@ testpaths = [
 
 # Reminder:
 # '^file1\.py$',   # TOML literal string (single-quotes, no escaping necessary)
-# "^file2\\.py$",  # TOML basic string (double-quotes, backslash and other characters need escaping)
+# "^file2\\.py$",  # TOML basic string (double-quotes, backslash and other characters need escaping
