@@ -1,20 +1,16 @@
-import logging
-
 ENVIRONMENT = 'local'  # 'local' or 'production'
 
 SERVER_HOST = '127.0.0.1'
 
 SERVER_PORT = 2775
 
-LOGGING_LEVEL = logging.DEBUG
+SMPP_URI = 'smpp://smppclient1:password@127.0.0.1:2775'
 
-SMPP_LOGGING_LEVEL = logging.DEBUG
+LOGGING_LEVEL = 'DEBUG'
 
-LOGGING_FORMAT = (
-    '[%(asctime)s] [%(levelname)s] '
-    '[%(filename)s:%(lineno)s] '
-    '[%(thread)d] %(message)s'
-)
+SMPP_LOGGING_LEVEL = 'DEBUG'
+
+LOGGING_FORMAT = '[%(module)-10s:%(lineno)-3s]' '[%(thread)d] %(message)s'
 
 LOGGING_DATEFORMAT = '%Y-%m-%d %H:%M:%S %z'
 

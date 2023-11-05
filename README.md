@@ -1,4 +1,4 @@
-# Python implementation of SMPP v3.4 protocol
+# Python implementation of SMPP protocol v3.4
 
 ![workflow](https://github.com/codcod/smppai/actions/workflows/starter.yaml/badge.svg)
 

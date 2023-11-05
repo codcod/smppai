@@ -80,6 +80,8 @@ addopts = "--doctest-modules -vv --cov=smppai --capture=no --log-cli-level=DEBUG
 testpaths = [
     "tests",
 ]
+log_format = "%(asctime)s [%(levelname)-8s] [%(filename)s:%(lineno)s] %(message)s"
+log_date_format = "%H:%M:%S"
 
 # Reminder:
 # '^file1\.py$',   # TOML literal string (single-quotes, no escaping necessary)
