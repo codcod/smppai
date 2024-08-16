@@ -3,7 +3,7 @@ import logging
 import smpplib
 from smpplib import gsm
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('encoder')
 
 PDU = smpplib.pdu.PDU
 
@@ -13,28 +13,28 @@ class sequencer:
         return 1
 
 
-def bind_transceiver(**kwargs) -> PDU:
+def bind_transceiver(**kwargs) -> bytes:
     assert 'system_id' in kwargs
     assert 'password' in kwargs
 
     logger.debug(f'encode <bind_transceiver> using {kwargs=}')
-    p = smpplib.smpp.make_pdu('bind_transceiver', client=sequencer(), **kwargs)
-    return p
+    p: PDU = smpplib.smpp.make_pdu('bind_transceiver', client=sequencer(), **kwargs)
+    return p.generate()
 
 
-def unbind() -> PDU:
+def unbind() -> bytes:
     logger.debug('encode <unbind> using no kwargs')
-    p = smpplib.smpp.make_pdu('unbind', client=sequencer())
-    return p
+    p: PDU = smpplib.smpp.make_pdu('unbind', client=sequencer())
+    return p.generate()
 
 
-def enquire_link() -> PDU:
+def enquire_link() -> bytes:
     logger.debug('encode <enquire_link> using no kwargs')
-    p = smpplib.smpp.make_pdu('enquire_link', client=sequencer())
-    return p
+    p: PDU = smpplib.smpp.make_pdu('enquire_link', client=sequencer())
+    return p.generate()
 
 
-def submit_sm(**kwargs) -> list[PDU]:
+def submit_sm(**kwargs) -> list[bytes]:
     assert 'source_addr' in kwargs
     assert 'destination_addr' in kwargs
     assert 'short_message' in kwargs
@@ -43,7 +43,7 @@ def submit_sm(**kwargs) -> list[PDU]:
 
     message = kwargs['short_message']
 
-    pdus = []
+    pdus: list[PDU] = []
     parts, encoding_flag, msg_type_flag = gsm.make_parts(message)
     for part in parts:
         params = {
@@ -59,4 +59,4 @@ def submit_sm(**kwargs) -> list[PDU]:
         pdu = smpplib.smpp.make_pdu('submit_sm', client=sequencer(), **params)
         logger.debug(f'appending {pdu=} to pdus list')
         pdus.append(pdu)
-    return pdus
+    return [p.generate() for p in pdus]

@@ -1,23 +1,18 @@
-.PHONY = venv fix test run
+.PHONY = venv lint test run
 
-APP_DIR=smppai
-
-export PYTHONPATH=.
+export PYTHONPATH=src/.
 
 venv:
 	rm -rf ".venv"
-	poetry install
+	rye sync
 	@printf "\nDone. You can now activate the virtual environment:"
 	@printf "\n  source .venv/bin/activate\n  virtualenv --upgrade-embed-wheels\n"
 
-fix:
-	poetry run isort $(APP_DIR)
-	poetry run black $(APP_DIR)
-	poetry run flake8 $(APP_DIR)
-	poetry run ruff $(APP_DIR)/**
+lint:
+	rye run lint
 
 test:
-	poetry run pytest
+	rye run pytest
 
 run:
-	poetry run python smppai/experiment/app1.py
+	rye run demo1 --count 100

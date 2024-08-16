@@ -1,32 +1,57 @@
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry]  # [project]
-authors = ["codcod"]
+[project]
+name = "smppai-rye"
+version = "0.1.0"
 description = "SMPP protocol implementation, ESME, SMSC"
-name = "smppai"
+authors = [
+    { name = "codcod", email = "nikos@linux.com" }
+]
+dependencies = [
+    "smpplib>=2.2.3",
+    "rich>=13.6.0",
+]
 readme = "README.md"
+requires-python = ">= 3.11"
 keywords = ["smpp", "protocol", "esme", "smsc", "gsm", "sms"]
-license = "LICENSE"
+# license = "LICENSE"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
-version = "0.1.0"
 
-[tool.poetry.dependencies]
-python = "~3.11"
-smpplib = "^2.2.3"
+[project.scripts]
 
-[tool.poetry.group.dev.dependencies]
-black = "^23.10.0"
-flake8 = "^6.1.0"
-isort = "^5.12.0"
-mypy = "^1.6.1"
-pylint = "^3.0.2"
-pytest-coverage = "^0.0"
-ruff = "^0.1.1"
-structlog = "^23.2.0"
+[tool.rye.scripts]
+lint = { chain = [
+    "lint:isort",
+    "lint:black",
+    "lint:flake8",
+    "lint:ruff"
+]}
+"lint:isort" = "isort src/smppai"
+"lint:black" = "black src/smppai"
+"lint:flake8" = "flake8 src/smppai"
+"lint:ruff" = "ruff src/smppai"
+
+demo1 = "python scripts/demo1.py"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = [
+    "black>=23.11.0",
+    "flake8>=6.1.0",
+    "isort>=5.12.0",
+    "mypy>=1.7.0",
+    "pylint>=3.0.2",
+    "pytest-coverage>=0.0",
+    "ruff>=0.1.5",
+    "pytest-asyncio>=0.21.1",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.black]
 line-length = 88
@@ -76,7 +101,7 @@ ignore = [
 [tool.pytest.ini_options]
 # https://docs.pytest.org/en/latest/reference/customize.html
 minversion = "6.0"
-addopts = "--doctest-modules -vv --cov=smppai --capture=no --log-cli-level=DEBUG --import-mode=importlib tests"
+addopts = "--doctest-modules -vv --cov=smppai --capture=no --log-cli-level=DEBUG --import-mode=importlib --ignore=tests/smpp tests"
 testpaths = [
     "tests",
 ]

@@ -10,7 +10,8 @@ LOGGING_LEVEL = 'DEBUG'
 
 SMPP_LOGGING_LEVEL = 'DEBUG'
 
-LOGGING_FORMAT = '[%(module)-10s:%(lineno)-3s]' '[%(thread)d] %(message)s'
+# LOGGING_FORMAT = '[%(module)-10s:%(lineno)-3s]' '[%(thread)d] %(message)s'
+LOGGING_FORMAT = '%(message)s'
 
 LOGGING_DATEFORMAT = '%Y-%m-%d %H:%M:%S %z'
 

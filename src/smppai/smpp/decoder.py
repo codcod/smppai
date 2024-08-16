@@ -2,7 +2,7 @@ import logging
 
 import smpplib
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('decoder')
 
 PDU = smpplib.pdu.PDU
 
@@ -12,9 +12,9 @@ class sequencer:
         return 1
 
 
-def decode(payload: bytes) -> PDU:
+def decode(data: bytes) -> PDU:
     pdu = smpplib.smpp.parse_pdu(
-        payload,
+        data,
         client=sequencer(),
         allow_unknown_opt_params=True,
     )
