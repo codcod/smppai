@@ -7,16 +7,25 @@ authors = [
 ]
 dependencies = [
     "smpplib>=2.2.3",
+<<<<<<< HEAD
     "rich>=13.6.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"
+=======
+    "asyncpg>=0.29.0",
+    "psycopg[binary]>=3.1.12",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+>>>>>>> df5db1e (chore: merge repos, may break things)
 keywords = ["smpp", "protocol", "esme", "smsc", "gsm", "sms"]
 # license = "LICENSE"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
 
+<<<<<<< HEAD
 [project.scripts]
 
 [tool.rye.scripts]
@@ -32,6 +41,20 @@ lint = { chain = [
 "lint:ruff" = "ruff src/smppai"
 
 demo1 = "python scripts/demo1.py"
+=======
+[tool.rye.scripts]
+lint = { chain = [
+    "lint:isort",
+    "lint:black",
+    "lint:flake8",
+    "lint:ruff"
+]}
+"lint:isort" = "isort smppai"
+"lint:black" = "black smppai"
+"lint:flake8" = "flake8 smppai"
+"lint:ruff" = "ruff smppai/**"
+
+>>>>>>> df5db1e (chore: merge repos, may break things)
 
 [build-system]
 requires = ["hatchling"]
@@ -41,6 +64,7 @@ build-backend = "hatchling.build"
 managed = true
 dev-dependencies = [
     "black>=23.11.0",
+<<<<<<< HEAD
     "flake8>=6.1.0",
     "isort>=5.12.0",
     "mypy>=1.7.0",
@@ -48,6 +72,14 @@ dev-dependencies = [
     "pytest-coverage>=0.0",
     "ruff>=0.1.5",
     "pytest-asyncio>=0.21.1",
+=======
+    "flake8>=5.0.4",
+    "isort>=5.12.0",
+    "mypy>=1.6.1",
+    "pylint>=3.0.2",
+    "pytest-coverage>=0.0",
+    "ruff>=0.1.5",
+>>>>>>> df5db1e (chore: merge repos, may break things)
 ]
 
 [tool.hatch.metadata]

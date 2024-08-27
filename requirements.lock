@@ -7,9 +7,18 @@
 #   all-features: false
 
 -e file:.
+<<<<<<< HEAD
 markdown-it-py==3.0.0
 mdurl==0.1.2
 pygments==2.16.1
 rich==13.6.0
 six==1.16.0
 smpplib==2.2.3
+=======
+asyncpg==0.29.0
+psycopg==3.1.12
+psycopg-binary==3.1.12
+six==1.16.0
+smpplib==2.2.3
+typing-extensions==4.8.0
+>>>>>>> df5db1e (chore: merge repos, may break things)
