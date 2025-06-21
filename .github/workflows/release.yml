@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Semantic Release
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write # For PyPI trusted publishing
+      actions: read # For checkout action
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          uv pip install python-semantic-release
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Configure git to use the token for authentication
+          git config url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Run Semantic Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Ensure we have latest changes before release
+          git fetch origin
+          git reset --hard origin/main
+
+          # Run semantic release
+          uv run semantic-release version
+
+  # publish-pypi:
+  #   runs-on: ubuntu-latest
+  #   name: Publish to PyPI
+  #   needs: release
+  #   if: needs.release.outputs.released == 'true'
+  #   permissions:
+  #     id-token: write # For PyPI trusted publishing
+  #   environment:
+  #     name: pypi
+  #     url: https://pypi.org/p/smppai
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: main
+
+  #     - name: Install uv
+  #       uses: astral-sh/setup-uv@v6
+  #       with:
+  #         enable-cache: true
+
+  #     - name: Set up Python
+  #       run: uv python install ${{ env.PYTHON_VERSION }}
+
+  #     - name: Install dependencies
+  #       run: uv sync --all-extras --dev
+
+  #     - name: Build package
+  #       run: uv build
+
+  #     - name: Publish to PyPI
+  #       uses: pypa/gh-action-pypi-publish@release/v1
+  #       with:
+  #         attestations: true

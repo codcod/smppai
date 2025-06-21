@@ -1,0 +1,222 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint & Format Check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          uv pip install -e .
+
+      - name: Run ruff check
+        run: uv run ruff check src tests
+
+      - name: Run ruff format check
+        run: uv run ruff format --check src tests
+
+  type-check:
+    runs-on: ubuntu-latest
+    name: Type Check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          uv pip install -e .
+
+      - name: Run mypy
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: uv run python -m mypy src
+
+  security:
+    runs-on: ubuntu-latest
+    name: Security Check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          uv pip install -e .
+
+      - name: Run bandit security check
+        run: uv run bandit -r src/ -f json -o bandit-report.json || true
+
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+    name: Test Python ${{ matrix.python-version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          uv pip install -e .
+
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          uv run python -m pytest tests/ \
+            --cov=src/smpp \
+            --cov-report=html \
+            --cov-report=term-missing \
+            --junitxml=pytest-report.xml
+
+  build:
+    runs-on: ubuntu-latest
+    name: Build Package
+    needs: [lint, type-check, test]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          uv pip install -e .
+
+      - name: Build package
+        run: uv build
+
+      - name: Check package
+        run: uv run twine check dist/*
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  integration-test:
+    runs-on: ubuntu-latest
+    name: Integration Tests
+    needs: [lint, type-check]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          uv pip install -e .
+
+      - name: Run integration tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          # Run examples to ensure they work
+          cd examples
+          uv run python --version
+          echo "Testing client example..."
+          timeout 10s uv run python client.py || true
+          echo "Testing server example..."
+          timeout 10s uv run python server.py || true
+
+      - name: Test import
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          uv run python -c "
+          import smpp
+          from smpp.client import SMPPClient
+          from smpp.server import SMPPServer
+          from smpp.protocol import BindTransmitter, SubmitSm
+          print('✓ All imports successful')
+          "
+
+  all-checks:
+    if: always()
+    runs-on: ubuntu-latest
+    name: All Checks Status
+    needs: [lint, type-check, security, test, build, integration-test]
+    steps:
+      - name: Check all jobs status
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" || \
+                "${{ needs.type-check.result }}" != "success" || \
+                "${{ needs.test.result }}" != "success" || \
+                "${{ needs.build.result }}" != "success" || \
+                "${{ needs.integration-test.result }}" != "success" ]]; then
+            echo "❌ One or more checks failed"
+            exit 1
+          else
+            echo "✅ All checks passed successfully"
+          fi

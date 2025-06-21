@@ -1,0 +1,33 @@
+# CODEOWNERS file for automatic code review assignments
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global code owners - these users will be requested for review on every PR
+* @codcod
+
+# Python source code
+/src/ @codcod
+*.py @codcod
+
+# Configuration files
+pyproject.toml @codcod
+uv.lock @codcod
+.python-version @codcod
+.env.sample @codcod
+
+# Documentation
+README.md @codcod
+CHANGELOG.md @codcod
+/docs/ @codcod
+
+# GitHub workflows and configuration
+/.github/ @codcod
+/.github/workflows/ @codcod
+/.github/dependabot.yml @codcod
+
+# Build and development configuration
+Makefile @codcod
+.editorconfig @codcod
+.gitignore @codcod
+
+# Scripts and executables
+/bin/ @codcod
