@@ -110,31 +110,38 @@ jobs:
     timeout-minutes: 30 # Prevent hanging jobs
     strategy:
       fail-fast: false # Don't cancel other jobs on failure
-      matrix:
-        python-version: ["3.12", "3.13"]
-        os: ["ubuntu-latest"]
       # matrix:
-      #   include:
-      #     # Lightweight combinations
-      #     - python-version: "3.11"
-      #       os: "ubuntu-latest"
-      #       test-type: "minimal"
-      #     - python-version: "3.12"
-      #       os: "ubuntu-latest"
-      #       test-type: "standard"
-      #     # Full test on latest
-      #     - python-version: "3.13"
-      #       os: "ubuntu-latest"
-      #       test-type: "full"
-      #     # Cross-platform on latest Python only
-      #     - python-version: "3.13"
-      #       os: "windows-latest"
-      #       test-type: "standard"
-      #       coverage: false
-      #     - python-version: "3.13"
-      #       os: "macos-latest"
-      #       test-type: "standard"
-      #       coverage: false
+      #   python-version: ["3.12", "3.13"]
+      #   os: ["ubuntu-latest"]
+      matrix:
+        include:
+          # --- Lightweight combinations
+          - python-version: "3.10"
+            os: "ubuntu-latest"
+            # test-type: "minimal"
+            coverage: false
+          - python-version: "3.11"
+            os: "ubuntu-latest"
+            # test-type: "minimal"
+            coverage: false
+          - python-version: "3.12"
+            os: "ubuntu-latest"
+            # test-type: "standard"
+            coverage: false
+          # --- Full test on latest
+          - python-version: "3.13"
+            os: "ubuntu-latest"
+            # test-type: "full"
+            coverage: true
+          # --- Cross-platform on latest Python only
+          - python-version: "3.13"
+            os: "windows-latest"
+            # test-type: "standard"
+            coverage: false
+          - python-version: "3.13"
+            os: "macos-latest"
+            # test-type: "standard"
+            coverage: false
     name: Unit tests Python ${{ matrix.python-version }} on ${{ matrix.os }}
     steps:
       - name: Checkout repository
@@ -154,45 +161,45 @@ jobs:
           uv sync --all-extras --dev
           uv pip install -e .
 
-      - name: Run tests with coverage
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
-        run: |
-          uv run python -m pytest tests/ \
-            --cov=src/smpp \
-            --cov-report=html \
-            --cov-report=xml \
-            --cov-report=term-missing \
-            --junitxml=pytest-report.xml
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
-          path: |
-            coverage.xml
-            htmlcov/
       # - name: Run tests with coverage
       #   env:
       #     PYTHONPATH: ${{ github.workspace }}/src
       #   run: |
-      #     if [[ "${{ matrix.coverage }}" == "true" ]]; then
-      #       uv run python -m pytest tests/ \
-      #         --cov=src/smpp \
-      #         --cov-report=xml \
-      #         --cov-report=html \
-      #         --junitxml=pytest-report.xml
-      #     else
-      #       uv run python -m pytest tests/ \
-      #         --junitxml=pytest-report.xml
-      #     fi
+      #     uv run python -m pytest tests/ \
+      #       --cov=src/smpp \
+      #       --cov-report=html \
+      #       --cov-report=xml \
+      #       --cov-report=term-missing \
+      #       --junitxml=pytest-report.xml
       # - name: Upload coverage
-      #   if: matrix.coverage == true
       #   uses: actions/upload-artifact@v4
       #   with:
       #     name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
       #     path: |
       #       coverage.xml
       #       htmlcov/
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          if [[ "${{ matrix.coverage }}" == "true" ]]; then
+            uv run python -m pytest tests/ \
+              --cov=src/smpp \
+              --cov-report=xml \
+              --cov-report=html \
+              --junitxml=pytest-report.xml
+          else
+            uv run python -m pytest tests/ \
+              --junitxml=pytest-report.xml
+          fi
+      - name: Upload coverage
+        if: matrix.coverage == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
+          path: |
+            coverage.xml
+            htmlcov/
 
   integration-test:
     runs-on: ubuntu-latest
