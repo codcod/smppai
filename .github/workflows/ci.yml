@@ -201,7 +201,7 @@ jobs:
   integration-test:
     runs-on: ubuntu-latest
     needs: [lint, type-check]
-    name: Integration Tests on Python ${{ env.PRIMARY_PYTHON_VERSION }} and ubuntu-latest
+    name: Integration Tests on Python 3.13 and ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
