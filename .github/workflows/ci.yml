@@ -181,6 +181,7 @@ jobs:
       - name: Run tests with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}/src
+        shell: bash
         run: |
           if [[ "${{ matrix.coverage }}" == "true" ]]; then
             uv run python -m pytest tests/ \
