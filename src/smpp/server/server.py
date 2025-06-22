@@ -90,6 +90,7 @@ class SMPPServer:
         self._message_id_counter = 1
         self._shutdown_event = asyncio.Event()
         self._shutdown_timeout = 30.0  # seconds to wait for graceful shutdown
+        self._shutdown_in_progress = False  # Flag to prevent multiple shutdowns
 
         # Authentication callback - should return True if credentials are valid
         self.authenticate: Optional[Callable[[str, str, str], bool]] = None
@@ -114,7 +115,7 @@ class SMPPServer:
     def set_shutdown_timeout(self, timeout: float) -> None:
         """
         Set the timeout for graceful shutdown.
-        
+
         Args:
             timeout: Maximum time in seconds to wait for clients to disconnect
         """
@@ -138,7 +139,7 @@ class SMPPServer:
     @property
     def shutdown_requested(self) -> bool:
         """Check if shutdown has been requested"""
-        return self._shutdown_event.is_set()
+        return self._shutdown_event.is_set() or self._shutdown_in_progress
 
     @property
     def client_count(self) -> int:
@@ -157,17 +158,18 @@ class SMPPServer:
         )
 
         self._running = True
-        
+
         # Set up signal handlers for graceful shutdown
         self._setup_signal_handlers()
-        
+
         logger.info(f'SMPP server started on {self.host}:{self.port}')
 
     async def stop(self) -> None:
         """Stop the SMPP server gracefully"""
-        if not self.is_running:
+        if not self.is_running or self._shutdown_in_progress:
             return
 
+        self._shutdown_in_progress = True
         logger.info('Initiating graceful shutdown of SMPP server')
         self._running = False
 
@@ -186,19 +188,18 @@ class SMPPServer:
             logger.error(f'Error during server shutdown: {e}')
         finally:
             self._clients.clear()
+            self._shutdown_in_progress = False
             logger.info('SMPP server stopped')
 
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown"""
         try:
-            # Only set up signal handlers if we're running in the main thread
-            loop = asyncio.get_running_loop()
-            
             def signal_handler(signum, frame):
-                logger.info(f'Received signal {signum}, initiating graceful shutdown')
-                self._shutdown_event.set()
-                # Schedule the shutdown coroutine
-                asyncio.create_task(self.stop())
+                if not self._shutdown_event.is_set():
+                    logger.info(f'Received signal {signum}, initiating graceful shutdown')
+                    self._shutdown_event.set()
+                else:
+                    logger.info(f'Received signal {signum}, shutdown already in progress')
 
             # Set up handlers for common shutdown signals
             for sig in [signal.SIGTERM, signal.SIGINT]:
@@ -208,7 +209,7 @@ class SMPPServer:
                 except (ValueError, OSError) as e:
                     # This can happen in threads or Windows
                     logger.debug(f'Could not register signal handler for {sig}: {e}')
-                    
+
         except Exception as e:
             logger.debug(f'Could not set up signal handlers: {e}')
 
@@ -218,7 +219,7 @@ class SMPPServer:
             return
 
         logger.info(f'Disconnecting {len(self._clients)} clients gracefully')
-        
+
         # Send unbind requests to all bound clients
         unbind_tasks = []
         for client in list(self._clients.values()):
@@ -263,15 +264,15 @@ class SMPPServer:
             if client.connection and client.bound:
                 # Create unbind PDU
                 unbind_pdu = Unbind()
-                
+
                 # Send unbind and wait for response
                 await client.connection.send_pdu(unbind_pdu, wait_response=True, timeout=5.0)
                 logger.debug(f'Sent unbind to client {client.system_id}')
-                
+
                 # Update client state
                 client.bound = False
                 client.bind_type = ''
-                
+
         except Exception as e:
             logger.warning(f'Error sending unbind to client {client.system_id}: {e}')
 
@@ -699,15 +700,16 @@ class SMPPServer:
     async def serve_forever(self) -> None:
         """
         Start the server and run until shutdown signal is received.
-        
+
         This method handles graceful shutdown when SIGTERM or SIGINT is received.
         """
         await self.start()
-        
+
         try:
             logger.info('Server running, waiting for shutdown signal...')
             # Wait for shutdown signal
             await self._shutdown_event.wait()
+            logger.info('Shutdown signal received, stopping server...')
         except KeyboardInterrupt:
             logger.info('Keyboard interrupt received')
         finally:
