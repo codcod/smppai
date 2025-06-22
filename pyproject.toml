@@ -4,6 +4,24 @@ version = "0.1.0"
 description = "Async SMPP (Short Message Peer-to-Peer) Protocol v3.4 Implementation"
 readme = "README.md"
 requires-python = ">=3.13"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Typing :: Typed",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Operating System :: OS Independent",
+]
+keywords = [
+    "async",
+    "asyncio",
+    "library",
+    "smpp",
+    "smppv3.4",
+]
 dependencies = ["typing-extensions>=4.0.0"]
 
 [dependency-groups]
