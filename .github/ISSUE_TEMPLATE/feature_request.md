@@ -6,41 +6,27 @@ labels: ['enhancement', 'triage']
 assignees: ''
 ---
 
-## 🚀 Feature Description
+## Description
 <!-- A clear and concise description of the feature you'd like to see added -->
 
-## 🎯 Problem Statement
+## Problem statement
 <!-- Is your feature request related to a problem? Please describe -->
 I'm always frustrated when [...]
 
-## 💡 Proposed Solution
+## Proposed solution
 <!-- Describe the solution you'd like -->
-
-## 🔄 Alternative Solutions
-<!-- Describe any alternative solutions or features you've considered -->
-
-## 📊 Use Case
 <!-- Describe your use case and how this feature would help -->
-
-## 🌍 Impact
-<!-- Who would benefit from this feature? -->
-- [ ] SMPP Client users
-- [ ] SMPP Server users
-- [ ] Protocol developers
-- [ ] Performance improvements
-- [ ] Ease of use improvements
-
-## 🎨 Implementation Ideas
 <!-- If you have ideas on how to implement this, please share them -->
 
-## 📚 References
+## References
 <!-- Any relevant links, RFCs, or documentation -->
 
-## 🔧 Breaking Changes
+## Breaking changes
 <!-- Would this feature require breaking changes? -->
 - [ ] Yes, this would require breaking changes
 - [ ] No, this is backward compatible
 - [ ] Unsure
 
-## 📝 Additional Context
+## Additional context
 <!-- Add any other context, screenshots, or examples about the feature request here -->
+<!-- Describe any alternative solutions or features you've considered -->
