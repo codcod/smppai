@@ -7,6 +7,7 @@ for testing SMPP clients or as a foundation for building custom SMSC solutions.
 
 import asyncio
 import logging
+import signal
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
@@ -87,6 +88,8 @@ class SMPPServer:
         self._running = False
         self._clients: Dict[str, ClientSession] = {}
         self._message_id_counter = 1
+        self._shutdown_event = asyncio.Event()
+        self._shutdown_timeout = 30.0  # seconds to wait for graceful shutdown
 
         # Authentication callback - should return True if credentials are valid
         self.authenticate: Optional[Callable[[str, str, str], bool]] = None
@@ -108,6 +111,16 @@ class SMPPServer:
         # Default authentication (allows all)
         self.authenticate = self._default_authenticate
 
+    def set_shutdown_timeout(self, timeout: float) -> None:
+        """
+        Set the timeout for graceful shutdown.
+        
+        Args:
+            timeout: Maximum time in seconds to wait for clients to disconnect
+        """
+        self._shutdown_timeout = max(0.0, timeout)
+        logger.debug(f'Shutdown timeout set to {self._shutdown_timeout}s')
+
     def _default_authenticate(
         self, system_id: str, password: str, system_type: str
     ) -> bool:
@@ -121,6 +134,11 @@ class SMPPServer:
     def is_running(self) -> bool:
         """Check if server is running"""
         return self._running and self._server is not None
+
+    @property
+    def shutdown_requested(self) -> bool:
+        """Check if shutdown has been requested"""
+        return self._shutdown_event.is_set()
 
     @property
     def client_count(self) -> int:
@@ -139,32 +157,123 @@ class SMPPServer:
         )
 
         self._running = True
+        
+        # Set up signal handlers for graceful shutdown
+        self._setup_signal_handlers()
+        
         logger.info(f'SMPP server started on {self.host}:{self.port}')
 
     async def stop(self) -> None:
-        """Stop the SMPP server"""
+        """Stop the SMPP server gracefully"""
         if not self.is_running:
             return
 
-        logger.info('Stopping SMPP server')
+        logger.info('Initiating graceful shutdown of SMPP server')
         self._running = False
 
-        # Close server
-        if self._server:
-            self._server.close()
-            await self._server.wait_closed()
-            self._server = None
+        try:
+            # Stop accepting new connections
+            if self._server:
+                self._server.close()
+                await self._server.wait_closed()
+                self._server = None
+                logger.info('Server stopped accepting new connections')
 
-        # Disconnect all clients
-        clients_to_disconnect = list(self._clients.values())
-        for client in clients_to_disconnect:
+            # Gracefully disconnect all clients
+            await self._graceful_client_shutdown()
+
+        except Exception as e:
+            logger.error(f'Error during server shutdown: {e}')
+        finally:
+            self._clients.clear()
+            logger.info('SMPP server stopped')
+
+    def _setup_signal_handlers(self) -> None:
+        """Set up signal handlers for graceful shutdown"""
+        try:
+            # Only set up signal handlers if we're running in the main thread
+            loop = asyncio.get_running_loop()
+            
+            def signal_handler(signum, frame):
+                logger.info(f'Received signal {signum}, initiating graceful shutdown')
+                self._shutdown_event.set()
+                # Schedule the shutdown coroutine
+                asyncio.create_task(self.stop())
+
+            # Set up handlers for common shutdown signals
+            for sig in [signal.SIGTERM, signal.SIGINT]:
+                try:
+                    signal.signal(sig, signal_handler)
+                    logger.debug(f'Signal handler registered for {sig}')
+                except (ValueError, OSError) as e:
+                    # This can happen in threads or Windows
+                    logger.debug(f'Could not register signal handler for {sig}: {e}')
+                    
+        except Exception as e:
+            logger.debug(f'Could not set up signal handlers: {e}')
+
+    async def _graceful_client_shutdown(self) -> None:
+        """Gracefully disconnect all clients"""
+        if not self._clients:
+            return
+
+        logger.info(f'Disconnecting {len(self._clients)} clients gracefully')
+        
+        # Send unbind requests to all bound clients
+        unbind_tasks = []
+        for client in list(self._clients.values()):
+            if client.bound:
+                task = asyncio.create_task(self._send_unbind_to_client(client))
+                unbind_tasks.append(task)
+
+        # Wait for unbind responses with timeout
+        if unbind_tasks:
             try:
-                await client.connection.disconnect()
-            except Exception as e:
-                logger.warning(f'Error disconnecting client: {e}')
+                await asyncio.wait_for(
+                    asyncio.gather(*unbind_tasks, return_exceptions=True),
+                    timeout=10.0
+                )
+                logger.info('Sent unbind requests to all bound clients')
+            except asyncio.TimeoutError:
+                logger.warning('Timeout waiting for unbind responses')
 
-        self._clients.clear()
-        logger.info('SMPP server stopped')
+        # Force disconnect remaining clients
+        disconnect_tasks = []
+        for client in list(self._clients.values()):
+            try:
+                task = asyncio.create_task(client.connection.disconnect())
+                disconnect_tasks.append(task)
+            except Exception as e:
+                logger.warning(f'Error creating disconnect task for client: {e}')
+
+        # Wait for all disconnections with timeout
+        if disconnect_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*disconnect_tasks, return_exceptions=True),
+                    timeout=self._shutdown_timeout
+                )
+                logger.info('All clients disconnected')
+            except asyncio.TimeoutError:
+                logger.warning(f'Timeout after {self._shutdown_timeout}s waiting for client disconnections')
+
+    async def _send_unbind_to_client(self, client: ClientSession) -> None:
+        """Send unbind request to a client"""
+        try:
+            if client.connection and client.bound:
+                # Create unbind PDU
+                unbind_pdu = Unbind()
+                
+                # Send unbind and wait for response
+                await client.connection.send_pdu(unbind_pdu, wait_response=True, timeout=5.0)
+                logger.debug(f'Sent unbind to client {client.system_id}')
+                
+                # Update client state
+                client.bound = False
+                client.bind_type = ''
+                
+        except Exception as e:
+            logger.warning(f'Error sending unbind to client {client.system_id}: {e}')
 
     async def _handle_client_connection(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -587,6 +696,23 @@ class SMPPServer:
         self._message_id_counter += 1
         return msg_id
 
+    async def serve_forever(self) -> None:
+        """
+        Start the server and run until shutdown signal is received.
+        
+        This method handles graceful shutdown when SIGTERM or SIGINT is received.
+        """
+        await self.start()
+        
+        try:
+            logger.info('Server running, waiting for shutdown signal...')
+            # Wait for shutdown signal
+            await self._shutdown_event.wait()
+        except KeyboardInterrupt:
+            logger.info('Keyboard interrupt received')
+        finally:
+            await self.stop()
+
     def get_client_sessions(self) -> List[ClientSession]:
         """Get list of all client sessions"""
         return list(self._clients.values())
@@ -601,7 +727,9 @@ class SMPPServer:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit"""
+        """Async context manager exit with graceful shutdown"""
+        if exc_type is KeyboardInterrupt:
+            logger.info('KeyboardInterrupt in context manager, shutting down gracefully')
         await self.stop()
 
     def __repr__(self) -> str:
