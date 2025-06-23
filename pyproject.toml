@@ -3,12 +3,34 @@ name = "smppai"
 version = "0.1.0"
 description = "Async SMPP (Short Message Peer-to-Peer) Protocol v3.4 Implementation"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Typing :: Typed",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Operating System :: OS Independent",
+]
+keywords = [
+    "async",
+    "asyncio",
+    "library",
+    "smpp",
+    "smppv3.4",
+]
 dependencies = ["typing-extensions>=4.0.0"]
 
 [dependency-groups]
 dev = [
   "bandit>=1.8.5",
+  "black>=25.1.0",
   "build>=1.2.2.post1",
   "mypy-extensions>=1.1.0",
   "mypy>=1.0.0",
@@ -33,6 +55,22 @@ exclude = ["**/node_modules", "**/__pycache__", "**/*.pyc"]
 reportMissingImports = true # Report missing imports
 reportUnusedImports = true  # Report unused imports
 reportUnusedFunction = true # Report unused functions
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+include = '\.pyi?$'
+exclude = '''(
+    /(
+        .git
+        | .mypy_cache
+        | .pytest_cache
+        | build
+        | dist
+    )/
+)'''
+skip-string-normalization = true
+fast = false
 
 [tool.ruff]
 line-length = 88

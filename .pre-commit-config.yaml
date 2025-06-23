@@ -1,0 +1,25 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-toml
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.0
+    hooks:
+      - id: ruff
+      - id: ruff-format
+  # - repo: https://github.com/jackdewinter/pymarkdown
+  #   rev: v0.9.24
+  #   hooks:
+  #     - id: pymarkdown
+  #       exclude: "CHANGELOG.md"
+  # - repo: https://github.com/econchick/interrogate
+  #   rev: 1.7.0
+  #   hooks:
+  #     - id: interrogate
+  #       pass_filenames: false # needed if excluding files with pyproject.toml or setup.cfg

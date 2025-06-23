@@ -6,10 +6,10 @@ labels: ['documentation', 'triage']
 assignees: ''
 ---
 
-## 📚 Documentation Issue
+## Description
 <!-- Describe the issue with the documentation -->
 
-## 📍 Location
+## Location
 <!-- Where is the problematic documentation located? -->
 - [ ] README.md
 - [ ] API Documentation
@@ -18,21 +18,11 @@ assignees: ''
 - [ ] Docstrings
 - [ ] Other: [specify]
 
-## 🔗 Link/File
+## Link
 <!-- Provide a link or file path to the problematic documentation -->
 
-## ❌ Current Content
-<!-- What does the documentation currently say? -->
-
-## ✅ Suggested Improvement
+## Suggested improvement
 <!-- How should it be improved? -->
 
-## 🎯 Impact
-<!-- Who is affected by this documentation issue? -->
-- [ ] New users
-- [ ] Experienced users
-- [ ] Contributors
-- [ ] API consumers
-
-## 📝 Additional Context
+## Additional context
 <!-- Add any other context about the documentation issue -->

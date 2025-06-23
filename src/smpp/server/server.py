@@ -7,8 +7,9 @@ for testing SMPP clients or as a foundation for building custom SMSC solutions.
 
 import asyncio
 import logging
+import signal
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from ..exceptions import SMPPException
 from ..protocol import (
@@ -53,10 +54,40 @@ class ClientSession:
 
 class SMPPServer:
     """
-    Async SMPP Server (SMSC) Implementation
+    Enhanced SMPP Server with graceful shutdown capabilities.
 
-    Provides a basic SMPP server that can handle client connections,
-    bind operations, and message submission/delivery.
+    This server implementation provides comprehensive shutdown handling with:
+
+    Shutdown Sequence:
+    1. Stop accepting new connections
+    2. Send shutdown notifications to all bound clients
+    3. Wait for grace period for clients to disconnect gracefully
+    4. Send reminder notifications to remaining clients
+    5. Send unbind requests to remaining clients
+    6. Force disconnect after timeout
+
+    Configuration:
+        grace_period: Time to wait after initial notification (default: 30s)
+        reminder_delay: Additional time after reminder (default: 10s)
+        shutdown_timeout: Maximum time for force disconnect (default: 30s)
+
+    Features:
+    - Thread-safe shutdown operations
+    - Signal handler support (SIGTERM/SIGINT)
+    - Proper resource cleanup
+    - Restart capability after shutdown
+    - Comprehensive error handling
+
+    Usage:
+        # Context manager (recommended)
+        async with SMPPServer() as server:
+            server.configure_shutdown(grace_period=15.0, reminder_delay=5.0)
+            await server.serve_forever()
+
+        # Manual lifecycle
+        server = SMPPServer()
+        await server.start()
+        await server.serve_forever()  # Handles shutdown automatically
     """
 
     def __init__(
@@ -66,6 +97,7 @@ class SMPPServer:
         system_id: str = 'SMSC',
         interface_version: int = 0x34,
         max_connections: int = 100,
+        setup_signal_handlers: bool = True,
     ):
         """
         Initialize SMPP Server
@@ -76,17 +108,38 @@ class SMPPServer:
             system_id: Server system ID
             interface_version: SMPP interface version
             max_connections: Maximum concurrent connections
+            setup_signal_handlers: Whether to set up signal handlers for graceful shutdown
         """
         self.host = host
         self.port = port
         self.system_id = system_id
         self.interface_version = interface_version
         self.max_connections = max_connections
+        self._setup_signals = setup_signal_handlers
 
         self._server: Optional[asyncio.Server] = None
         self._running = False
         self._clients: Dict[str, ClientSession] = {}
         self._message_id_counter = 1
+        self._shutdown_event = asyncio.Event()  # Always create for clarity
+        self._shutdown_timeout = 30.0  # seconds to wait for graceful shutdown
+        self._signal_handlers_set = False  # Track signal handler registration
+        self._original_signal_handlers: Dict[int, Any] = {}  # Store original handlers
+
+        # Enhanced shutdown configuration
+        self._shutdown_grace_period = (
+            30.0  # seconds to wait after shutdown notification
+        )
+        self._shutdown_reminder_delay = 10.0  # seconds after grace period for reminder
+        self._shutdown_in_progress = (
+            False  # Flag to control acceptance of new connections/messages
+        )
+        self._shutdown_lock = asyncio.Lock()  # Thread-safe shutdown operations
+        self._loop: Optional[asyncio.AbstractEventLoop] = (
+            None  # Store event loop reference
+        )
+        self._accept_new_connections = True  # Flag to control new connection acceptance
+        self._accept_new_messages = True  # Flag to control new message acceptance
 
         # Authentication callback - should return True if credentials are valid
         self.authenticate: Optional[Callable[[str, str, str], bool]] = None
@@ -108,6 +161,20 @@ class SMPPServer:
         # Default authentication (allows all)
         self.authenticate = self._default_authenticate
 
+    def set_shutdown_timeout(self, timeout: float) -> None:
+        """
+        Set the timeout for graceful shutdown.
+
+        Args:
+            timeout: Maximum time in seconds to wait for clients to disconnect
+        """
+        if timeout < 0:
+            raise ValueError('Shutdown timeout must be non-negative')
+        if timeout > 7200:  # 2 hours max
+            raise ValueError('Shutdown timeout must not exceed 7200 seconds')
+        self._shutdown_timeout = timeout
+        logger.debug(f'Shutdown timeout set to {self._shutdown_timeout}s')
+
     def _default_authenticate(
         self, system_id: str, password: str, system_type: str
     ) -> bool:
@@ -121,6 +188,15 @@ class SMPPServer:
     def is_running(self) -> bool:
         """Check if server is running"""
         return self._running and self._server is not None
+
+    def _ensure_shutdown_event(self) -> asyncio.Event:
+        """Get shutdown event (always exists now)"""
+        return self._shutdown_event
+
+    @property
+    def shutdown_requested(self) -> bool:
+        """Check if shutdown has been requested"""
+        return self._shutdown_event.is_set()
 
     @property
     def client_count(self) -> int:
@@ -139,37 +215,347 @@ class SMPPServer:
         )
 
         self._running = True
+
+        # Set up signal handlers for graceful shutdown (if enabled and not already set)
+        if self._setup_signals and not self._signal_handlers_set:
+            self._setup_signal_handlers()
+            self._signal_handlers_set = True
+
         logger.info(f'SMPP server started on {self.host}:{self.port}')
 
     async def stop(self) -> None:
-        """Stop the SMPP server"""
-        if not self.is_running:
-            return
+        """
+        Stop the SMPP server gracefully with enhanced shutdown sequence.
 
-        logger.info('Stopping SMPP server')
-        self._running = False
+        This method is thread-safe and ensures the full enhanced shutdown sequence
+        runs exactly once, regardless of how shutdown is triggered.
+        """
+        async with self._shutdown_lock:
+            if self._shutdown_in_progress:
+                return  # Already shutting down
 
-        # Close server
+            if not self._running:
+                return  # Not running
+
+            self._shutdown_in_progress = True
+            logger.info('Initiating graceful shutdown of SMPP server')
+            self._running = False
+
+            # Set shutdown event to unblock serve_forever if it's waiting
+            self._shutdown_event.set()
+
+        try:
+            # First, gracefully disconnect all clients with enhanced sequence
+            await self._graceful_client_shutdown()
+
+            # Then stop accepting new connections
+            await self._stop_server()
+
+        except Exception as e:
+            logger.error(f'Error during server shutdown: {e}')
+        finally:
+            await self._reset_shutdown_state()
+
+    async def _stop_server(self) -> None:
+        """Stop the server and close connections."""
         if self._server:
             self._server.close()
             await self._server.wait_closed()
             self._server = None
+            logger.info('Server stopped accepting new connections')
 
-        # Disconnect all clients
-        clients_to_disconnect = list(self._clients.values())
-        for client in clients_to_disconnect:
-            try:
-                await client.connection.disconnect()
-            except Exception as e:
-                logger.warning(f'Error disconnecting client: {e}')
+    async def _reset_shutdown_state(self) -> None:
+        """Reset shutdown state for potential restart."""
+        async with self._shutdown_lock:
+            # Unregister signal handlers
+            if self._setup_signals:
+                self._unregister_signal_handlers()
 
+            # Reset shutdown event and flags for potential restart
+            self._shutdown_event = asyncio.Event()
+            self._shutdown_in_progress = False
+            self._accept_new_connections = True
+            self._accept_new_messages = True
+            logger.info('SMPP server stopped')
+
+    def _setup_signal_handlers(self) -> None:
+        """Set up signal handlers for graceful shutdown using proper async patterns."""
+        if not self._setup_signals:
+            return
+
+        try:
+            # Store loop reference during setup
+            self._loop = asyncio.get_running_loop()
+
+            def signal_handler(signum, frame):
+                logger.info(f'Received signal {signum}, initiating graceful shutdown')
+                if self._loop and not self._loop.is_closed():
+                    self._loop.call_soon_threadsafe(
+                        self._handle_shutdown_signal, signum
+                    )
+                else:
+                    logger.warning('Event loop not available for signal handling')
+
+            # Set up handlers for common shutdown signals
+            for sig in [signal.SIGTERM, signal.SIGINT]:
+                try:
+                    original_handler = signal.signal(sig, signal_handler)
+                    self._original_signal_handlers[sig] = original_handler
+                    self._signal_handlers_set = True
+                    logger.debug(f'Signal handler registered for {sig}')
+                except (ValueError, OSError) as e:
+                    logger.debug(f'Could not register signal handler for {sig}: {e}')
+
+        except Exception as e:
+            logger.warning(f'Could not set up signal handlers: {e}')
+
+    def _handle_shutdown_signal(self, signum: int) -> None:
+        """Handle shutdown signal in async context."""
+        logger.debug(f'Processing shutdown signal {signum} in async context')
+        self._shutdown_event.set()
+
+    def _unregister_signal_handlers(self) -> None:
+        """Unregister signal handlers to clean up on shutdown"""
+        try:
+            for sig, original_handler in self._original_signal_handlers.items():
+                try:
+                    signal.signal(sig, original_handler)
+                    logger.debug(f'Signal handler restored for {sig}')
+                except (ValueError, OSError) as e:
+                    logger.debug(f'Could not restore signal handler for {sig}: {e}')
+            self._original_signal_handlers.clear()
+            self._signal_handlers_set = False
+        except Exception as e:
+            logger.warning(f'Could not unregister signal handlers: {e}')
+
+    async def _send_shutdown_notification(
+        self, session: ClientSession, is_reminder: bool = False
+    ) -> bool:
+        """
+        Send shutdown notification to a client session with comprehensive error handling.
+
+        Returns:
+            True if notification was sent successfully, False otherwise
+        """
+        try:
+            message_type = 'reminder' if is_reminder else 'notification'
+            grace_period_seconds = self._shutdown_grace_period
+
+            # Format grace period appropriately
+            if grace_period_seconds >= 1.0:
+                grace_period_str = f'{int(grace_period_seconds)}s'
+            else:
+                grace_period_str = f'{grace_period_seconds:.1f}s'
+
+            # Create shutdown notification as a deliver_sm PDU with special message
+            message_text = f'SMPP server shutdown {message_type}. '
+            if not is_reminder:
+                message_text += (
+                    f'Grace period: {grace_period_str}. Please disconnect gracefully.'
+                )
+            else:
+                message_text += 'Final warning - server shutting down shortly.'
+
+            # Send as deliver_sm
+            deliver_pdu = DeliverSm(
+                service_type='',
+                source_addr_ton=TonType.UNKNOWN,
+                source_addr_npi=NpiType.UNKNOWN,
+                source_addr=self.system_id[:21],  # Truncate to max 21 chars
+                dest_addr_ton=TonType.UNKNOWN,
+                dest_addr_npi=NpiType.UNKNOWN,
+                destination_addr=session.system_id or 'unknown',
+                esm_class=0,
+                protocol_id=0,
+                priority_flag=0,
+                schedule_delivery_time='',
+                validity_period='',
+                registered_delivery=0,
+                replace_if_present_flag=0,
+                data_coding=DataCoding.DEFAULT,
+                sm_default_msg_id=0,
+                short_message=message_text.encode('utf-8'),
+            )
+
+            await session.connection.send_pdu(deliver_pdu, wait_response=False)
+            logger.info(f'Sent shutdown {message_type} to {session.system_id}')
+            return True
+
+        except asyncio.CancelledError:
+            raise  # Re-raise cancellation
+        except Exception as e:
+            logger.error(
+                f'Failed to send shutdown notification to {session.system_id}: {e}'
+            )
+            return False
+
+    async def _broadcast_shutdown_notification(self, is_reminder: bool = False) -> None:
+        """Send shutdown notification to all bound clients"""
+        notification_type = 'reminder' if is_reminder else 'notification'
+        logger.info(
+            f'Broadcasting shutdown {notification_type} to {len(self._clients)} clients'
+        )
+
+        tasks = []
+        for session in self._clients.values():
+            if session.bound and session.bind_type in ('receiver', 'transceiver'):
+                task = asyncio.create_task(
+                    self._send_shutdown_notification(session, is_reminder)
+                )
+                tasks.append(task)
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _graceful_client_shutdown(self) -> None:
+        """
+        Enhanced graceful shutdown with broadcast notifications and grace periods.
+        """
+        logger.info('Starting enhanced graceful shutdown sequence')
+        self._shutdown_in_progress = True
+        self._accept_new_connections = False
+        self._accept_new_messages = False
+
+        if not self._clients:
+            logger.info(
+                'No clients connected - still respecting grace period for demonstration'
+            )
+            logger.info(
+                f'Grace period: waiting {self._shutdown_grace_period}s as configured'
+            )
+            await asyncio.sleep(self._shutdown_grace_period)
+            logger.info('Grace period complete - enhanced shutdown sequence complete')
+            return
+
+        logger.info(f'Shutting down with {len(self._clients)} clients connected')
+
+        # Notify clients and wait for graceful disconnection
+        await self._notify_and_wait_for_disconnect()
+
+        # Force disconnect any remaining clients
+        await self._force_disconnect_remaining_clients()
+
+    async def _notify_and_wait_for_disconnect(self) -> None:
+        """Send notifications and wait for clients to disconnect gracefully."""
+        # Send initial shutdown notification
+        await self._broadcast_shutdown_notification(is_reminder=False)
+
+        # Wait for grace period
+        if await self._wait_for_graceful_disconnect():
+            return  # All clients disconnected
+
+        # Send reminder and wait additional time
+        remaining_bound = [c for c in self._clients.values() if c.bound]
+        if remaining_bound:
+            logger.info(
+                f'Sending shutdown reminder to {len(remaining_bound)} remaining clients'
+            )
+            await self._broadcast_shutdown_notification(is_reminder=True)
+            logger.info(f'Waiting {self._shutdown_reminder_delay}s after reminder')
+            await asyncio.sleep(self._shutdown_reminder_delay)
+
+    async def _wait_for_graceful_disconnect(self) -> bool:
+        """
+        Wait for grace period and check if clients disconnect.
+
+        Returns:
+            True if all clients disconnected, False if timeout reached
+        """
+        logger.info(
+            f'Grace period started - waiting {self._shutdown_grace_period}s for clients to disconnect'
+        )
+        grace_start = asyncio.get_event_loop().time()
+
+        while (
+            asyncio.get_event_loop().time() - grace_start
+        ) < self._shutdown_grace_period:
+            bound_clients = [c for c in self._clients.values() if c.bound]
+            if not bound_clients:
+                logger.info('All clients disconnected during grace period')
+                return True
+            await asyncio.sleep(1.0)  # Check every second
+
+        return False
+
+    async def _force_disconnect_remaining_clients(self) -> None:
+        """Force disconnect all remaining clients."""
+        clients_to_cleanup = list(self._clients.values())
         self._clients.clear()
-        logger.info('SMPP server stopped')
+
+        # Send unbind requests to bound clients
+        await self._send_unbind_requests(clients_to_cleanup)
+
+        # Force disconnect all clients
+        await self._disconnect_all_clients(clients_to_cleanup)
+
+    async def _send_unbind_requests(self, clients: List[ClientSession]) -> None:
+        """Send unbind requests to all bound clients."""
+        unbind_tasks = [
+            self._send_unbind_to_client(client) for client in clients if client.bound
+        ]
+
+        if unbind_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*unbind_tasks, return_exceptions=True), timeout=10.0
+                )
+                logger.debug('Sent unbind requests to all bound clients')
+            except asyncio.TimeoutError:
+                logger.warning('Timeout waiting for unbind responses (10s)')
+
+    async def _disconnect_all_clients(self, clients: List[ClientSession]) -> None:
+        """Force disconnect all clients."""
+        disconnect_tasks = []
+        for client in clients:
+            try:
+                task = asyncio.create_task(client.connection.disconnect())
+                disconnect_tasks.append(task)
+            except Exception as e:
+                logger.warning(f'Error creating disconnect task for client: {e}')
+
+        if disconnect_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*disconnect_tasks, return_exceptions=True),
+                    timeout=self._shutdown_timeout,
+                )
+                logger.debug('All clients disconnected')
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f'Timeout after {self._shutdown_timeout}s waiting for client disconnections'
+                )
+
+    async def _send_unbind_to_client(self, client: ClientSession) -> None:
+        """Send unbind request to a client"""
+        try:
+            if client.connection and client.bound:
+                # Create unbind PDU
+                unbind_pdu = Unbind()
+
+                # Send unbind and wait for response
+                await client.connection.send_pdu(
+                    unbind_pdu, wait_response=True, timeout=5.0
+                )
+                logger.debug(f'Sent unbind to client {client.system_id}')
+
+                # Update client state
+                client.bound = False
+                client.bind_type = ''
+
+        except Exception as e:
+            logger.warning(f'Error sending unbind to client {client.system_id}: {e}')
 
     async def _handle_client_connection(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         """Handle new client connection"""
+        # Check if we're accepting new connections
+        if not self._accept_new_connections:
+            logger.info('Rejecting new connection - server shutdown in progress')
+            writer.close()
+            await writer.wait_closed()
+            return
+
         client_addr = writer.get_extra_info('peername')
         logger.info(f'New client connection from {client_addr}')
 
@@ -346,25 +732,31 @@ class SMPPServer:
                 resp_pdu = BindTransmitterResp(  # type: ignore[call-arg]
                     sequence_number=bind_pdu.sequence_number,
                     command_status=status,
-                    system_id=self.system_id  # type: ignore[call-arg]
-                    if status == CommandStatus.ESME_ROK
-                    else '',
+                    system_id=(
+                        self.system_id  # type: ignore[call-arg]
+                        if status == CommandStatus.ESME_ROK
+                        else ''
+                    ),
                 )
             elif isinstance(bind_pdu, BindReceiver):
                 resp_pdu = BindReceiverResp(  # type: ignore[call-arg]
                     sequence_number=bind_pdu.sequence_number,
                     command_status=status,
-                    system_id=self.system_id  # type: ignore[call-arg]
-                    if status == CommandStatus.ESME_ROK
-                    else '',
+                    system_id=(
+                        self.system_id  # type: ignore[call-arg]
+                        if status == CommandStatus.ESME_ROK
+                        else ''
+                    ),
                 )
             elif isinstance(bind_pdu, BindTransceiver):
                 resp_pdu = BindTransceiverResp(  # type: ignore[call-arg]
                     sequence_number=bind_pdu.sequence_number,
                     command_status=status,
-                    system_id=self.system_id  # type: ignore[call-arg]
-                    if status == CommandStatus.ESME_ROK
-                    else '',
+                    system_id=(
+                        self.system_id  # type: ignore[call-arg]
+                        if status == CommandStatus.ESME_ROK
+                        else ''
+                    ),
                 )
             else:
                 return
@@ -400,6 +792,13 @@ class SMPPServer:
     async def _handle_submit_sm(self, session: ClientSession, pdu: SubmitSm) -> None:
         """Handle submit_sm request from client"""
         try:
+            # Check if we're accepting new messages
+            if not self._accept_new_messages:
+                await self._send_submit_sm_response(
+                    session, pdu, CommandStatus.ESME_RSUBMITFAIL
+                )
+                return
+
             if not session.bound or session.bind_type not in (
                 'transmitter',
                 'transceiver',
@@ -587,6 +986,26 @@ class SMPPServer:
         self._message_id_counter += 1
         return msg_id
 
+    async def serve_forever(self) -> None:
+        """
+        Start the server and run until shutdown signal is received.
+
+        This method handles graceful shutdown when SIGTERM or SIGINT is received.
+        The server will run until the shutdown event is set, either by signal
+        handlers or programmatically via stop().
+        """
+        await self.start()
+
+        try:
+            logger.info('Server running, waiting for shutdown signal...')
+            # Wait for shutdown signal
+            await self._shutdown_event.wait()
+            logger.info('Shutdown signal received, stopping server...')
+        except Exception as e:
+            logger.error(f'Error in serve_forever: {e}')
+        finally:
+            await self.stop()
+
     def get_client_sessions(self) -> List[ClientSession]:
         """Get list of all client sessions"""
         return list(self._clients.values())
@@ -595,13 +1014,95 @@ class SMPPServer:
         """Get list of bound client sessions"""
         return [session for session in self._clients.values() if session.bound]
 
+    def set_shutdown_grace_period(self, seconds: float) -> None:
+        """Set the grace period for shutdown notifications"""
+        if seconds < 0:
+            raise ValueError('Grace period must be non-negative')
+        if seconds > 3600:  # 1 hour max
+            raise ValueError('Grace period must not exceed 3600 seconds')
+        self._shutdown_grace_period = seconds
+        logger.info(f'Shutdown grace period set to {self._shutdown_grace_period}s')
+
+    def set_shutdown_reminder_delay(self, seconds: float) -> None:
+        """Set the delay after grace period before final shutdown"""
+        if seconds < 0:
+            raise ValueError('Reminder delay must be non-negative')
+        if seconds > 3600:  # 1 hour max
+            raise ValueError('Reminder delay must not exceed 3600 seconds')
+        self._shutdown_reminder_delay = seconds
+        logger.info(f'Shutdown reminder delay set to {self._shutdown_reminder_delay}s')
+
+    def get_shutdown_config(self) -> dict:
+        """Get current shutdown configuration"""
+        return {
+            'grace_period': self._shutdown_grace_period,
+            'reminder_delay': self._shutdown_reminder_delay,
+            'shutdown_timeout': self._shutdown_timeout,
+            'shutdown_in_progress': self._shutdown_in_progress,
+            'accept_new_connections': self._accept_new_connections,
+            'accept_new_messages': self._accept_new_messages,
+        }
+
+    def configure_shutdown(
+        self,
+        grace_period: float = 30.0,
+        reminder_delay: float = 10.0,
+        shutdown_timeout: float = 30.0,
+    ) -> None:
+        """
+        Configure all shutdown parameters with comprehensive validation.
+
+        Args:
+            grace_period: Seconds to wait after shutdown notification
+            reminder_delay: Seconds to wait after reminder before force disconnect
+            shutdown_timeout: Maximum seconds to wait for client disconnections
+
+        Raises:
+            TypeError: If parameters are not numeric
+            ValueError: If any parameter is invalid or total time exceeds reasonable limits
+        """
+        # Type validation
+        for name, value in [
+            ('grace_period', grace_period),
+            ('reminder_delay', reminder_delay),
+            ('shutdown_timeout', shutdown_timeout),
+        ]:
+            if not isinstance(value, (int, float)):
+                raise TypeError(f'{name} must be a number, got {type(value).__name__}')
+            if value < 0:
+                raise ValueError(f'{name} must be non-negative, got {value}')
+
+        # Range validation
+        if grace_period > 3600:
+            raise ValueError('Grace period must not exceed 1 hour')
+        if reminder_delay > 3600:
+            raise ValueError('Reminder delay must not exceed 1 hour')
+        if shutdown_timeout > 7200:
+            raise ValueError('Shutdown timeout must not exceed 2 hours')
+
+        # Logical validation
+        total_time = grace_period + reminder_delay + 15  # 15s for unbind operations
+        if total_time > 3600:
+            raise ValueError(
+                f'Total shutdown time ({total_time:.1f}s) exceeds 1 hour limit'
+            )
+
+        # Set values atomically
+        self._shutdown_grace_period = grace_period
+        self._shutdown_reminder_delay = reminder_delay
+        self._shutdown_timeout = shutdown_timeout
+
+        logger.info(
+            f'Shutdown configured: grace={grace_period}s, reminder={reminder_delay}s, timeout={shutdown_timeout}s (total~{total_time:.1f}s)'
+        )
+
     async def __aenter__(self):
         """Async context manager entry"""
         await self.start()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit"""
+        """Async context manager exit with graceful shutdown"""
         await self.stop()
 
     def __repr__(self) -> str:
