@@ -30,6 +30,7 @@ dependencies = ["typing-extensions>=4.0.0"]
 [dependency-groups]
 dev = [
   "bandit>=1.8.5",
+  "black>=25.1.0",
   "build>=1.2.2.post1",
   "mypy-extensions>=1.1.0",
   "mypy>=1.0.0",
@@ -54,6 +55,22 @@ exclude = ["**/node_modules", "**/__pycache__", "**/*.pyc"]
 reportMissingImports = true # Report missing imports
 reportUnusedImports = true  # Report unused imports
 reportUnusedFunction = true # Report unused functions
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+include = '\.pyi?$'
+exclude = '''(
+    /(
+        .git
+        | .mypy_cache
+        | .pytest_cache
+        | build
+        | dist
+    )/
+)'''
+skip-string-normalization = true
+fast = false
 
 [tool.ruff]
 line-length = 88
