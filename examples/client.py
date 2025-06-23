@@ -6,23 +6,17 @@ This example demonstrates how to use the SMPP client to connect to an SMSC,
 send SMS messages, handle delivery receipts, and properly handle enhanced shutdown
 notifications from the server.
 
-Enhanced Shutdown Features:
+Shutdown features:
 - Receives and responds to server shutdown notifications
 - Graceful disconnection when server requests shutdown
 - Proper handling of connection loss during shutdown
 - Interactive commands for testing shutdown scenarios
-
-Updated for the new modular code structure with clean imports from the main smpp package.
 """
 
 import asyncio
 import logging
-import os
-import sys
 from typing import Optional
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from smpp import (
     BindType,
@@ -45,13 +39,12 @@ logger = logging.getLogger(__name__)
 
 class SMSClient:
     """
-    Example SMS client using SMPP with enhanced shutdown handling.
+    Example SMS client.
 
     Features:
-    - Enhanced shutdown notification handling
+    - Shutdown notification handling
     - Graceful disconnection on server shutdown
     - Interactive command support
-    - Proper connection lifecycle management
     """
 
     def __init__(self, host: str, port: int, system_id: str, password: str):
@@ -60,12 +53,12 @@ class SMSClient:
             port=port,
             system_id=system_id,
             password=password,
-            system_type='CLIENT',  # Fixed: SMPP system_type must be <= 13 characters
+            system_type='CLIENT',  # SMPP system_type must be <= 13 characters
             enquire_link_interval=30.0,
             response_timeout=10.0,
         )
 
-        # Enhanced shutdown handling with thread safety
+        # Shutdown handling with thread safety
         self._shutdown_lock = asyncio.Lock()
         self._shutdown_state = 'running'  # running, shutting_down, stopped
         self._shutdown_grace_period = 0
@@ -87,7 +80,7 @@ class SMSClient:
             if pdu.esm_class & 0x04:  # Delivery receipt
                 logger.info('📧 Delivery receipt received:')
                 logger.info(f'   From: {pdu.source_addr} → To: {pdu.destination_addr}')
-                logger.info(f'   Receipt: {message}')
+                logger.debug(f'   Receipt: {message}')
 
             # Check for shutdown notifications from the server
             elif self._is_shutdown_notification(pdu, message):
@@ -169,7 +162,9 @@ class SMSClient:
             # Start graceful shutdown process
             asyncio.create_task(self._initiate_graceful_shutdown())
 
-    async def _initiate_graceful_shutdown(self, urgent: bool = False) -> None:
+    async def _initiate_graceful_shutdown(
+        self, urgent: bool = False, default_delay: float = 0.5
+    ) -> None:
         """Thread-safe graceful shutdown process."""
         async with self._shutdown_lock:
             if self._shutdown_state != 'running':
@@ -187,7 +182,7 @@ class SMSClient:
                     # Use a fraction of the server's grace period, but cap it reasonably
                     delay = min(max(0.1, self._shutdown_grace_period * 0.5), 2.0)
                 else:
-                    delay = 0.5  # Default to 0.5s instead of 3.0s for faster tests
+                    delay = default_delay  # Default to 0.5s instead of 3.0s for faster tests
                 logger.info(f'⏱️  Graceful shutdown in {delay:.1f} seconds...')
 
             await asyncio.sleep(delay)
@@ -390,12 +385,12 @@ async def main():
     - Connecting and binding to SMSC
     - Sending various types of messages
     - Interactive command support
-    - Enhanced shutdown notification handling
+    - Shutdown notification handling
     - Graceful disconnection
     """
     # SMSC connection details - compatible with SMPP protocol (max 8 chars for password)
     SMSC_HOST = 'localhost'
-    SMSC_PORT = 9999  # Changed to high port number
+    SMSC_PORT = 2775  # Changed to high port number
     SYSTEM_ID = 'test_client'
     PASSWORD = 'password'  # Fixed: SMPP passwords must be <= 8 characters
 
@@ -404,10 +399,6 @@ async def main():
 
     try:
         logger.info('🚀 Enhanced SMPP Client starting...')
-        logger.info(
-            '🔧 Features: Shutdown notification handling, graceful disconnection'
-        )
-        logger.info('')
 
         # Connect and bind as transceiver (can send and receive)
         await sms_client.connect_and_bind(BindType.TRANSCEIVER)
@@ -439,7 +430,7 @@ async def main():
         await sms_client.send_unicode_sms(
             source_addr='12345',
             destination_addr='67890',
-            message='Unicode test: Hello 世界! 🌍 Enhanced shutdown ready!',
+            message='Unicode test: Hello 世界! 🌍 Shutdown ready!',
             request_delivery_receipt=True,
         )
 
@@ -525,7 +516,7 @@ async def simple_send_example():
 
     async with SMPPClient(
         host='localhost',
-        port=9999,  # Changed to high port number
+        port=2775,  # Changed to high port number
         system_id='test_client',
         password='password',  # Fixed: SMPP passwords must be <= 8 characters
     ) as client:
@@ -553,7 +544,7 @@ async def monitor_messages_example():
 
     client = SMPPClient(
         host='localhost',
-        port=9999,  # Changed to high port number
+        port=2775,  # Changed to high port number
         system_id='test_receiver',
         password='password',  # Fixed: SMPP passwords must be <= 8 characters
     )
@@ -608,7 +599,7 @@ async def interactive_client_example():
 
     # Create enhanced client
     sms_client = SMSClient(
-        'localhost', 9999, 'demo_client', 'demo_pas'
+        'localhost', 2775, 'demo_client', 'demo_pas'
     )  # Changed to high port number
 
     try:
