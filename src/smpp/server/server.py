@@ -732,25 +732,31 @@ class SMPPServer:
                 resp_pdu = BindTransmitterResp(  # type: ignore[call-arg]
                     sequence_number=bind_pdu.sequence_number,
                     command_status=status,
-                    system_id=self.system_id  # type: ignore[call-arg]
-                    if status == CommandStatus.ESME_ROK
-                    else '',
+                    system_id=(
+                        self.system_id  # type: ignore[call-arg]
+                        if status == CommandStatus.ESME_ROK
+                        else ''
+                    ),
                 )
             elif isinstance(bind_pdu, BindReceiver):
                 resp_pdu = BindReceiverResp(  # type: ignore[call-arg]
                     sequence_number=bind_pdu.sequence_number,
                     command_status=status,
-                    system_id=self.system_id  # type: ignore[call-arg]
-                    if status == CommandStatus.ESME_ROK
-                    else '',
+                    system_id=(
+                        self.system_id  # type: ignore[call-arg]
+                        if status == CommandStatus.ESME_ROK
+                        else ''
+                    ),
                 )
             elif isinstance(bind_pdu, BindTransceiver):
                 resp_pdu = BindTransceiverResp(  # type: ignore[call-arg]
                     sequence_number=bind_pdu.sequence_number,
                     command_status=status,
-                    system_id=self.system_id  # type: ignore[call-arg]
-                    if status == CommandStatus.ESME_ROK
-                    else '',
+                    system_id=(
+                        self.system_id  # type: ignore[call-arg]
+                        if status == CommandStatus.ESME_ROK
+                        else ''
+                    ),
                 )
             else:
                 return
