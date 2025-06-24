@@ -42,7 +42,9 @@ class TestShutdownIntegration:
 
         # Start server
         await server.start()
-        actual_port = server.server._server.sockets[0].getsockname()[1]
+        srv = server.server._server
+        assert srv is not None
+        actual_port = srv.sockets[0].getsockname()[1]
 
         # Create and connect client
         client = SMSClient('127.0.0.1', actual_port, 'test_client', 'password')
@@ -99,7 +101,9 @@ class TestShutdownIntegration:
         )
 
         await server.start()
-        actual_port = server.server._server.sockets[0].getsockname()[1]
+        srv = server.server._server
+        assert srv is not None
+        actual_port = srv.sockets[0].getsockname()[1]
 
         # Create multiple clients
         clients = []
@@ -152,7 +156,9 @@ class TestShutdownIntegration:
         )
 
         await server.start()
-        actual_port = server.server._server.sockets[0].getsockname()[1]
+        srv = server.server._server
+        assert srv is not None
+        actual_port = srv.sockets[0].getsockname()[1]
 
         # Create client
         client = SMSClient('127.0.0.1', actual_port, 'test_client', 'password')
@@ -211,7 +217,9 @@ class TestShutdownPerformance:
         )
 
         await server.start()
-        actual_port = server.server._server.sockets[0].getsockname()[1]
+        srv = server.server._server
+        assert srv is not None
+        actual_port = srv.sockets[0].getsockname()[1]
 
         # Create mock clients (simplified for performance testing)
         from smpp.server.server import ClientSession
