@@ -34,7 +34,6 @@ class ConnectionState(Enum):
     BOUND_TX = 'BOUND_TX'
     BOUND_RX = 'BOUND_RX'
     BOUND_TRX = 'BOUND_TRX'
-    UNBINDING = 'UNBINDING'
 
 
 class SMPPConnection:
