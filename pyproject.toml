@@ -105,12 +105,16 @@ extend-immutable-calls = [
 # https://docs.pytest.org/en/latest/reference/customize.html
 minversion = "6.0"
 addopts = [
-  "--doctest-modules",
-  "-vv",
-  "--cov=smpp",
+  # "-v",
+  # "-q",
+  "--tb=short",  # line, auto, short, long, native, no
   "--capture=no",
   "--log-cli-level=INFO",
   "--import-mode=importlib",
+  "--maxfail=10",
+  # "--disable-warnings",
+  # "--doctest-modules",
+  # "--cov=smpp",
 ]
 testpaths = ["tests/unit"]
 pythonpath = ["src"]
