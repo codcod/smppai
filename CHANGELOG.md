@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.2.1 (2025-06-24)
+
+### Bug Fixes
+
+- Pylance complaints
+  ([`1e58465`](https://github.com/codcod/smppai/commit/1e58465920e86cb56abf83e89641271bd97b610d))
+
+### Chores
+
+- Adjust pytest settings
+  ([`113cdc9`](https://github.com/codcod/smppai/commit/113cdc92d70e16915f44d5840244fd99d5e48229))
+
+- Remove unused code
+  ([`e2ec545`](https://github.com/codcod/smppai/commit/e2ec545683f324687a65cc42d2b7d135b88f5c4f))
+
+
 ## v0.2.0 (2025-06-23)
 
 ### Bug Fixes
