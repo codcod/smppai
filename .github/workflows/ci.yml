@@ -98,7 +98,7 @@ jobs:
         run: uv run bandit -r src/ -f json -o bandit-report.json || true
 
       - name: Upload bandit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: bandit-report-${{ env.PRIMARY_PYTHON_VERSION }}
@@ -172,7 +172,7 @@ jobs:
       #       --cov-report=term-missing \
       #       --junitxml=pytest-report.xml
       # - name: Upload coverage
-      #   uses: actions/upload-artifact@v4
+      #   uses: actions/upload-artifact@v5
       #   with:
       #     name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
       #     path: |
@@ -195,7 +195,7 @@ jobs:
           fi
       - name: Upload coverage
         if: matrix.coverage == true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
           path: |
@@ -271,7 +271,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: final-coverage-report
           path: |
@@ -312,7 +312,7 @@ jobs:
         python -c "import smpp; print('Package installs correctly')"
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: dist-${{ env.PRIMARY_PYTHON_VERSION }}
         path: dist/
