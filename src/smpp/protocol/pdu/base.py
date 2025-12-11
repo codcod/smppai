@@ -15,7 +15,10 @@ import struct
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ...gsm.udh import UDH, ConcatenatedSMSHeader
 
 from ...exceptions import SMPPPDUException
 from ..constants import MAX_PDU_SIZE, PDU_HEADER_SIZE, CommandStatus
@@ -743,6 +746,115 @@ class MessagePDU(PDU):
                 f'invalid sm_default_msg_id: {self.sm_default_msg_id}'
             )
 
+    def has_udh(self) -> bool:
+        """
+        Check if this message has User Data Header.
+
+        Returns:
+            True if UDH indicator is set in esm_class
+        """
+        return bool(self.esm_class & 0x40)
+
+    def get_udh(self) -> Optional['UDH']:
+        """
+        Extract UDH from short message if present.
+
+        Returns:
+            UDH object if present, None otherwise
+        """
+        if not self.has_udh() or not self.short_message:
+            return None
+
+        try:
+            from ...gsm.udh import UDH
+
+            udh, _ = UDH.decode(self.short_message)
+            return udh
+        except (ImportError, ValueError):
+            return None
+
+    def get_message_content(self) -> bytes:
+        """
+        Get message content without UDH.
+
+        Returns:
+            Message content bytes (short_message with UDH stripped if present)
+        """
+        if not self.has_udh() or not self.short_message:
+            return self.short_message
+
+        try:
+            from ...gsm.udh import UDH
+
+            _, offset = UDH.decode(self.short_message)
+            return self.short_message[offset:]
+        except (ImportError, ValueError):
+            return self.short_message
+
+    def set_udh(self, udh: 'UDH') -> None:
+        """
+        Set UDH for this message.
+
+        Args:
+            udh: UDH object to set
+        """
+        # Set UDH indicator in esm_class
+        self.esm_class |= 0x40
+
+        # Combine UDH with existing message content
+        message_content = self.get_message_content()
+        udh_bytes = udh.encode()
+        self.short_message = udh_bytes + message_content
+
+    def is_concatenated_sms(self) -> bool:
+        """
+        Check if this is part of a concatenated SMS.
+
+        Returns:
+            True if this message has concatenated SMS UDH
+        """
+        udh = self.get_udh()
+        if not udh:
+            return False
+
+        try:
+            from ...gsm.udh import UDH
+
+            return (
+                udh.get_element(UDH.IEI_CONCATENATED_SMS_8BIT) is not None
+                or udh.get_element(UDH.IEI_CONCATENATED_SMS_16BIT) is not None
+            )
+        except ImportError:
+            return False
+
+    def get_concatenated_info(self) -> Optional['ConcatenatedSMSHeader']:
+        """
+        Get concatenated SMS information if present.
+
+        Returns:
+            ConcatenatedSMSHeader if this is part of concatenated SMS, None otherwise
+        """
+        udh = self.get_udh()
+        if not udh:
+            return None
+
+        try:
+            from ...gsm.udh import UDH, ConcatenatedSMSHeader
+
+            # Try 8-bit reference first
+            element = udh.get_element(UDH.IEI_CONCATENATED_SMS_8BIT)
+            if element:
+                return ConcatenatedSMSHeader.from_udh_element(element)
+
+            # Try 16-bit reference
+            element = udh.get_element(UDH.IEI_CONCATENATED_SMS_16BIT)
+            if element:
+                return ConcatenatedSMSHeader.from_udh_element(element)
+
+            return None
+        except ImportError:
+            return None
+
 
 class EmptyBodyPDU(PDU):
     """
@@ -765,10 +877,18 @@ class EmptyBodyPDU(PDU):
         Decode empty body.
 
         Args:
-            data: The byte data (unused)
-            offset: Current offset
+            data: Raw PDU data (unused for empty body)
+            offset: Starting position (unused for empty body)
 
         Returns:
-            The same offset (no data consumed)
+            int: Same offset (no data consumed)
         """
         return offset
+
+    def validate(self) -> None:
+        """
+        Validate empty body PDU.
+
+        Only validates base PDU fields since there's no body content.
+        """
+        super().validate()

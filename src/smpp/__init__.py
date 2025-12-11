@@ -116,6 +116,9 @@ from .server import SMPPServer
 # Transport layer
 from .transport import ConnectionState, SMPPConnection
 
+# GSM functionality
+from . import gsm
+
 # Package metadata
 __all__ = [
     # Main classes
@@ -190,6 +193,8 @@ __all__ = [
     # Transport
     'SMPPConnection',
     'ConnectionState',
+    # GSM functionality
+    'gsm',
 ]
 
 
