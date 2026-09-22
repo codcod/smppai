@@ -18,7 +18,7 @@ jobs:
     name: Lint & Format check
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Cache pre-commit hooks (only needed for lint job)
       - name: Cache pre-commit
@@ -43,7 +43,7 @@ jobs:
     name: Type check
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python with uv
         uses: ./.github/actions/setup-python-uv
@@ -60,7 +60,7 @@ jobs:
     name: Security Check
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python with uv
         uses: ./.github/actions/setup-python-uv
@@ -71,7 +71,7 @@ jobs:
         run: uv run bandit -r src/ -f json -o bandit-report.json || true
 
       - name: Upload bandit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: bandit-report-${{ env.PRIMARY_PYTHON_VERSION }}
@@ -109,7 +109,7 @@ jobs:
     name: Unit tests Python ${{ matrix.python-version }} on ${{ matrix.os }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python with uv
         uses: ./.github/actions/setup-python-uv
@@ -133,7 +133,7 @@ jobs:
           fi
       - name: Upload coverage
         if: matrix.coverage == true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
           path: |
@@ -146,7 +146,7 @@ jobs:
     name: Integration Tests on Python 3.13 and ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python with uv
         uses: ./.github/actions/setup-python-uv
@@ -184,10 +184,10 @@ jobs:
     if: always() && needs.unit-tests.result == 'success'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download coverage from Python ${{ env.PRIMARY_PYTHON_VERSION }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: coverage-${{ env.PRIMARY_PYTHON_VERSION }}-ubuntu-latest
 
@@ -200,7 +200,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: final-coverage-report
           path: |
@@ -213,7 +213,7 @@ jobs:
     needs: [lint, type-check]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Set up Python with uv
       uses: ./.github/actions/setup-python-uv
@@ -232,7 +232,7 @@ jobs:
         python -c "import smpp; print('Package installs correctly')"
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: dist-${{ env.PRIMARY_PYTHON_VERSION }}
         path: dist/
