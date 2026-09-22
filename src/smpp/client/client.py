@@ -373,11 +373,6 @@ class SMPPClient:
                 expected_state='transmitter or transceiver',
             )
 
-        # Encode message
-        message_bytes = short_message.encode('utf-8')
-        if len(message_bytes) > 255:
-            raise SMPPMessageException(f'Message too long: {len(message_bytes)} bytes')
-
         logger.debug(f'Submitting SMS from {source_addr} to {destination_addr}')
 
         # Create submit_sm PDU
@@ -398,8 +393,10 @@ class SMPPClient:
             replace_if_present_flag=replace_if_present_flag,
             data_coding=data_coding,
             sm_default_msg_id=sm_default_msg_id,
-            short_message=message_bytes,
         )
+        submit_pdu.set_message_text(short_message)
+        if len(submit_pdu.short_message) > 255:
+            raise SMPPMessageException(f'Message too long: {len(submit_pdu.short_message)} bytes')
 
         try:
             # Send submit_sm and wait for response
