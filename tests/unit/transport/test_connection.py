@@ -508,7 +508,8 @@ class TestBackgroundTasks:
 class TestMemoryManagement:
     """Test memory management and limits"""
 
-    def test_check_memory_limits(self, connected_connection):
+    @pytest.mark.asyncio
+    async def test_check_memory_limits(self, connected_connection):
         """Test memory limit enforcement"""
         connected_connection.max_pending_pdus = 10
 
