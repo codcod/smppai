@@ -2,7 +2,6 @@
 
 import pytest
 import struct
-from unittest.mock import patch
 
 from smpp.exceptions import SMPPPDUException
 from smpp.protocol.constants import CommandStatus
@@ -146,33 +145,6 @@ class TestTLVParameter:
 class TestPDU:
     """Test PDU base class."""
 
-    def test_generate_sequence_number(self):
-        """Test sequence number generation."""
-        with patch('time.time', return_value=1234.567):
-            seq_num = PDU._generate_sequence_number()
-            expected = int(1234.567 * 1000) % 0x7FFFFFFF
-            assert seq_num == expected
-
-    def test_generate_sequence_number_bounds(self):
-        """Test sequence number is within valid bounds."""
-        seq_num = PDU._generate_sequence_number()
-        assert 1 <= seq_num <= 0x7FFFFFFF
-
-    def test_post_init_generates_sequence(self):
-        """Test that __post_init__ generates sequence number when 0."""
-
-        # Create a concrete PDU subclass for testing
-        class TestPDU(PDU):
-            def encode_body(self):
-                return b''
-
-            def decode_body(self, data, offset=0):
-                return offset
-
-        with patch('time.time', return_value=1000.0):
-            pdu = TestPDU()
-            assert pdu.sequence_number == 1000000 % 0x7FFFFFFF
-
     def test_post_init_preserves_sequence(self):
         """Test that __post_init__ preserves non-zero sequence number."""
 
@@ -199,7 +171,7 @@ class TestPDU:
         pdu = TestPDU()
         assert pdu.command_id == 0
         assert pdu.command_status == CommandStatus.ESME_ROK
-        assert pdu.sequence_number != 0  # Generated automatically
+        assert pdu.sequence_number == 0
         assert pdu.optional_parameters == []
 
     def test_custom_values(self):

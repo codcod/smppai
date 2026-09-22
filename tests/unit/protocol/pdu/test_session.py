@@ -42,10 +42,10 @@ class TestEnquireLink:
         offset = pdu.decode_body(b'')
         assert offset == 0
 
-    def test_sequence_number_generation(self):
-        """Test that sequence number is auto-generated."""
+    def test_sequence_number_defaults_zero_until_sent(self):
+        """Test that sequence number stays 0 until send_pdu assigns it."""
         pdu = EnquireLink()
-        assert pdu.sequence_number != 0
+        assert pdu.sequence_number == 0
 
     def test_custom_sequence_number(self):
         """Test custom sequence number."""
