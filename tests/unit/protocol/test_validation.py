@@ -23,67 +23,6 @@ from smpp.protocol.constants import (
 from smpp.exceptions import SMPPValidationException
 
 
-class TestValidationRuleRegistry:
-    """Tests for validation rule registry functions."""
-
-    def test_register_validation_rule(self):
-        """Test registering a custom validation rule."""
-        rule = {'min_length': 5, 'max_length': 10}
-        validation.register_validation_rule('test_field', rule)
-
-        retrieved_rule = validation.get_validation_rule('test_field')
-        assert retrieved_rule == rule
-
-    def test_get_validation_rule_not_found(self):
-        """Test getting a non-existent validation rule."""
-        result = validation.get_validation_rule('non_existent_field')
-        assert result is None
-
-    def test_overwrite_validation_rule(self):
-        """Test overwriting an existing validation rule."""
-        rule1 = {'type': 'string'}
-        rule2 = {'type': 'integer'}
-
-        validation.register_validation_rule('test_field', rule1)
-        validation.register_validation_rule('test_field', rule2)
-
-        retrieved_rule = validation.get_validation_rule('test_field')
-        assert retrieved_rule == rule2
-
-
-class TestFieldValidator:
-    """Tests for FieldValidator class."""
-
-    def test_field_validator_initialization(self):
-        """Test FieldValidator initialization."""
-        validator = validation.FieldValidator()
-        assert validator._cache == {}
-
-    def test_validate_with_cache(self):
-        """Test validation with caching."""
-        validator = validation.FieldValidator()
-        rule = {'type': 'string'}
-
-        # First call should compute and cache result
-        result1 = validator.validate_with_cache('test_field', 'value', rule)
-        assert result1 is True
-
-        # Second call should use cached result
-        result2 = validator.validate_with_cache('test_field', 'value', rule)
-        assert result2 is True
-
-    def test_clear_cache(self):
-        """Test clearing validation cache."""
-        validator = validation.FieldValidator()
-        rule = {'type': 'string'}
-
-        validator.validate_with_cache('test_field', 'value', rule)
-        assert len(validator._cache) > 0
-
-        validator.clear_cache()
-        assert validator._cache == {}
-
-
 class TestSystemIdValidation:
     """Tests for validate_system_id function."""
 

@@ -6,7 +6,6 @@ ensuring data integrity and compliance with SMPP v3.4 specification.
 """
 
 import re
-from typing import Any, Dict, Optional
 
 from ..exceptions import SMPPValidationException
 from .constants import (
@@ -25,85 +24,6 @@ from .constants import (
 SYSTEM_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_]+$')
 ADDRESS_PATTERN = re.compile(r'^[0-9+]+$')
 PASSWORD_PATTERN = re.compile(r'^[a-zA-Z0-9!@#$%^&*()_+-=]+$')
-
-# Validation rule registry
-ValidationRule = Dict[str, Any]
-_VALIDATION_RULES: Dict[str, ValidationRule] = {}
-
-
-def register_validation_rule(field_name: str, rule: ValidationRule) -> None:
-    """
-    Register a custom validation rule for a field.
-
-    Args:
-        field_name: Name of the field to validate
-        rule: Validation rule configuration
-    """
-    _VALIDATION_RULES[field_name] = rule
-
-
-def get_validation_rule(field_name: str) -> Optional[ValidationRule]:
-    """
-    Get validation rule for a field.
-
-    Args:
-        field_name: Name of the field
-
-    Returns:
-        Validation rule or None if not found
-    """
-    return _VALIDATION_RULES.get(field_name)
-
-
-class FieldValidator:
-    """
-    Enhanced field validator with caching and custom rules.
-    """
-
-    def __init__(self):
-        self._cache: Dict[str, bool] = {}
-
-    def validate_with_cache(
-        self, field_name: str, value: Any, rule: ValidationRule
-    ) -> bool:
-        """
-        Validate field with result caching.
-
-        Args:
-            field_name: Name of the field
-            value: Value to validate
-            rule: Validation rule
-
-        Returns:
-            True if valid
-
-        Raises:
-            SMPPValidationException: If validation fails
-        """
-        cache_key = f'{field_name}:{hash(str(value))}'
-
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-
-        result = self._validate_field(field_name, value, rule)
-        self._cache[cache_key] = result
-        return result
-
-    def _validate_field(
-        self, field_name: str, value: Any, rule: ValidationRule
-    ) -> bool:
-        """Internal field validation logic."""
-        # Implementation would go here
-        return True
-
-    def clear_cache(self) -> None:
-        """Clear validation cache."""
-        self._cache.clear()
-
-
-# Global validator instance
-_validator = FieldValidator()
-
 
 def validate_system_id(system_id: str) -> None:
     """
