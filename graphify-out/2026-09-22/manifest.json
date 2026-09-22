@@ -144,9 +144,9 @@
     "semantic_hash": "355db4d37d90d0879581644ef338e895"
   },
   "tests/integration/test_shutdown_integration.py": {
-    "mtime": 1790084989.1779246,
-    "seen": 1790084991.406292,
-    "ast_hash": "dc87424d33bbed3e2979003cf190f00a",
+    "mtime": 1790084605.5748055,
+    "seen": 1790084647.123314,
+    "ast_hash": "7fa1b05566b6dee38dc1d750d0e1b123",
     "semantic_hash": ""
   },
   "tests/unit/__init__.py": {
@@ -222,9 +222,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "tests/unit/transport/test_connection.py": {
-    "mtime": 1790084989.1784744,
-    "seen": 1790084991.406302,
-    "ast_hash": "02e3a6070b96c2fbe5cd6fada15a8820",
+    "mtime": 1790083747.0963151,
+    "seen": 1790084647.123324,
+    "ast_hash": "c879a6e48b43df8049b29c9f617a133b",
     "semantic_hash": ""
   },
   ".github/ISSUE_TEMPLATE/bug_report.md": {
