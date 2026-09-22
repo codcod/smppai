@@ -409,21 +409,6 @@ Set these as callable attributes on the server instance:
   - submit_sm / submit_sm_resp
   - deliver_sm / deliver_sm_resp
 
-## Protocol Support
-
-### Supported PDU Types
-
-- **Session Management**
-  - bind_transmitter / bind_transmitter_resp
-  - bind_receiver / bind_receiver_resp
-  - bind_transceiver / bind_transceiver_resp
-  - unbind / unbind_resp
-  - outbind
-
-- **Message Operations**
-  - submit_sm / submit_sm_resp
-  - deliver_sm / deliver_sm_resp
-
 - **Auxiliary Operations**
   - enquire_link / enquire_link_resp
   - generic_nack
@@ -552,38 +537,14 @@ Contributions are welcome! This project uses modern CI/CD practices:
 - **Security**: Automated security scanning with `bandit`
 
 ### Development Guidelines
-1. **Follow Conventional Commits**: Use conventional commit format for automated versioning
-   ```bash
-   feat(client): add connection pooling support
-   fix(server): resolve memory leak in PDU handling
-   ```
+- Code follows Python standards (PEP 8), with type hints for all public APIs
+- All tests pass with >95% coverage
+- Commits follow the Conventional Commits format for automated versioning
+- All CI checks must pass before merge
 
-2. **Quality Standards**:
-   - Code follows Python standards (PEP 8)
-   - All tests pass with >95% coverage
-   - Type hints for all public APIs
-   - Security best practices
-
-3. **Development Workflow**:
-   ```bash
-   # Setup development environment
-   uv sync --all-extras --dev
-
-   # Run quality checks
-   uv run ruff check src tests
-   uv run ruff format src tests
-   uv run mypy src
-   uv run pytest
-   ```
-
-4. **Pull Request Process**:
-   - Create feature branch with descriptive name
-   - Follow conventional commit format
-   - All CI checks must pass
-   - Include tests for new features
-   - Update documentation as needed
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines and [CI/CD Pipeline Documentation](docs/ci-cd-pipeline.md) for technical details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the local quality-check commands, and the
+full commit/PR process, and [CI/CD Pipeline Documentation](docs/ci-cd-pipeline.md) for how CI
+is wired up.
 
 ## License
 

@@ -11,8 +11,6 @@
 # Configuration files
 pyproject.toml @codcod
 uv.lock @codcod
-.python-version @codcod
-.env.sample @codcod
 
 # Documentation
 README.md @codcod
@@ -28,6 +26,3 @@ CHANGELOG.md @codcod
 Makefile @codcod
 .editorconfig @codcod
 .gitignore @codcod
-
-# Scripts and executables
-/bin/ @codcod
