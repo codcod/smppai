@@ -15,16 +15,14 @@ This package provides:
 - Unicode and multi-part message handling
 
 Quick Start:
-    from smpp import SMPPClient, create_client_config
+    from smpp import SMPPClient
 
-    config = create_client_config(
+    async with SMPPClient(
         host="localhost",
         port=2775,
         system_id="test_client",
-        password="password"
-    )
-
-    async with SMPPClient(config) as client:
+        password="password",
+    ) as client:
         await client.bind_transceiver()
         message_id = await client.submit_sm(
             source_addr="1234",
@@ -35,21 +33,6 @@ Quick Start:
 
 # Main client and server classes
 from .client import BindType, SMPPClient
-
-# Configuration management
-from .config import (
-    ConnectionConfig,
-    LoggingConfig,
-    SecurityConfig,
-    SMPPClientConfig,
-    SMPPServerConfig,
-    create_client_config,
-    create_client_config_from_sources,
-    create_server_config,
-    create_server_config_from_sources,
-    load_config_from_env,
-    load_config_from_file,
-)
 
 # Exception classes
 from .exceptions import (
@@ -166,18 +149,6 @@ __all__ = [
     'create_bind_pdu',
     'create_submit_sm_pdu',
     'decode_pdu',
-    # Configuration
-    'SMPPClientConfig',
-    'SMPPServerConfig',
-    'ConnectionConfig',
-    'SecurityConfig',
-    'LoggingConfig',
-    'create_client_config',
-    'create_server_config',
-    'load_config_from_env',
-    'load_config_from_file',
-    'create_client_config_from_sources',
-    'create_server_config_from_sources',
     # Exceptions
     'SMPPException',
     'SMPPConnectionException',
@@ -215,19 +186,8 @@ def create_simple_client(
     Returns:
         Configured SMPPClient instance
     """
-    config = create_client_config(
-        host=host, port=port, system_id=system_id, password=password, **kwargs
-    )
     return SMPPClient(
-        host=config.host,
-        port=config.port,
-        system_id=config.system_id,
-        password=config.password,
-        **{
-            k: getattr(config, k)
-            for k in vars(config)
-            if k not in ('host', 'port', 'system_id', 'password')
-        },
+        host=host, port=port, system_id=system_id, password=password, **kwargs
     )
 
 
@@ -245,12 +205,7 @@ def create_simple_server(
     Returns:
         Configured SMPPServer instance
     """
-    config = create_server_config(host=host, port=port, **kwargs)
-    return SMPPServer(
-        host=config.host,
-        port=config.port,
-        **{k: getattr(config, k) for k in vars(config) if k not in ('host', 'port')},
-    )
+    return SMPPServer(host=host, port=port, **kwargs)
 
 
 # Add convenience functions to __all__

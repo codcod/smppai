@@ -1,7 +1,7 @@
 version: 2
 updates:
-  # Python dependencies
-  - package-ecosystem: "pip"
+  # Python dependencies (managed with uv; reads pyproject.toml + uv.lock)
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -9,10 +9,11 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 10
     commit-message:
-      prefix: "deps"
+      prefix: "build"
+      prefix-development: "chore"
       include: "scope"
     reviewers:
-      - "nicos"
+      - "codcod"
     labels:
       - "dependencies"
       - "python"
@@ -29,7 +30,7 @@ updates:
       prefix: "ci"
       include: "scope"
     reviewers:
-      - "nicos"
+      - "codcod"
     labels:
       - "dependencies"
       - "github-actions"

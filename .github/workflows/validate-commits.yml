@@ -20,4 +20,4 @@ jobs:
           configFile: '.commitlintrc.json'
           failOnWarnings: false
           failOnErrors: false
-          helpURL: 'https://github.com/nicos/smppai/blob/main/CONTRIBUTING.md#conventional-commits'
+          helpURL: 'https://github.com/codcod/smppai/blob/main/CONTRIBUTING.md#conventional-commits'

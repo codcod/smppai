@@ -20,12 +20,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
       # Cache pre-commit hooks (only needed for lint job)
       - name: Cache pre-commit
         uses: actions/cache@v5
@@ -33,13 +27,10 @@ jobs:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
 
-      - name: Set up Python ${{ env.PRIMARY_PYTHON_VERSION }}
-        run: uv python install ${{ env.PRIMARY_PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          uv sync --all-extras --dev
-          uv pip install -e .
+      - name: Set up Python with uv
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PRIMARY_PYTHON_VERSION }}
 
       - name: Run ruff check
         run: uv run ruff check src tests
@@ -54,19 +45,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Set up Python with uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python ${{ env.PRIMARY_PYTHON_VERSION }}
-        run: uv python install ${{ env.PRIMARY_PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          uv sync --all-extras --dev
-          uv pip install -e .
+          python-version: ${{ env.PRIMARY_PYTHON_VERSION }}
 
       - name: Run mypy
         env:
@@ -80,19 +62,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Set up Python with uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python ${{ env.PRIMARY_PYTHON_VERSION }}
-        run: uv python install ${{ env.PRIMARY_PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          uv sync --all-extras --dev
-          uv pip install -e .
+          python-version: ${{ env.PRIMARY_PYTHON_VERSION }}
 
       - name: Run bandit security check
         run: uv run bandit -r src/ -f json -o bandit-report.json || true
@@ -110,74 +83,39 @@ jobs:
     timeout-minutes: 30 # Prevent hanging jobs
     strategy:
       fail-fast: false # Don't cancel other jobs on failure
-      # matrix:
-      #   python-version: ["3.12", "3.13"]
-      #   os: ["ubuntu-latest"]
       matrix:
         include:
           # --- Lightweight combinations
           - python-version: "3.10"
             os: "ubuntu-latest"
-            # test-type: "minimal"
             coverage: false
           - python-version: "3.11"
             os: "ubuntu-latest"
-            # test-type: "minimal"
             coverage: false
           - python-version: "3.12"
             os: "ubuntu-latest"
-            # test-type: "standard"
             coverage: false
           # --- Full test on latest
           - python-version: "3.13"
             os: "ubuntu-latest"
-            # test-type: "full"
             coverage: true
           # --- Cross-platform on latest Python only
           - python-version: "3.13"
             os: "windows-latest"
-            # test-type: "standard"
             coverage: false
           - python-version: "3.13"
             os: "macos-latest"
-            # test-type: "standard"
             coverage: false
     name: Unit tests Python ${{ matrix.python-version }} on ${{ matrix.os }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Set up Python with uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          python-version: ${{ matrix.python-version }}
 
-      - name: Set up Python ${{ matrix.python-version }} on ${{ matrix.os }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: |
-          uv sync --all-extras --dev
-          uv pip install -e .
-
-      # - name: Run tests with coverage
-      #   env:
-      #     PYTHONPATH: ${{ github.workspace }}/src
-      #   run: |
-      #     uv run python -m pytest tests/ \
-      #       --cov=src/smpp \
-      #       --cov-report=html \
-      #       --cov-report=xml \
-      #       --cov-report=term-missing \
-      #       --junitxml=pytest-report.xml
-      # - name: Upload coverage
-      #   uses: actions/upload-artifact@v6
-      #   with:
-      #     name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
-      #     path: |
-      #       coverage.xml
-      #       htmlcov/
       - name: Run tests with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}/src
@@ -210,19 +148,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Set up Python with uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python ${{ env.PRIMARY_PYTHON_VERSION }}
-        run: uv python install ${{ env.PRIMARY_PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          uv sync --all-extras --dev
-          uv pip install -e .
+          python-version: ${{ env.PRIMARY_PYTHON_VERSION }}
 
       - name: Run integration tests
         env:
@@ -257,10 +186,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Download coverage from Python 3.13
+      - name: Download coverage from Python ${{ env.PRIMARY_PYTHON_VERSION }}
         uses: actions/download-artifact@v7
         with:
-          name: coverage-3.13-ubuntu-latest
+          name: coverage-${{ env.PRIMARY_PYTHON_VERSION }}-ubuntu-latest
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
@@ -286,19 +215,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v6
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
+    - name: Set up Python with uv
+      uses: ./.github/actions/setup-python-uv
       with:
-        enable-cache: true
-        cache-dependency-glob: "uv.lock"
-
-    - name: Set up Python ${{ env.PRIMARY_PYTHON_VERSION }}
-      run: uv python install ${{ env.PRIMARY_PYTHON_VERSION }}
-
-    - name: Install dependencies
-      run: |
-        uv sync --all-extras --dev
-        uv pip install -e .
+        python-version: ${{ env.PRIMARY_PYTHON_VERSION }}
 
     - name: Build package
       run: uv build
@@ -322,19 +242,6 @@ jobs:
     runs-on: ubuntu-latest
     name: All checks status
     needs: [lint, type-check, security, unit-tests, integration-test, build]
-    # steps:
-    #   - name: Check all jobs status
-    #     run: |
-    #       if [[ "${{ needs.lint.result }}" != "success" || \
-    #             "${{ needs.type-check.result }}" != "success" || \
-    #             "${{ needs.test.result }}" != "success" || \
-    #             "${{ needs.build.result }}" != "success" || \
-    #             "${{ needs.integration-test.result }}" != "success" ]]; then
-    #         echo "One or more checks failed"
-    #         exit 1
-    #       else
-    #         echo "All checks passed successfully"
-    #       fi
     steps:
       - name: Summarize results
         run: |

@@ -26,18 +26,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Set up Python with uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          uv sync --all-extras --dev
-          uv pip install python-semantic-release
+      - name: Install semantic-release
+        run: uv pip install python-semantic-release
 
       - name: Configure Git
         run: |
@@ -57,38 +52,3 @@ jobs:
 
           # Run semantic release
           uv run semantic-release version
-
-  # publish-pypi:
-  #   runs-on: ubuntu-latest
-  #   name: Publish to PyPI
-  #   needs: release
-  #   if: needs.release.outputs.released == 'true'
-  #   permissions:
-  #     id-token: write # For PyPI trusted publishing
-  #   environment:
-  #     name: pypi
-  #     url: https://pypi.org/p/smppai
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v6
-  #       with:
-  #         ref: main
-
-  #     - name: Install uv
-  #       uses: astral-sh/setup-uv@v7
-  #       with:
-  #         enable-cache: true
-
-  #     - name: Set up Python
-  #       run: uv python install ${{ env.PYTHON_VERSION }}
-
-  #     - name: Install dependencies
-  #       run: uv sync --all-extras --dev
-
-  #     - name: Build package
-  #       run: uv build
-
-  #     - name: Publish to PyPI
-  #       uses: pypa/gh-action-pypi-publish@release/v1
-  #       with:
-  #         attestations: true

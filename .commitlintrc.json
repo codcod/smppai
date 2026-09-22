@@ -28,7 +28,8 @@
         "config",
         "examples",
         "tests",
-        "deps"
+        "deps",
+        "deps-dev"
       ]
     ],
     "scope-empty": [1, "never"],
