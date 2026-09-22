@@ -251,12 +251,6 @@
     "ast_hash": "bb09ecea74ebb166624a6974e193aa7f",
     "semantic_hash": "bb09ecea74ebb166624a6974e193aa7f"
   },
-  ".github/copilot-instructions.md": {
-    "mtime": 1750532402.2416239,
-    "seen": 1790066662.4340448,
-    "ast_hash": "097df1ef05f6a8aaf856ebe16f52ce9f",
-    "semantic_hash": "097df1ef05f6a8aaf856ebe16f52ce9f"
-  },
   ".github/dependabot.yml": {
     "mtime": 1790064907.9673138,
     "seen": 1790066662.434046,
@@ -316,5 +310,17 @@
     "seen": 1790066662.43405,
     "ast_hash": "4493a80f88883bc53a6b3c4a0ed24d72",
     "semantic_hash": "4493a80f88883bc53a6b3c4a0ed24d72"
+  },
+  "PACKAGING.md": {
+    "mtime": 1790068113.7266307,
+    "seen": 1790070275.6572769,
+    "ast_hash": "b73e2ad90ae5af27333a7a48c1b81df2",
+    "semantic_hash": ""
+  },
+  "RELEASING.md": {
+    "mtime": 1790068113.7408605,
+    "seen": 1790070275.657278,
+    "ast_hash": "6285718eab4d861085f8bd1a47c6d9de",
+    "semantic_hash": ""
   }
 }
