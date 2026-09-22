@@ -3,10 +3,7 @@ Unit tests for GSM functionality.
 """
 
 import pytest
-from smpp.gsm import (
-    encode_gsm7, decode_gsm7, make_parts, MessagePart,
-    UDH, UDHElement, ConcatenatedSMSHeader
-)
+from smpp.gsm import encode_gsm7, decode_gsm7, make_parts, UDH, ConcatenatedSMSHeader
 from smpp.protocol.pdu.message import SubmitSm
 
 
@@ -15,7 +12,7 @@ class TestGSM7BitEncoding:
 
     def test_basic_encoding(self):
         """Test basic GSM 7-bit encoding."""
-        text = "Hello World"
+        text = 'Hello World'
         encoded, char_count = encode_gsm7(text)
         decoded = decode_gsm7(encoded, char_count)
 
@@ -24,7 +21,7 @@ class TestGSM7BitEncoding:
 
     def test_extended_characters(self):
         """Test GSM 7-bit extended characters."""
-        text = "Hello {World} €"
+        text = 'Hello {World} €'
         encoded, char_count = encode_gsm7(text)
         decoded = decode_gsm7(encoded, char_count)
 
@@ -33,10 +30,10 @@ class TestGSM7BitEncoding:
 
     def test_empty_string(self):
         """Test encoding empty string."""
-        encoded, char_count = encode_gsm7("")
+        encoded, char_count = encode_gsm7('')
         decoded = decode_gsm7(encoded, char_count)
 
-        assert decoded == ""
+        assert decoded == ''
         assert char_count == 0
         assert encoded == b''
 
@@ -51,8 +48,8 @@ class TestGSM7BitEncoding:
 
     def test_invalid_character(self):
         """Test encoding invalid character."""
-        with pytest.raises(ValueError, match="not supported in GSM 7-bit charset"):
-            encode_gsm7("Hello 中文")
+        with pytest.raises(ValueError, match='not supported in GSM 7-bit charset'):
+            encode_gsm7('Hello 中文')
 
 
 class TestUDH:
@@ -61,10 +58,7 @@ class TestUDH:
     def test_concatenated_sms_8bit(self):
         """Test 8-bit concatenated SMS UDH."""
         header = ConcatenatedSMSHeader(
-            reference=123,
-            total_parts=3,
-            part_number=1,
-            use_16bit_ref=False
+            reference=123, total_parts=3, part_number=1, use_16bit_ref=False
         )
 
         element = header.to_udh_element()
@@ -81,10 +75,7 @@ class TestUDH:
     def test_concatenated_sms_16bit(self):
         """Test 16-bit concatenated SMS UDH."""
         header = ConcatenatedSMSHeader(
-            reference=12345,
-            total_parts=5,
-            part_number=2,
-            use_16bit_ref=True
+            reference=12345, total_parts=5, part_number=2, use_16bit_ref=True
         )
 
         element = header.to_udh_element()
@@ -102,10 +93,7 @@ class TestUDH:
         """Test UDH encoding and decoding."""
         # Create UDH with concatenated SMS element
         concat_header = ConcatenatedSMSHeader(
-            reference=255,
-            total_parts=2,
-            part_number=1,
-            use_16bit_ref=False
+            reference=255, total_parts=2, part_number=1, use_16bit_ref=False
         )
 
         udh = UDH([concat_header.to_udh_element()])
@@ -130,7 +118,7 @@ class TestMessageSegmentation:
 
     def test_single_part_message(self):
         """Test message that fits in single SMS."""
-        message = "Hello World"
+        message = 'Hello World'
         parts = make_parts(message, encoding='gsm7')
 
         assert len(parts) == 1
@@ -143,7 +131,7 @@ class TestMessageSegmentation:
     def test_multi_part_gsm7_message(self):
         """Test GSM 7-bit message requiring multiple parts."""
         # Create message longer than 160 characters
-        message = "This is a test message. " * 10  # 240 characters
+        message = 'This is a test message. ' * 10  # 240 characters
         parts = make_parts(message, encoding='gsm7')
 
         assert len(parts) == 2  # Should split into 2 parts
@@ -169,7 +157,7 @@ class TestMessageSegmentation:
     def test_multi_part_binary_message(self):
         """Test binary message requiring multiple parts."""
         # Create message longer than 140 bytes
-        message = b"X" * 200
+        message = b'X' * 200
         parts = make_parts(message, encoding='latin1')
 
         assert len(parts) == 2  # Should split into 2 parts
@@ -178,7 +166,7 @@ class TestMessageSegmentation:
 
     def test_utf16_encoding(self):
         """Test UTF-16 encoding segmentation."""
-        message = "Hello 世界 " * 20  # Unicode message
+        message = 'Hello 世界 ' * 20  # Unicode message
         parts = make_parts(message, encoding='utf16')
 
         assert len(parts) >= 1
@@ -191,7 +179,7 @@ class TestMessagePDUIntegration:
     def test_submit_sm_with_udh(self):
         """Test SubmitSm PDU with UDH."""
         # Create segmented message
-        message = "Long message " * 20
+        message = 'Long message ' * 20
         parts = make_parts(message, encoding='gsm7')
 
         assert len(parts) > 1
@@ -199,11 +187,11 @@ class TestMessagePDUIntegration:
 
         # Create SubmitSm with UDH
         pdu = SubmitSm(
-            source_addr="1234",
-            destination_addr="5678",
+            source_addr='1234',
+            destination_addr='5678',
             short_message=part.get_short_message(),
             esm_class=part.get_esm_class(),
-            data_coding=part.encoding
+            data_coding=part.encoding,
         )
 
         # Test UDH detection
@@ -227,15 +215,15 @@ class TestMessagePDUIntegration:
     def test_submit_sm_without_udh(self):
         """Test SubmitSm PDU without UDH."""
         pdu = SubmitSm(
-            source_addr="1234",
-            destination_addr="5678",
-            short_message=b"Hello World",
+            source_addr='1234',
+            destination_addr='5678',
+            short_message=b'Hello World',
             esm_class=0,
-            data_coding=0
+            data_coding=0,
         )
 
         assert not pdu.has_udh()
         assert not pdu.is_concatenated_sms()
         assert pdu.get_udh() is None
         assert pdu.get_concatenated_info() is None
-        assert pdu.get_message_content() == b"Hello World"
+        assert pdu.get_message_content() == b'Hello World'

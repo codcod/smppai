@@ -17,6 +17,7 @@ class UDHElement:
         iei: Information Element Identifier
         data: Element data bytes
     """
+
     iei: int
     data: bytes
 
@@ -36,7 +37,7 @@ class UDHElement:
         if len(data) - offset < 2 + length:
             raise ValueError('Insufficient data for UDH element data')
 
-        element_data = data[offset + 2:offset + 2 + length]
+        element_data = data[offset + 2 : offset + 2 + length]
         return cls(iei, element_data), offset + 2 + length
 
 
@@ -132,6 +133,7 @@ class ConcatenatedSMSHeader:
         part_number: Current part number (1-based)
         use_16bit_ref: Whether to use 16-bit reference
     """
+
     reference: int
     total_parts: int
     part_number: int
@@ -141,20 +143,18 @@ class ConcatenatedSMSHeader:
         """Convert to UDH element."""
         if self.use_16bit_ref:
             # 16-bit reference
-            data = bytes([
-                (self.reference >> 8) & 0xFF,
-                self.reference & 0xFF,
-                self.total_parts,
-                self.part_number
-            ])
+            data = bytes(
+                [
+                    (self.reference >> 8) & 0xFF,
+                    self.reference & 0xFF,
+                    self.total_parts,
+                    self.part_number,
+                ]
+            )
             return UDHElement(UDH.IEI_CONCATENATED_SMS_16BIT, data)
         else:
             # 8-bit reference
-            data = bytes([
-                self.reference & 0xFF,
-                self.total_parts,
-                self.part_number
-            ])
+            data = bytes([self.reference & 0xFF, self.total_parts, self.part_number])
             return UDHElement(UDH.IEI_CONCATENATED_SMS_8BIT, data)
 
     @classmethod
@@ -167,7 +167,7 @@ class ConcatenatedSMSHeader:
                 reference=element.data[0],
                 total_parts=element.data[1],
                 part_number=element.data[2],
-                use_16bit_ref=False
+                use_16bit_ref=False,
             )
         elif element.iei == UDH.IEI_CONCATENATED_SMS_16BIT:
             if len(element.data) != 4:
@@ -176,7 +176,7 @@ class ConcatenatedSMSHeader:
                 reference=(element.data[0] << 8) | element.data[1],
                 total_parts=element.data[2],
                 part_number=element.data[3],
-                use_16bit_ref=True
+                use_16bit_ref=True,
             )
         else:
             raise ValueError(f'Invalid concatenated SMS IEI: 0x{element.iei:02X}')

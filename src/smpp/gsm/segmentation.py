@@ -26,6 +26,7 @@ class MessagePart:
         total_parts: Total number of parts
         reference: Message reference for concatenation
     """
+
     content: bytes
     udh: Optional[UDH] = None
     encoding: int = 0  # GSM 7-bit default
@@ -86,7 +87,7 @@ def make_parts(
     message: Union[str, bytes],
     encoding: str = 'gsm7',
     max_sms_length: Optional[int] = None,
-    reference: Optional[int] = None
+    reference: Optional[int] = None,
 ) -> List[MessagePart]:
     """
     Split a message into SMS parts for transmission.
@@ -129,7 +130,7 @@ def make_parts(
     if max_sms_length is None:
         if encoding == 'gsm7':
             max_single = 160  # characters
-            max_concat = 153   # characters per part with UDH
+            max_concat = 153  # characters per part with UDH
         else:
             max_single = 140  # bytes
             max_concat = 134  # bytes per part with UDH
@@ -142,12 +143,11 @@ def make_parts(
 
     if message_length <= max_single:
         # Single SMS
-        return [MessagePart(
-            content=encoded_data,
-            encoding=data_coding,
-            part_number=1,
-            total_parts=1
-        )]
+        return [
+            MessagePart(
+                content=encoded_data, encoding=data_coding, part_number=1, total_parts=1
+            )
+        ]
 
     # Multi-part SMS required
     if reference is None:
@@ -174,7 +174,7 @@ def make_parts(
         char_offset = 0
         for part_num in range(1, parts_needed + 1):
             # Extract characters for this part
-            part_text = text[char_offset:char_offset + max_concat]
+            part_text = text[char_offset : char_offset + max_concat]
             part_data, _ = encode_gsm7(part_text)
             char_offset += len(part_text)
 
@@ -183,18 +183,20 @@ def make_parts(
                 reference=reference,
                 total_parts=parts_needed,
                 part_number=part_num,
-                use_16bit_ref=use_16bit_ref
+                use_16bit_ref=use_16bit_ref,
             )
             udh = UDH([concat_header.to_udh_element()])
 
-            parts.append(MessagePart(
-                content=part_data,
-                udh=udh,
-                encoding=data_coding,
-                part_number=part_num,
-                total_parts=parts_needed,
-                reference=reference
-            ))
+            parts.append(
+                MessagePart(
+                    content=part_data,
+                    udh=udh,
+                    encoding=data_coding,
+                    part_number=part_num,
+                    total_parts=parts_needed,
+                    reference=reference,
+                )
+            )
     else:
         # For binary encodings, split by bytes
         parts_needed = (len(encoded_data) + max_concat - 1) // max_concat
@@ -212,7 +214,7 @@ def make_parts(
 
         for part_num in range(1, parts_needed + 1):
             # Extract bytes for this part
-            part_data = encoded_data[byte_offset:byte_offset + max_concat]
+            part_data = encoded_data[byte_offset : byte_offset + max_concat]
             byte_offset += len(part_data)
 
             # Create UDH
@@ -220,23 +222,27 @@ def make_parts(
                 reference=reference,
                 total_parts=parts_needed,
                 part_number=part_num,
-                use_16bit_ref=use_16bit_ref
+                use_16bit_ref=use_16bit_ref,
             )
             udh = UDH([concat_header.to_udh_element()])
 
-            parts.append(MessagePart(
-                content=part_data,
-                udh=udh,
-                encoding=data_coding,
-                part_number=part_num,
-                total_parts=parts_needed,
-                reference=reference
-            ))
+            parts.append(
+                MessagePart(
+                    content=part_data,
+                    udh=udh,
+                    encoding=data_coding,
+                    part_number=part_num,
+                    total_parts=parts_needed,
+                    reference=reference,
+                )
+            )
 
     return parts
 
 
-def reassemble_parts(parts: List[MessagePart], encoding: str = 'gsm7') -> Union[str, bytes]:
+def reassemble_parts(
+    parts: List[MessagePart], encoding: str = 'gsm7'
+) -> Union[str, bytes]:
     """
     Reassemble message parts into original message.
 

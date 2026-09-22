@@ -9,22 +9,22 @@ from typing import Optional, Tuple
 
 # GSM 7-bit basic character set
 GSM_7BIT_BASIC = (
-    '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ !\"#¤%&\'()*+,-./0123456789:;<=>?'
+    '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?'
     '¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà'
 )
 
 # GSM 7-bit extended character set (escape sequences)
 GSM_7BIT_EXTENDED = {
     '\f': 0x0A,  # Form feed
-    '^': 0x14,   # Circumflex
-    '{': 0x28,   # Left curly bracket
-    '}': 0x29,   # Right curly bracket
+    '^': 0x14,  # Circumflex
+    '{': 0x28,  # Left curly bracket
+    '}': 0x29,  # Right curly bracket
     '\\': 0x2F,  # Backslash
-    '[': 0x3C,   # Left square bracket
-    '~': 0x3D,   # Tilde
-    ']': 0x3E,   # Right square bracket
-    '|': 0x40,   # Vertical bar
-    '€': 0x65,   # Euro sign
+    '[': 0x3C,  # Left square bracket
+    '~': 0x3D,  # Tilde
+    ']': 0x3E,  # Right square bracket
+    '|': 0x40,  # Vertical bar
+    '€': 0x65,  # Euro sign
 }
 
 # Reverse mapping for extended characters
@@ -73,7 +73,7 @@ def encode_gsm7(text: str) -> Tuple[bytes, int]:
     bits_in_accumulator = 0
 
     for value in gsm_values:
-        accumulator |= (value << bits_in_accumulator)
+        accumulator |= value << bits_in_accumulator
         bits_in_accumulator += 7
 
         # Extract complete bytes
@@ -112,7 +112,7 @@ def decode_gsm7(data: bytes, character_count: Optional[int] = None) -> str:
     bits_in_accumulator = 0
 
     for byte_val in data:
-        accumulator |= (byte_val << bits_in_accumulator)
+        accumulator |= byte_val << bits_in_accumulator
         bits_in_accumulator += 8
 
         # Extract 7-bit values
