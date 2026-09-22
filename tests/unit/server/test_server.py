@@ -1491,6 +1491,7 @@ class TestSMPPServerDeliverSm:
         assert sent_pdu.protocol_id == 0x02
         assert sent_pdu.priority_flag == 0x03
         assert sent_pdu.data_coding == DataCoding.UCS2
+        assert sent_pdu.short_message == 'Hello World'.encode('utf-16-be')
 
 
 class TestSMPPServerStopWithExceptions:

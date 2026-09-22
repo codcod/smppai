@@ -931,9 +931,6 @@ class SMPPServer:
             return False
 
         try:
-            # Encode message
-            message_bytes = short_message.encode('utf-8')
-
             # Create deliver_sm PDU
             deliver_pdu = DeliverSm(  # type: ignore[call-arg]
                 service_type=service_type,
@@ -952,8 +949,8 @@ class SMPPServer:
                 replace_if_present_flag=0,
                 data_coding=data_coding,
                 sm_default_msg_id=0,
-                short_message=message_bytes,
             )
+            deliver_pdu.set_message_text(short_message)
 
             # Send deliver_sm and wait for response
             response = await target_session.connection.send_pdu(
