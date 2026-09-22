@@ -133,6 +133,21 @@ class SMPPConnection:
             self._sequence_counter = 1
         return current
 
+    def _activate(self) -> None:
+        """Mark the connection open and start its background tasks."""
+        self._connected = True
+        self._set_state(ConnectionState.OPEN)
+        self._last_activity = time.time()
+
+        # Start background tasks
+        self._receive_task = asyncio.create_task(self._receive_loop())
+        self._enquire_link_task = asyncio.create_task(self._enquire_link_loop())
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+    def accept(self) -> None:
+        """Activate a connection whose reader/writer were provided by an accepted socket."""
+        self._activate()
+
     async def connect(self) -> None:
         """Establish TCP connection"""
         if self.is_connected:
@@ -145,14 +160,7 @@ class SMPPConnection:
                 timeout=self.write_timeout,
             )
 
-            self._connected = True
-            self._set_state(ConnectionState.OPEN)
-            self._last_activity = time.time()
-
-            # Start background tasks
-            self._receive_task = asyncio.create_task(self._receive_loop())
-            self._enquire_link_task = asyncio.create_task(self._enquire_link_loop())
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            self._activate()
 
             logger.info(f'Connected to {self.host}:{self.port}')
 
