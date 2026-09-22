@@ -1,6 +1,23 @@
 # CHANGELOG
 
 
+## v0.2.3 (2026-09-22)
+
+### Continuous Integration
+
+- **deps**: Bump actions/cache from 4 to 5
+  ([`9ea2cd1`](https://github.com/codcod/smppai/commit/9ea2cd1effa6c146d679107f839456fcded64fd2))
+
+- **deps**: Bump actions/checkout from 5 to 6
+  ([`8016151`](https://github.com/codcod/smppai/commit/8016151a7aa693dd78d9ae5eb4448cfb3b38e070))
+
+- **deps**: Bump actions/download-artifact from 6 to 7
+  ([`aa09793`](https://github.com/codcod/smppai/commit/aa097931e508b4ef49e874a2fb18f9858499f772))
+
+- **deps**: Bump actions/upload-artifact from 5 to 6
+  ([`91c9382`](https://github.com/codcod/smppai/commit/91c938296bade63f4bee73b2335e648349e1a863))
+
+
 ## v0.2.2 (2026-09-22)
 
 ### Bug Fixes
@@ -8,8 +25,20 @@
 - **ci**: Pin astral-sh/setup-uv to v6, v7's cache prune breaks the save step
   ([`f26a437`](https://github.com/codcod/smppai/commit/f26a437753252aab773dd7af1cae8e336d8f320b))
 
+- **ci**: Pin setup-uv composite action to v6, v7 breaks cache save when nested in a composite
+  action
+  ([`fa759b3`](https://github.com/codcod/smppai/commit/fa759b3db101c3904d87266d6dbb6be82f4121e8))
+
 - **gsm**: Replace star import with explicit names, drop unused test imports
   ([`c04d8dd`](https://github.com/codcod/smppai/commit/c04d8dde567ee1f5a0a14bb779bb04101433ff75))
+
+### Chores
+
+- Align repo tooling, remove dead config module, packaging docs
+  ([`42d9121`](https://github.com/codcod/smppai/commit/42d91210659c98a03294d8b30bd3d3b4367d0a27))
+
+- Sync graphify-out after tooling/config commit
+  ([`2f8a9d0`](https://github.com/codcod/smppai/commit/2f8a9d068295ce12c5275f2fbc31fd22b6dc796e))
 
 ### Continuous Integration
 
