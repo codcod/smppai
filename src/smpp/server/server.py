@@ -417,14 +417,7 @@ class SMPPServer:
         self._accept_new_messages = False
 
         if not self._clients:
-            logger.info(
-                'No clients connected - still respecting grace period for demonstration'
-            )
-            logger.info(
-                f'Grace period: waiting {self._shutdown_grace_period}s as configured'
-            )
-            await asyncio.sleep(self._shutdown_grace_period)
-            logger.info('Grace period complete - enhanced shutdown sequence complete')
+            logger.info('No clients connected - shutdown sequence complete')
             return
 
         logger.info(f'Shutting down with {len(self._clients)} clients connected')
