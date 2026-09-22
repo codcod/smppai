@@ -7,6 +7,7 @@ ensuring proper notification handling and graceful disconnection.
 
 import asyncio
 import pytest
+import pytest_asyncio
 from unittest.mock import Mock
 
 from examples.client import SMSClient
@@ -17,15 +18,17 @@ from examples.server import SMSCServer
 class TestShutdownIntegration:
     """Integration tests for server-client shutdown interaction"""
 
-    @pytest.fixture(autouse=True)
+    @pytest_asyncio.fixture(autouse=True)
     async def cleanup_after_test(self):
         """Ensure clean state after each test."""
         yield
-        # Cancel any remaining tasks
-        tasks = [t for t in asyncio.all_tasks() if not t.done()]
+        # Cancel any remaining tasks, excluding this fixture's own finalizer
+        # task — including it makes the gather below await on itself and
+        # recurse through Task.cancel() until the interpreter's stack limit.
+        current = asyncio.current_task()
+        tasks = [t for t in asyncio.all_tasks() if not t.done() and t is not current]
         for task in tasks:
-            if not task.done():
-                task.cancel()
+            task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
