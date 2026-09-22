@@ -1,6 +1,18 @@
 # CHANGELOG
 
 
+## v0.2.4 (2026-09-22)
+
+### Bug Fixes
+
+- **tests**: Make test_check_memory_limits async so asyncio.Future() has a running loop
+  ([`c95ac5e`](https://github.com/codcod/smppai/commit/c95ac5e7357213d5987c573946aa6c21d254457e))
+
+- **tests**: Register cleanup_after_test as an async fixture and exclude its own task from
+  cancellation
+  ([`6615d8a`](https://github.com/codcod/smppai/commit/6615d8a34f4445b063a84e92af6bcedfc8f7a7b9))
+
+
 ## v0.2.3 (2026-09-22)
 
 ### Continuous Integration
