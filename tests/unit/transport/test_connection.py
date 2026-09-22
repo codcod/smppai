@@ -515,7 +515,7 @@ class TestMemoryManagement:
 
         # Fill up to the limit
         for i in range(15):  # Exceed the limit
-            future = asyncio.Future()
+            future = asyncio.get_running_loop().create_future()
             connected_connection._pending_pdus[i] = (
                 future,
                 time.time() - i,
