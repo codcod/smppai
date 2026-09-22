@@ -1,6 +1,34 @@
 # CHANGELOG
 
 
+## v0.2.2 (2026-09-22)
+
+### Bug Fixes
+
+- **ci**: Pin astral-sh/setup-uv to v6, v7's cache prune breaks the save step
+  ([`f26a437`](https://github.com/codcod/smppai/commit/f26a437753252aab773dd7af1cae8e336d8f320b))
+
+- **gsm**: Replace star import with explicit names, drop unused test imports
+  ([`c04d8dd`](https://github.com/codcod/smppai/commit/c04d8dde567ee1f5a0a14bb779bb04101433ff75))
+
+### Continuous Integration
+
+- **deps**: Bump actions/checkout from 4 to 5
+  ([`af3e409`](https://github.com/codcod/smppai/commit/af3e409c66d16009df5c3ae31958e1276664c8a0))
+
+- **deps**: Bump actions/download-artifact from 4 to 5
+  ([`2cf33c9`](https://github.com/codcod/smppai/commit/2cf33c9107afc2ca334a4899ec957d900fc40bc8))
+
+- **deps**: Bump actions/download-artifact from 5 to 6
+  ([`04361ef`](https://github.com/codcod/smppai/commit/04361ef9cb8ec408ec7556bedc72af8534e96800))
+
+- **deps**: Bump actions/upload-artifact from 4 to 5
+  ([`6013fda`](https://github.com/codcod/smppai/commit/6013fda679e1bdc0cafb48486705a3578eb857fa))
+
+- **deps**: Bump astral-sh/setup-uv from 6 to 7
+  ([`d89e46a`](https://github.com/codcod/smppai/commit/d89e46a00fdb9173a4584e2099877a8e75a938bf))
+
+
 ## v0.2.1 (2025-06-24)
 
 ### Bug Fixes
