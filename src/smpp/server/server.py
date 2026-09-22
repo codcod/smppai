@@ -35,7 +35,7 @@ from ..protocol import (
     UnbindResp,
     get_error_message,
 )
-from ..transport import ConnectionState, SMPPConnection
+from ..transport import SMPPConnection
 
 logger = logging.getLogger(__name__)
 
@@ -578,12 +578,8 @@ class SMPPServer:
 
         connection.on_connection_lost = handle_connection_lost
 
-        # Mark connection as established
-        connection._connected = True
-        connection._set_state(ConnectionState.OPEN)
-
-        # Start receive loop
-        connection._receive_task = asyncio.create_task(connection._receive_loop())
+        # Mark connection as established and start its background tasks
+        connection.accept()
 
         # Trigger client connected event
         if self.on_client_connected:
