@@ -197,6 +197,33 @@ class TestPDU:
         assert pdu.sequence_number == 42
         assert pdu.optional_parameters == [tlv]
 
+    @pytest.mark.parametrize('seq', [0, 1, 0x7FFFFFFF])
+    def test_validate_accepts_sequence_in_range(self, seq):
+        """Test validate() accepts 0 (not yet sent) through 0x7FFFFFFF."""
+
+        class TestPDU(PDU):
+            def encode_body(self):
+                return b''
+
+            def decode_body(self, data, offset=0):
+                return offset
+
+        TestPDU(sequence_number=seq).validate()
+
+    @pytest.mark.parametrize('seq', [-1, 0x80000000])
+    def test_validate_rejects_sequence_out_of_range(self, seq):
+        """Test validate() rejects sequence numbers outside 0..0x7FFFFFFF."""
+
+        class TestPDU(PDU):
+            def encode_body(self):
+                return b''
+
+            def decode_body(self, data, offset=0):
+                return offset
+
+        with pytest.raises(SMPPPDUException, match=f'Invalid sequence number: {seq}'):
+            TestPDU(sequence_number=seq).validate()
+
 
 class TestBindRequestPDU:
     """Test BindRequestPDU base class."""
