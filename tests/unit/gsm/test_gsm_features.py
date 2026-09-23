@@ -4,6 +4,7 @@ Unit tests for GSM functionality.
 
 import pytest
 from smpp.gsm import encode_gsm7, decode_gsm7, make_parts, UDH, ConcatenatedSMSHeader
+from smpp.gsm.encoding import GSM_7BIT_BASIC, GSM_7BIT_EXTENDED
 from smpp.protocol.pdu.message import SubmitSm
 
 
@@ -50,6 +51,43 @@ class TestGSM7BitEncoding:
         """Test encoding invalid character."""
         with pytest.raises(ValueError, match='not supported in GSM 7-bit charset'):
             encode_gsm7('Hello 中文')
+
+
+class TestGSM0338Codec:
+    """Test the unpacked 'gsm0338' codec used for data_coding 0."""
+
+    def test_round_trip_basic_table(self):
+        text = GSM_7BIT_BASIC.replace('\x1b', '')
+        encoded = text.encode('gsm0338')
+        assert encoded == bytes(i for i in range(128) if i != 0x1B)
+        assert encoded.decode('gsm0338') == text
+
+    def test_round_trip_extension_table(self):
+        text = ''.join(GSM_7BIT_EXTENDED)
+        encoded = text.encode('gsm0338')
+        assert encoded == b''.join(bytes([0x1B, v]) for v in GSM_7BIT_EXTENDED.values())
+        assert encoded.decode('gsm0338') == text
+
+    def test_unpacked_bytes(self):
+        assert '@_€{'.encode('gsm0338') == b'\x00\x11\x1b\x65\x1b\x28'
+
+    @pytest.mark.parametrize('text', ['ж', '\x1b'])
+    def test_encode_rejects(self, text):
+        with pytest.raises(UnicodeEncodeError):
+            text.encode('gsm0338')
+
+    def test_encode_replace(self):
+        assert 'жa'.encode('gsm0338', errors='replace') == b'?a'
+
+    def test_decode_rejects_high_byte(self):
+        with pytest.raises(UnicodeDecodeError):
+            b'\x80'.decode('gsm0338')
+        assert b'A\x80'.decode('gsm0338', errors='replace') == 'A\ufffd'
+
+    def test_decode_escape_edge_cases(self):
+        assert b'A\x1b'.decode('gsm0338') == 'A '  # trailing ESC
+        assert b'\x1b\x1bA'.decode('gsm0338') == ' A'  # reserved ESC ESC
+        assert b'\x1bA'.decode('gsm0338') == 'A'  # unknown escape -> basic char
 
 
 class TestUDH:

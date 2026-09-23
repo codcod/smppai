@@ -374,8 +374,8 @@ class SMPPServer:
                 replace_if_present_flag=0,
                 data_coding=DataCoding.DEFAULT,
                 sm_default_msg_id=0,
-                short_message=message_text.encode('utf-8'),
             )
+            deliver_pdu.set_message_text(message_text)
 
             await session.connection.send_pdu(deliver_pdu, wait_response=False)
             logger.info(f'Sent shutdown {message_type} to {session.system_id}')

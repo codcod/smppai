@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ...exceptions import SMPPPDUException
+from ..codec import codec_for_data_coding
 from ..constants import CommandId
 from .base import EmptyBodyPDU, RequestPDU, ResponsePDU
 
@@ -260,18 +261,24 @@ class DataSm(RequestPDU):
 
         self.add_optional_parameter(OptionalTag.MESSAGE_PAYLOAD, payload)
 
-    def get_message_text(self, encoding: str = 'utf-8') -> str:
-        """Get message text from payload"""
+    def get_message_text(self, encoding: Optional[str] = None) -> str:
+        """Get message text from payload, decoded per data_coding by default"""
+        if encoding is None:
+            try:
+                encoding = codec_for_data_coding(self.data_coding)
+            except SMPPPDUException:
+                encoding = 'latin-1'  # never raise on a received PDU
         payload = self.get_message_payload()
         try:
             return payload.decode(encoding)
         except UnicodeDecodeError:
             return payload.decode(encoding, errors='replace')
 
-    def set_message_text(self, text: str, encoding: str = 'utf-8') -> None:
-        """Set message text as payload"""
-        payload = text.encode(encoding)
-        self.set_message_payload(payload)
+    def set_message_text(self, text: str, encoding: Optional[str] = None) -> None:
+        """Set message text as payload, encoded per data_coding by default"""
+        if encoding is None:
+            encoding = codec_for_data_coding(self.data_coding)
+        self.set_message_payload(text.encode(encoding))
 
 
 class DataSmResp(ResponsePDU):

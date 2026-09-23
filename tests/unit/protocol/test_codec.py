@@ -236,6 +236,36 @@ class TestFieldValidation:
         codec.validate_field_length('test_field', 'hello', 0, 5)
 
 
+class TestCodecForDataCoding:
+    """Tests for codec_for_data_coding, the single data_coding -> codec map."""
+
+    @pytest.mark.parametrize(
+        'data_coding, expected',
+        [
+            (0x00, 'gsm0338'),
+            (0x01, 'ascii'),
+            (0x02, 'utf-8'),
+            (0x03, 'latin-1'),
+            (0x04, 'utf-8'),
+            (0x06, 'iso8859_5'),
+            (0x07, 'iso8859_8'),
+            (0x08, 'utf-16-be'),
+            (0x0A, 'iso2022_jp'),
+            (0xF0, 'gsm0338'),
+            (0xF3, 'gsm0338'),
+            (0xF4, 'utf-8'),
+            (0xFF, 'utf-8'),
+        ],
+    )
+    def test_mapped(self, data_coding, expected):
+        assert codec.codec_for_data_coding(data_coding) == expected
+
+    @pytest.mark.parametrize('data_coding', [0x05, 0x09, 0x0B, 0x0D, 0x0E, 0xC0, 0xEF])
+    def test_rejected(self, data_coding):
+        with pytest.raises(SMPPPDUException, match='Unsupported data_coding'):
+            codec.codec_for_data_coding(data_coding)
+
+
 class TestMessageEncoding:
     """Tests for encode_message_with_encoding function."""
 
@@ -266,15 +296,15 @@ class TestMessageEncoding:
         )
         assert result == b'hello'
 
-    def test_encode_unknown_coding(self):
-        """Test encoding with unknown data coding (should fallback to UTF-8)."""
-        result = codec.encode_message_with_encoding('hello', 99)
-        assert result == b'hello'
+    def test_encode_default_coding_is_gsm0338(self):
+        """Default coding encodes as GSM 03.38 unpacked, not latin-1."""
+        result = codec.encode_message_with_encoding('@_€{', DataCoding.DEFAULT)
+        assert result == b'\x00\x11\x1b\x65\x1b\x28'
 
-    def test_encode_unicode_with_utf8_fallback(self):
-        """Test encoding Unicode with UTF-8 fallback."""
-        result = codec.encode_message_with_encoding('🙂', 99)  # Unknown coding
-        assert result == b'\xf0\x9f\x99\x82'
+    def test_encode_unknown_coding_rejected(self):
+        """Unsupported data coding is rejected, never sent as UTF-8."""
+        with pytest.raises(SMPPPDUException, match='Unsupported data_coding 0x63'):
+            codec.encode_message_with_encoding('hello', 99)
 
     def test_encode_error(self):
         """Test encoding error handling."""
@@ -314,21 +344,10 @@ class TestMessageDecoding:
         )
         assert result == 'hello'
 
-    def test_decode_unknown_coding(self):
-        """Test decoding with unknown data coding (should fallback to UTF-8)."""
-        result = codec.decode_message_with_encoding(b'hello', 99)
-        assert result == 'hello'
-
-    def test_decode_unicode_with_utf8_fallback(self):
-        """Test decoding Unicode with UTF-8 fallback."""
-        result = codec.decode_message_with_encoding(b'\xf0\x9f\x99\x82', 99)
-        assert result == '🙂'
-
-    def test_decode_error_with_replacement(self):
-        """Test decoding with invalid bytes (should use replacement chars)."""
-        # Invalid UTF-8 with unknown data coding - should use error='replace'
-        result = codec.decode_message_with_encoding(b'\xff\xfe', 99)
-        assert '\ufffd' in result  # Replacement character
+    def test_decode_unknown_coding_rejected(self):
+        """Unsupported data coding is rejected, never decoded as UTF-8."""
+        with pytest.raises(SMPPPDUException, match='Unsupported data_coding 0x63'):
+            codec.decode_message_with_encoding(b'hello', 99)
 
     def test_decode_error_with_known_coding(self):
         """Test decoding error with known data coding."""

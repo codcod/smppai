@@ -166,7 +166,7 @@ class SMSHandler:
             message_id = await self.client.submit_sm(
                 source_addr="12345",
                 destination_addr=to_number,
-                short_message=message.encode('utf-8'),
+                short_message=message,
                 data_coding=DataCoding.UCS2
             )
             print(f"Unicode SMS sent to {to_number}, ID: {message_id}")
@@ -429,12 +429,28 @@ pdu.optional_parameters.append(tlv)
 
 ### Data Coding Schemes
 
-Supported data coding schemes:
-- Default SMSC alphabet (7-bit)
-- IA5/ASCII
-- Latin-1 (ISO-8859-1)
-- UCS2 (UTF-16)
-- UTF-8
+`submit_sm` takes `short_message` as `str` and encodes it according to `data_coding`
+(`smpp.protocol.codec_for_data_coding` is the single map):
+
+| data_coding | Scheme | Encoded as |
+|---|---|---|
+| `0x00` `DEFAULT` | SMSC default alphabet | GSM 03.38, unpacked (one septet per octet; `€ { } [ ] ~ \ ^ \|` and form feed as `0x1B` + code) |
+| `0x01` `IA5_ASCII` | IA5 / ASCII | `ascii` |
+| `0x02`, `0x04` | Octet unspecified | `utf-8` (the bytes' meaning is up to the caller) |
+| `0x03` `LATIN_1` | ISO-8859-1 | `latin-1` |
+| `0x06` `CYRILLIC` | ISO-8859-5 | `iso8859_5` |
+| `0x07` `LATIN_HEBREW` | ISO-8859-8 | `iso8859_8` |
+| `0x08` `UCS2` | UCS2 | `utf-16-be` |
+| `0x0A` `ISO_2022_JP` | ISO-2022-JP | `iso2022_jp` |
+| `0xF0`–`0xFF` | GSM message class | GSM 03.38 when bit `0x04` is clear, `utf-8` when set |
+
+Every other value (JIS `0x05`, pictogram `0x09`, `0x0D`, KS C 5601 `0x0E`, the MWI groups
+`0xC0`–`0xEF`, reserved values) is rejected: `submit_sm` raises `SMPPMessageException`,
+and `set_message_text` raises `SMPPPDUException`. Text that the chosen coding cannot represent
+raises `SMPPMessageException` too, so send it with `DataCoding.UCS2`. On receipt,
+`get_message_text()` never raises: it decodes an unsupported coding as latin-1 and replaces
+undecodable bytes. The GSM 03.38 codec is registered as the Python codec `gsm0338`
+(`'@€'.encode('gsm0338')`).
 
 ## Error Handling
 

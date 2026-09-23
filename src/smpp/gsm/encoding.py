@@ -5,7 +5,8 @@ Provides encoding and decoding functions compatible with python-smpplib's
 GSM 7-bit character set handling.
 """
 
-from typing import Optional, Tuple
+import codecs
+from typing import Optional, Tuple, cast
 
 # GSM 7-bit basic character set
 GSM_7BIT_BASIC = (
@@ -153,3 +154,90 @@ def decode_gsm7(data: bytes, character_count: Optional[int] = None) -> str:
             i += 1
 
     return ''.join(text)
+
+
+# Unpacked GSM 03.38 (one septet per octet), as SMPP carries data_coding 0 in
+# short_message. ESC (0x1B) is the extension-table prefix, never a character.
+_GSM0338_ENCODE = {c: bytes([i]) for i, c in enumerate(GSM_7BIT_BASIC) if i != 0x1B}
+_GSM0338_ENCODE.update({c: bytes([0x1B, v]) for c, v in GSM_7BIT_EXTENDED.items()})
+
+
+def encode_gsm0338(text: str, errors: str = 'strict') -> bytes:
+    """
+    Encode text as unpacked GSM 03.38: one septet per octet, extension-table
+    characters as 0x1B + code.
+
+    Raises:
+        UnicodeEncodeError: For a character outside the basic and extension
+            tables (under errors='strict')
+    """
+    out = bytearray()
+    i = 0
+    while i < len(text):
+        encoded = _GSM0338_ENCODE.get(text[i])
+        if encoded is not None:
+            out += encoded
+            i += 1
+            continue
+        exc = UnicodeEncodeError(
+            'gsm0338', text, i, i + 1, 'character not in GSM 03.38'
+        )
+        replacement, i = codecs.lookup_error(errors)(exc)
+        out += (
+            replacement
+            if isinstance(replacement, bytes)
+            else encode_gsm0338(replacement)
+        )
+    return bytes(out)
+
+
+def decode_gsm0338(data: bytes, errors: str = 'strict') -> str:
+    """
+    Decode unpacked GSM 03.38. Per 3GPP 23.038, ESC followed by an unknown
+    code decodes as that code's basic-table character, and ESC ESC or a
+    trailing ESC decodes as a space.
+
+    Raises:
+        UnicodeDecodeError: For a byte > 0x7F (under errors='strict')
+    """
+    data = bytes(data)
+    out: list[str] = []
+    i = 0
+    while i < len(data):
+        value = data[i]
+        if value > 0x7F:
+            exc = UnicodeDecodeError(
+                'gsm0338', data, i, i + 1, 'byte > 0x7F in GSM 03.38'
+            )
+            replacement, i = codecs.lookup_error(errors)(exc)
+            out.append(cast(str, replacement))  # decode handlers return str
+        elif value != 0x1B:
+            out.append(GSM_7BIT_BASIC[value])
+            i += 1
+        else:
+            nxt = data[i + 1] if i + 1 < len(data) else None
+            if nxt in GSM_7BIT_EXTENDED_REVERSE:
+                out.append(GSM_7BIT_EXTENDED_REVERSE[nxt])
+                i += 2
+            elif nxt is None or nxt == 0x1B:
+                out.append(' ')  # trailing ESC, or reserved ESC ESC
+                i += 2
+            elif nxt > 0x7F:
+                i += 1  # drop ESC; the next iteration reports the bad byte
+            else:
+                out.append(GSM_7BIT_BASIC[nxt])
+                i += 2
+    return ''.join(out)
+
+
+def _search_gsm0338(name: str) -> Optional[codecs.CodecInfo]:
+    if name != 'gsm0338':
+        return None
+    return codecs.CodecInfo(
+        name='gsm0338',
+        encode=lambda text, errors='strict': (encode_gsm0338(text, errors), len(text)),
+        decode=lambda data, errors='strict': (decode_gsm0338(data, errors), len(data)),
+    )
+
+
+codecs.register(_search_gsm0338)

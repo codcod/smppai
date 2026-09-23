@@ -38,7 +38,7 @@ from .constants import (
     SMPP_MSGTYPE_DELIVERYACK,
     SMPP_MSGTYPE_USERACK,
 )
-from .encoding import encode_gsm7, decode_gsm7
+from .encoding import encode_gsm7, decode_gsm7, encode_gsm0338, decode_gsm0338
 from .segmentation import make_parts, MessagePart
 from .udh import UDH, UDHElement, ConcatenatedSMSHeader
 
@@ -46,6 +46,8 @@ __all__ = [
     # Encoding functions
     'encode_gsm7',
     'decode_gsm7',
+    'encode_gsm0338',
+    'decode_gsm0338',
     # Segmentation
     'make_parts',
     'MessagePart',
