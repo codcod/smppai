@@ -254,13 +254,15 @@ class TestCodecForDataCoding:
             (0xF0, 'gsm0338'),
             (0xF3, 'gsm0338'),
             (0xF4, 'utf-8'),
-            (0xFF, 'utf-8'),
+            (0xF7, 'utf-8'),
         ],
     )
     def test_mapped(self, data_coding, expected):
         assert codec.codec_for_data_coding(data_coding) == expected
 
-    @pytest.mark.parametrize('data_coding', [0x05, 0x09, 0x0B, 0x0D, 0x0E, 0xC0, 0xEF])
+    @pytest.mark.parametrize(
+        'data_coding', [0x05, 0x09, 0x0B, 0x0D, 0x0E, 0xC0, 0xEF, 0xF8, 0xFF]
+    )
     def test_rejected(self, data_coding):
         with pytest.raises(SMPPPDUException, match='Unsupported data_coding'):
             codec.codec_for_data_coding(data_coding)
