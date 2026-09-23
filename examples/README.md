@@ -82,7 +82,7 @@ from smpp import (
     DataCoding,
     RegisteredDelivery,
     DeliverSm,
-    SubmitSm
+    SubmitSm,
 )
 ```
 
@@ -94,17 +94,17 @@ from smpp import (
     SMPPException,
     SMPPConnectionException,
     SMPPBindException,
-    SMPPTimeoutException
+    SMPPTimeoutException,
 )
 
 try:
     await client.submit_sm(source, dest, message)
 except SMPPTimeoutException:
-    print("Message send timed out")
+    print('Message send timed out')
 except SMPPBindException:
-    print("Client not properly bound")
+    print('Client not properly bound')
 except SMPPException as e:
-    print(f"SMPP error: {e}")
+    print(f'SMPP error: {e}')
 ```
 
 ### Async Context Managers
@@ -174,6 +174,7 @@ def handle_pdu(pdu):
         message = pdu.short_message.decode('utf-8', errors='ignore')
         print(f'Received: {message}')
 
+
 client.on_pdu_received = handle_pdu
 await client.bind_receiver()
 ```
@@ -182,8 +183,10 @@ await client.bind_receiver()
 ```python
 server = SMPPServer(host='localhost', port=2775)
 
+
 def authenticate(system_id, password, system_type):
     return system_id == 'test' and password == 'pass'
+
 
 server.authenticate = authenticate
 await server.start()

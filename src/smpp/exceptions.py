@@ -394,5 +394,3 @@ class SMPPConfigurationException(SMPPException):
         self.config_section = config_section
         self.config_key = config_key
         self.config_value = config_value
-
-

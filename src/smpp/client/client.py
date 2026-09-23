@@ -401,7 +401,9 @@ class SMPPClient:
                 f'Message not encodable with data_coding {data_coding:#x}; use DataCoding.UCS2'
             ) from e
         if len(submit_pdu.short_message) > 255:
-            raise SMPPMessageException(f'Message too long: {len(submit_pdu.short_message)} bytes')
+            raise SMPPMessageException(
+                f'Message too long: {len(submit_pdu.short_message)} bytes'
+            )
 
         try:
             # Send submit_sm and wait for response

@@ -699,7 +699,9 @@ class TestSMPPClientSubmitSm:
         client._bind_type = BindType.TRANSMITTER
 
         with pytest.raises(SMPPMessageException, match='not encodable'):
-            await client.submit_sm('12345', '67890', '\u041f\u0440\u0438\u0432\u0435\u0442')
+            await client.submit_sm(
+                '12345', '67890', '\u041f\u0440\u0438\u0432\u0435\u0442'
+            )
         client._connection.send_pdu.assert_not_called()
 
     @pytest.mark.asyncio

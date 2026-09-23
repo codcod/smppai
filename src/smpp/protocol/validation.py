@@ -25,6 +25,7 @@ SYSTEM_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_]+$')
 ADDRESS_PATTERN = re.compile(r'^[0-9+]+$')
 PASSWORD_PATTERN = re.compile(r'^[a-zA-Z0-9!@#$%^&*()_+-=]+$')
 
+
 def validate_system_id(system_id: str) -> None:
     """
     Validate SMPP system ID field.
