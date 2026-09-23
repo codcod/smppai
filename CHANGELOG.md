@@ -1,6 +1,88 @@
 # CHANGELOG
 
 
+## v0.2.5 (2026-09-23)
+
+### Bug Fixes
+
+- Bound requires-python below 3.14, pin version (SMP-001)
+  ([`658a181`](https://github.com/codcod/smppai/commit/658a1810db5e3c6f590d0af3469d86d100357c93))
+
+- **client**: Honor data_coding when encoding submit_sm text (SMP-001)
+  ([`e7ead49`](https://github.com/codcod/smppai/commit/e7ead49093637a55a0e6ba260ef0a92948d013bf))
+
+- **client**: Reject text not encodable in data_coding (SMP-001)
+  ([`5d11352`](https://github.com/codcod/smppai/commit/5d1135222396c8704b5b0c3623702a917050592f))
+
+- **protocol**: Stop auto-generating PDU sequence numbers (SMP-001)
+  ([`0eed97a`](https://github.com/codcod/smppai/commit/0eed97aef4bf40b737dd3d092882bfc82a612b4b))
+
+- **server**: Honor data_coding when encoding deliver_sm text (SMP-001)
+  ([`862515d`](https://github.com/codcod/smppai/commit/862515d05e5d807aaab4961247c2a9c935276f84))
+
+- **server**: Skip shutdown grace sleep with no clients (SMP-001)
+  ([`63e3591`](https://github.com/codcod/smppai/commit/63e3591afdc461c51421640aa784ccdbf44ba1a4))
+
+- **server**: Use connection.accept() for inbound clients (SMP-001)
+  ([`0ac13f1`](https://github.com/codcod/smppai/commit/0ac13f14d26639ebf2af95f57779a594f461f851))
+
+- **transport**: Add accept() for inbound connection setup (SMP-001)
+  ([`a3d71fd`](https://github.com/codcod/smppai/commit/a3d71fd2bf84063c9c4c39ea2b661fca62d0e870))
+
+- **transport**: Only responses complete pending requests (SMP-001)
+  ([`936b4df`](https://github.com/codcod/smppai/commit/936b4dfae594615b093caabb77d667bd5ac600b9))
+
+### Chores
+
+- Format
+  ([`ef70157`](https://github.com/codcod/smppai/commit/ef7015788c2769d405dd69e49558d03b56566293))
+
+- Graphify reactor
+  ([`5f7f851`](https://github.com/codcod/smppai/commit/5f7f851c6279773db922521248c69bfde4bcf269))
+
+- Graphify reactor
+  ([`b1f4553`](https://github.com/codcod/smppai/commit/b1f4553dcbb4d7f50d94a9eed0e45b1bfe6e39f9))
+
+- Graphify reactor
+  ([`a1ee1cb`](https://github.com/codcod/smppai/commit/a1ee1cb91dbc4895cb76e91e51e722063f5bba10))
+
+- Remove deprecated entry
+  ([`389aeaf`](https://github.com/codcod/smppai/commit/389aeafb07bad109554a3bc578f1fdf9d4a26ec7))
+
+- Uv update
+  ([`641e611`](https://github.com/codcod/smppai/commit/641e611c3481b01a0a2d61391fb9c87a438fd8fb))
+
+### Continuous Integration
+
+- **deps**: Bump actions/cache from 5 to 6
+  ([`ac2c757`](https://github.com/codcod/smppai/commit/ac2c757dd11412b9e09acc81e7e80b2229f8f004))
+
+- **deps**: Bump actions/checkout from 6 to 7
+  ([`15bdfea`](https://github.com/codcod/smppai/commit/15bdfea837d266d891e56f85510546bb9f80a9b0))
+
+- **deps**: Bump actions/download-artifact from 7 to 8
+  ([`585715d`](https://github.com/codcod/smppai/commit/585715dfb8c25b576385576ca5cad8cc6f05ab8b))
+
+- **deps**: Bump actions/upload-artifact from 6 to 7
+  ([`c311b55`](https://github.com/codcod/smppai/commit/c311b556245d6f8d6ebc34d8581800e6facff8d9))
+
+- **deps**: Bump codecov/codecov-action from 5 to 7
+  ([`dd2868b`](https://github.com/codcod/smppai/commit/dd2868b572f2ae951f897e51eb42a51ff1db9e9a))
+
+### Refactoring
+
+- Delete unused SMPP error-handling helpers (SMP-001)
+  ([`faf73c3`](https://github.com/codcod/smppai/commit/faf73c3b1d28d858fc223b01267a32f484eefaf8))
+
+- **protocol**: Delete unused validation-rule registry (SMP-001)
+  ([`ae058a3`](https://github.com/codcod/smppai/commit/ae058a3c6190b102c940c2bada8a8b0c0bdbb16a))
+
+### Testing
+
+- **protocol**: Cover PDU.validate sequence-number bounds (SMP-001)
+  ([`378a1fd`](https://github.com/codcod/smppai/commit/378a1fdf1c8d2d51c6cd91601076a66e8c766051))
+
+
 ## v0.2.4 (2026-09-22)
 
 ### Bug Fixes
