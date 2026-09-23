@@ -181,11 +181,13 @@ def validate_message_length(
     message: bytes, data_coding: int = DataCoding.DEFAULT
 ) -> None:
     """
-    Validate message length based on data coding.
+    Validate short_message length against the SMPP cap (254 octets, any coding).
+
+    Single-part limits (160 GSM / 70 UCS2 characters) are the caller's to enforce.
 
     Args:
         message: Message bytes to validate
-        data_coding: Data coding scheme
+        data_coding: Ignored; kept for backward compatibility
 
     Raises:
         SMPPValidationException: If message is too long
@@ -198,22 +200,6 @@ def validate_message_length(
             field_name='short_message',
         )
 
-    # Additional validation based on data coding
-    if data_coding == DataCoding.DEFAULT:
-        # GSM 7-bit: theoretical limit is 160 chars = ~140 bytes
-        if message_length > 140:
-            raise SMPPValidationException(
-                f'GSM 7-bit message too long: {message_length} > 140 bytes',
-                field_name='short_message',
-            )
-    elif data_coding == DataCoding.UCS2:
-        # UCS2: limit is typically 70 characters = 140 bytes
-        if message_length > 140:
-            raise SMPPValidationException(
-                f'UCS2 message too long: {message_length} > 140 bytes',
-                field_name='short_message',
-            )
-
 
 def validate_data_coding(data_coding: int) -> None:
     """
@@ -225,8 +211,8 @@ def validate_data_coding(data_coding: int) -> None:
     Raises:
         SMPPValidationException: If data coding is invalid
     """
-    valid_data_codings = [dc.value for dc in DataCoding]
-    if data_coding not in valid_data_codings:
+    # 0xF0-0xFF: GSM message class group (flash SMS etc.), encodable per codec_for_data_coding
+    if data_coding not in DataCoding._value2member_map_ and not 0xF0 <= data_coding <= 0xFF:
         raise SMPPValidationException(
             f'Invalid data coding: {data_coding}',
             field_name='data_coding',

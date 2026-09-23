@@ -204,29 +204,14 @@ class TestMessageLengthValidation:
         with pytest.raises(SMPPValidationException, match='Message too long'):
             validation.validate_message_length(long_message)
 
-    def test_validate_message_length_too_long_gsm_7bit(self):
-        """Test validating a message that exceeds GSM 7-bit limit."""
-        long_message = b'a' * 141  # > 140 bytes
-        with pytest.raises(SMPPValidationException, match='GSM 7-bit message too long'):
-            validation.validate_message_length(long_message, DataCoding.DEFAULT)
-
-    def test_validate_message_length_too_long_ucs2(self):
-        """Test validating a message that exceeds UCS2 limit."""
-        long_message = b'a' * 141  # > 140 bytes
-        with pytest.raises(SMPPValidationException, match='UCS2 message too long'):
-            validation.validate_message_length(long_message, DataCoding.UCS2)
-
-    def test_validate_message_length_boundary_gsm_7bit(self):
-        """Test validating a message at the GSM 7-bit boundary."""
-        message = b'a' * 140  # Exactly 140 bytes
-        # Should not raise any exception
-        validation.validate_message_length(message, DataCoding.DEFAULT)
-
-    def test_validate_message_length_boundary_ucs2(self):
-        """Test validating a message at the UCS2 boundary."""
-        message = b'a' * 140  # Exactly 140 bytes
-        # Should not raise any exception
-        validation.validate_message_length(message, DataCoding.UCS2)
+    @pytest.mark.parametrize(
+        'data_coding', [DataCoding.DEFAULT, DataCoding.UCS2, DataCoding.LATIN_1]
+    )
+    def test_validate_message_length_smpp_cap_any_coding(self, data_coding):
+        """254 octets pass and 255 fail on every coding (SMPP v3.4 §5.2.21)."""
+        validation.validate_message_length(b'a' * 254, data_coding)
+        with pytest.raises(SMPPValidationException, match='Message too long'):
+            validation.validate_message_length(b'a' * 255, data_coding)
 
 
 class TestDataCodingValidation:
@@ -239,6 +224,8 @@ class TestDataCodingValidation:
         validation.validate_data_coding(DataCoding.IA5_ASCII)
         validation.validate_data_coding(DataCoding.LATIN_1)
         validation.validate_data_coding(DataCoding.UCS2)
+        for data_coding in (0xF0, 0xFF, 0x05, 0x0E):
+            validation.validate_data_coding(data_coding)
 
     def test_validate_data_coding_invalid(self):
         """Test validating invalid data coding schemes."""
@@ -247,6 +234,10 @@ class TestDataCodingValidation:
 
         with pytest.raises(SMPPValidationException, match='Invalid data coding'):
             validation.validate_data_coding(-1)
+
+        for data_coding in (0x0B, 0xC0, 0xEF, 256):
+            with pytest.raises(SMPPValidationException, match='Invalid data coding'):
+                validation.validate_data_coding(data_coding)
 
 
 class TestEsmClassValidation:
@@ -650,19 +641,11 @@ class TestEdgeCases:
         boundary_service_type = 'a' * MAX_SERVICE_TYPE_LENGTH
         validation.validate_service_type(boundary_service_type)
 
-    def test_message_boundary_length(self):
-        """Test message at exact boundary length for GSM 7-bit."""
-        # Should not raise any exception (use 140 bytes for GSM 7-bit)
-        boundary_message = b'a' * 140  # GSM 7-bit limit
-        validation.validate_message_length(boundary_message, DataCoding.DEFAULT)
-
     def test_message_general_boundary_length(self):
         """Test message at exact general boundary length."""
-        # Should not raise any exception (use general MAX_SHORT_MESSAGE_LENGTH for other coding)
+        # Should not raise any exception (one SMPP cap on every coding)
         boundary_message = b'a' * MAX_SHORT_MESSAGE_LENGTH
-        validation.validate_message_length(
-            boundary_message, DataCoding.LATIN_1
-        )  # Non-GSM coding
+        validation.validate_message_length(boundary_message, DataCoding.LATIN_1)
 
     def test_sequence_number_boundary_values(self):
         """Test sequence number at boundary values."""

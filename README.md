@@ -444,10 +444,15 @@ pdu.optional_parameters.append(tlv)
 | `0x0A` `ISO_2022_JP` | ISO-2022-JP | `iso2022_jp` |
 | `0xF0`–`0xFF` | GSM message class | GSM 03.38 when bit `0x04` is clear, `utf-8` when set |
 
-Every other value (JIS `0x05`, pictogram `0x09`, `0x0D`, KS C 5601 `0x0E`, the MWI groups
-`0xC0`–`0xEF`, reserved values) is rejected: `submit_sm` raises `SMPPMessageException`,
-and `set_message_text` raises `SMPPPDUException`. Text that the chosen coding cannot represent
-raises `SMPPMessageException` too, so send it with `DataCoding.UCS2`. On receipt,
+`short_message` is capped at 254 octets on every coding (SMPP v3.4 §5.2.21), and every
+value in the table, `0xF0`–`0xFF` included, is accepted on encode. Single-part limits
+(160 GSM / 70 UCS2 characters) are the caller's to enforce.
+
+JIS `0x05`, pictogram `0x09`, `0x0D` and KS C 5601 `0x0E` have no text codec: raw
+`short_message` bytes on them encode, but text is rejected (`submit_sm` raises
+`SMPPMessageException`, and `set_message_text` raises `SMPPPDUException`). The MWI groups
+`0xC0`–`0xEF` and reserved values are rejected outright. Text that the chosen coding
+cannot represent raises `SMPPMessageException` too, so send it with `DataCoding.UCS2`. On receipt,
 `get_message_text()` never raises: it decodes an unsupported coding as latin-1 and replaces
 undecodable bytes. The GSM 03.38 codec is registered as the Python codec `gsm0338`
 (`'@€'.encode('gsm0338')`).

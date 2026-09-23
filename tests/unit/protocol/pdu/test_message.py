@@ -247,6 +247,22 @@ class TestStandardMessagePDU:
         with pytest.raises(SMPPPDUException, match='Unsupported data_coding 0x05'):
             SubmitSm(data_coding=5).set_message_text('x')
 
+    def test_encode_full_gsm_single_part(self):
+        """160 GSM characters encode to 160 octets (unpacked) and pass encode()."""
+        pdu = SubmitSm(data_coding=0)
+        pdu.set_message_text('a' * 160)
+        assert len(pdu.short_message) == 160
+        pdu.encode()
+
+    def test_encode_message_class_coding(self):
+        pdu = SubmitSm(data_coding=0xF0)
+        pdu.set_message_text('hi')
+        pdu.encode()
+
+    def test_encode_raw_bytes_on_textless_coding(self):
+        """Codings without a text codec still accept raw short_message bytes."""
+        SubmitSm(data_coding=0x09, short_message=b'\x01\x02').encode()
+
     def test_get_message_text_unsupported_coding_decodes_latin1(self):
         """A received PDU with an unsupported coding never makes the handler raise."""
         pdu = DeliverSm(data_coding=5, short_message=b'caf\xe9')

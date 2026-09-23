@@ -32,7 +32,7 @@ from smpp.protocol import (
     TonType,
     UnbindResp,
 )
-from smpp.protocol.constants import DEFAULT_INTERFACE_VERSION
+from smpp.protocol.constants import DEFAULT_INTERFACE_VERSION, MAX_SHORT_MESSAGE_LENGTH
 from smpp.transport import ConnectionState
 
 
@@ -685,10 +685,12 @@ class TestSMPPClientSubmitSm:
         client._bound = True
         client._bind_type = BindType.TRANSMITTER
 
-        long_message = 'a' * 256  # > 255 bytes
+        long_message = 'a' * (MAX_SHORT_MESSAGE_LENGTH + 1)  # 255 > SMPP cap
 
         with pytest.raises(SMPPMessageException, match='Message too long'):
             await client.submit_sm('12345', '67890', long_message)
+
+        client._connection.send_pdu.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_submit_sm_unencodable_for_data_coding(self):
@@ -1468,8 +1470,7 @@ class TestSMPPClientEdgeCases:
         response.message_id = 'MSG123456'
         client._connection.send_pdu.return_value = response
 
-        # Message with exactly 255 bytes
-        boundary_message = 'a' * 255
+        boundary_message = 'a' * MAX_SHORT_MESSAGE_LENGTH
 
         message_id = await client.submit_sm('12345', '67890', boundary_message)
 
