@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.6 (2026-09-23)
+
+### Bug Fixes
+
+- **protocol**: Encode default data_coding as GSM 03.38 (SMP-002)
+  ([`de52efe`](https://github.com/codcod/smppai/commit/de52efe041ec1b2346019bb76613d943d2816aee))
+
+
 ## v0.2.5 (2026-09-23)
 
 ### Bug Fixes
