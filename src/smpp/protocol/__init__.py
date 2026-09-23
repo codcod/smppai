@@ -7,6 +7,7 @@ PDU definitions, constants, and protocol utilities.
 
 from .codec import (
     calculate_pdu_length,
+    codec_for_data_coding,
     decode_cstring,
     decode_integer,
     decode_message_with_encoding,
@@ -167,6 +168,7 @@ __all__ = [
     'encode_integer',
     'decode_integer',
     'validate_field_length',
+    'codec_for_data_coding',
     'encode_message_with_encoding',
     'decode_message_with_encoding',
     'pack_tlv_parameter',

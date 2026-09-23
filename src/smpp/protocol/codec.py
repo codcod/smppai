@@ -8,6 +8,7 @@ including C-string handling, integer packing, and field validation.
 import struct
 from typing import Optional, Tuple, Union
 
+from .. import gsm  # noqa: F401  registers the 'gsm0338' codec
 from ..exceptions import SMPPPDUException
 
 
@@ -185,6 +186,37 @@ def validate_field_length(
         raise SMPPPDUException(f'{field_name} too long: {length} > {max_length}')
 
 
+# SMPP v3.4 §5.2.19 data_coding -> Python codec. The only such map in smpp.
+_DATA_CODING_CODECS = {
+    0x00: 'gsm0338',  # SMSC default alphabet, GSM 03.38 unpacked
+    0x01: 'ascii',
+    0x02: 'utf-8',  # octet unspecified: the caller owns the bytes' meaning
+    0x03: 'latin-1',
+    0x04: 'utf-8',  # octet unspecified
+    0x06: 'iso8859_5',
+    0x07: 'iso8859_8',
+    0x08: 'utf-16-be',
+    0x0A: 'iso2022_jp',
+}
+
+
+def codec_for_data_coding(data_coding: int) -> str:
+    """
+    Return the Python codec name for an SMPP data_coding value.
+
+    0xF0-0xFF (GSM message class group) map to GSM 03.38 when bit 0x04 is
+    clear and to 8-bit data otherwise.
+
+    Raises:
+        SMPPPDUException: If the data coding is unsupported
+    """
+    if data_coding in _DATA_CODING_CODECS:
+        return _DATA_CODING_CODECS[data_coding]
+    if 0xF0 <= data_coding <= 0xFF:
+        return 'utf-8' if data_coding & 0x04 else 'gsm0338'
+    raise SMPPPDUException(f'Unsupported data_coding {data_coding:#04x}')
+
+
 def encode_message_with_encoding(message: str, data_coding: int) -> bytes:
     """
     Encode a message using the specified data coding scheme.
@@ -199,26 +231,8 @@ def encode_message_with_encoding(message: str, data_coding: int) -> bytes:
     Raises:
         SMPPPDUException: If encoding fails or data coding is unsupported
     """
-    from .constants import DataCoding
-
     try:
-        if data_coding == DataCoding.DEFAULT:
-            # GSM 7-bit default alphabet - use latin-1 as approximation
-            return message.encode('latin-1')
-        elif data_coding == DataCoding.IA5_ASCII:
-            return message.encode('ascii')
-        elif data_coding == DataCoding.LATIN_1:
-            return message.encode('latin-1')
-        elif data_coding == DataCoding.UCS2:
-            return message.encode('utf-16-be')
-        elif data_coding in (
-            DataCoding.OCTET_UNSPECIFIED_1,
-            DataCoding.OCTET_UNSPECIFIED_2,
-        ):
-            return message.encode('utf-8')
-        else:
-            # Fallback to UTF-8 for unknown encodings
-            return message.encode('utf-8')
+        return message.encode(codec_for_data_coding(data_coding))
     except UnicodeEncodeError as e:
         raise SMPPPDUException(f'Message encoding error: {e}') from e
 
@@ -237,26 +251,8 @@ def decode_message_with_encoding(message_bytes: bytes, data_coding: int) -> str:
     Raises:
         SMPPPDUException: If decoding fails or data coding is unsupported
     """
-    from .constants import DataCoding
-
     try:
-        if data_coding == DataCoding.DEFAULT:
-            # GSM 7-bit default alphabet - use latin-1 as approximation
-            return message_bytes.decode('latin-1')
-        elif data_coding == DataCoding.IA5_ASCII:
-            return message_bytes.decode('ascii')
-        elif data_coding == DataCoding.LATIN_1:
-            return message_bytes.decode('latin-1')
-        elif data_coding == DataCoding.UCS2:
-            return message_bytes.decode('utf-16-be')
-        elif data_coding in (
-            DataCoding.OCTET_UNSPECIFIED_1,
-            DataCoding.OCTET_UNSPECIFIED_2,
-        ):
-            return message_bytes.decode('utf-8')
-        else:
-            # Fallback to UTF-8 with error handling
-            return message_bytes.decode('utf-8', errors='replace')
+        return message_bytes.decode(codec_for_data_coding(data_coding))
     except UnicodeDecodeError as e:
         raise SMPPPDUException(f'Message decoding error: {e}') from e
 

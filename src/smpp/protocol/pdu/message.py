@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ...exceptions import SMPPPDUException, SMPPValidationException
-from ..codec import decode_cstring, encode_cstring
+from ..codec import codec_for_data_coding, decode_cstring, encode_cstring
 from ..constants import MAX_SHORT_MESSAGE_LENGTH, CommandId
 from ..validation import validate_submit_sm_parameters
 from .base import MessagePDU, RequestPDU, ResponsePDU
@@ -150,7 +150,12 @@ class StandardMessagePDU(MessagePDU):
             str: Decoded message text
         """
         if encoding is None:
-            encoding = self.get_message_encoding()
+            try:
+                encoding = self.get_message_encoding()
+            except SMPPPDUException:
+                # A received PDU must never make the handler raise; latin-1 is
+                # a lossless byte->char mapping for an unsupported data_coding.
+                encoding = 'latin-1'
 
         try:
             return self.short_message.decode(encoding)
@@ -163,6 +168,10 @@ class StandardMessagePDU(MessagePDU):
         Args:
             text: Message text to set
             encoding: Text encoding to use (auto-detected if not provided)
+
+        Raises:
+            UnicodeEncodeError: If text is not encodable
+            SMPPPDUException: If data_coding is unsupported
         """
         if encoding is None:
             encoding = self.get_message_encoding()
@@ -202,19 +211,11 @@ class StandardMessagePDU(MessagePDU):
 
         Returns:
             str: Encoding string for the message
-        """
-        from ..constants import DataCoding
 
-        if self.data_coding == DataCoding.DEFAULT:
-            return 'latin-1'  # GSM 7-bit approximation
-        elif self.data_coding == DataCoding.IA5_ASCII:
-            return 'ascii'
-        elif self.data_coding == DataCoding.LATIN_1:
-            return 'latin-1'
-        elif self.data_coding == DataCoding.UCS2:
-            return 'utf-16-be'
-        else:
-            return 'utf-8'  # Default fallback
+        Raises:
+            SMPPPDUException: If data_coding is unsupported
+        """
+        return codec_for_data_coding(self.data_coding)
 
 
 @dataclass

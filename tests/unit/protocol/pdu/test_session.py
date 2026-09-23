@@ -253,6 +253,19 @@ class TestDataSm:
         assert pdu.data_coding == 0
         assert pdu.sequence_number == 42
 
+    def test_message_text_follows_data_coding(self):
+        pdu = DataSm(data_coding=8)
+        pdu.set_message_text('héllo')
+        assert pdu.get_message_payload() == 'héllo'.encode('utf-16-be')
+        assert pdu.get_message_text() == 'héllo'
+
+    def test_message_text_unsupported_coding(self):
+        with pytest.raises(SMPPPDUException, match='Unsupported data_coding'):
+            DataSm(data_coding=5).set_message_text('x')
+        pdu = DataSm(data_coding=5)
+        pdu.set_message_payload(b'caf\xe9')
+        assert pdu.get_message_text() == 'café'
+
 
 class TestDataSmResp:
     """Test DataSmResp PDU."""

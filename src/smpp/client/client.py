@@ -17,6 +17,7 @@ from ..exceptions import (
     SMPPException,
     SMPPInvalidStateException,
     SMPPMessageException,
+    SMPPPDUException,
     SMPPTimeoutException,
 )
 from ..protocol import (
@@ -39,7 +40,7 @@ from ..protocol import (
     UnbindResp,
     get_error_message,
 )
-from ..protocol.constants import DEFAULT_INTERFACE_VERSION
+from ..protocol.constants import DEFAULT_INTERFACE_VERSION, MAX_SHORT_MESSAGE_LENGTH
 from ..transport import ConnectionState, SMPPConnection
 
 logger = logging.getLogger(__name__)
@@ -400,7 +401,9 @@ class SMPPClient:
             raise SMPPMessageException(
                 f'Message not encodable with data_coding {data_coding:#x}; use DataCoding.UCS2'
             ) from e
-        if len(submit_pdu.short_message) > 255:
+        except SMPPPDUException as e:
+            raise SMPPMessageException(str(e)) from e
+        if len(submit_pdu.short_message) > MAX_SHORT_MESSAGE_LENGTH:
             raise SMPPMessageException(
                 f'Message too long: {len(submit_pdu.short_message)} bytes'
             )

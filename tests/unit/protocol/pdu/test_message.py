@@ -214,7 +214,7 @@ class TestStandardMessagePDU:
         from smpp.protocol.constants import DataCoding
 
         pdu = TestMessage(data_coding=DataCoding.DEFAULT)
-        assert pdu.get_message_encoding() == 'latin-1'
+        assert pdu.get_message_encoding() == 'gsm0338'
 
         pdu = TestMessage(data_coding=DataCoding.IA5_ASCII)
         assert pdu.get_message_encoding() == 'ascii'
@@ -226,7 +226,35 @@ class TestStandardMessagePDU:
         assert pdu.get_message_encoding() == 'utf-16-be'
 
         pdu = TestMessage(data_coding=99)  # Unknown
-        assert pdu.get_message_encoding() == 'utf-8'
+        with pytest.raises(SMPPPDUException, match='Unsupported data_coding'):
+            pdu.get_message_encoding()
+
+    @pytest.mark.parametrize(
+        'data_coding, text, expected',
+        [
+            (0, '@_€{', b'\x00\x11\x1b\x65\x1b\x28'),
+            (6, 'Привет', 'Привет'.encode('iso8859_5')),
+            (8, 'héllo 🙂', 'héllo 🙂'.encode('utf-16-be')),
+        ],
+    )
+    def test_submit_sm_text_round_trip(self, data_coding, text, expected):
+        pdu = SubmitSm(data_coding=data_coding)
+        pdu.set_message_text(text)
+        assert pdu.short_message == expected
+        assert pdu.get_message_text() == text
+
+    def test_set_message_text_unsupported_coding_raises(self):
+        with pytest.raises(SMPPPDUException, match='Unsupported data_coding 0x05'):
+            SubmitSm(data_coding=5).set_message_text('x')
+
+    def test_get_message_text_unsupported_coding_decodes_latin1(self):
+        """A received PDU with an unsupported coding never makes the handler raise."""
+        pdu = DeliverSm(data_coding=5, short_message=b'caf\xe9')
+        assert pdu.get_message_text() == 'café'
+
+    def test_get_message_text_default_bad_byte_replaced(self):
+        pdu = DeliverSm(data_coding=0, short_message=b'A\x80')
+        assert pdu.get_message_text() == 'A\ufffd'
 
 
 class TestSubmitSm:

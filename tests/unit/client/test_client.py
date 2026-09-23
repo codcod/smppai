@@ -705,6 +705,18 @@ class TestSMPPClientSubmitSm:
         client._connection.send_pdu.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_submit_sm_unsupported_data_coding(self):
+        """Test submit_sm rejects an unsupported data_coding with SMPPMessageException."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        with pytest.raises(SMPPMessageException, match='Unsupported data_coding 0x05'):
+            await client.submit_sm('12345', '67890', 'hello', data_coding=5)
+        client._connection.send_pdu.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_submit_sm_no_connection(self):
         """Test submit_sm when connection is None after being bound."""
         client = SMPPClient('localhost', 2775, 'test_system', 'password')
