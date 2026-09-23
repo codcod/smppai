@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.2.7 (2026-09-23)
+
+### Bug Fixes
+
+- **protocol**: Align short_message validation with the encoder (SMP-003)
+  ([`4ffd52c`](https://github.com/codcod/smppai/commit/4ffd52cab26cb971d46b2d3b9e1df41bcd2610c6))
+
+- **protocol**: Reject reserved data_coding 0xF8-0xFF (SMP-003)
+  ([`87ca8f8`](https://github.com/codcod/smppai/commit/87ca8f859011cbbcef6104a73ff1036c9cd60d13))
+
+
 ## v0.2.6 (2026-09-23)
 
 ### Bug Fixes
