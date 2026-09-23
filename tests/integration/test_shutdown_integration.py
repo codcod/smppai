@@ -10,8 +10,8 @@ import pytest
 import pytest_asyncio
 from unittest.mock import Mock
 
-from examples.client import SMSClient
-from examples.server import SMSCServer
+from examples.client_advanced import SMSClient
+from examples.server_advanced import SMSCServer
 
 
 @pytest.mark.integration

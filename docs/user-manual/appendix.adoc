@@ -1,0 +1,88 @@
+= Logging, testing and further reading
+
+== Logging
+
+{product} uses the standard `logging` module and attaches a `NullHandler`
+to its own logger, so it's silent until you configure logging yourself:
+
+[source,python]
+----
+import logging
+
+logging.basicConfig(level=logging.DEBUG)          # everything
+logging.getLogger("smpp").setLevel(logging.INFO)  # or just this library
+----
+
+[#testing]
+== Testing
+
+[source,bash]
+----
+uv run pytest                       # full suite
+uv run pytest --cov=src/smpp        # with coverage
+uv run pytest tests/unit/           # unit tests only
+uv run pytest tests/integration/    # integration tests (real client/server pair)
+----
+
+`justfile` and `Makefile` wrap the same commands (`make test`, `make
+build`, `make lint`) for use from the umbrella workspace or CI; see
+CONTRIBUTING.md for the full local quality-check and commit/PR workflow.
+
+== Examples directory
+
+`examples/` holds complete, runnable programs that this manual's snippets
+are drawn from:
+
+[cols="1,2"]
+|===
+| File | Demonstrates
+
+| `client_basic.py`
+| The smallest working client: connect, bind, send one message.
+
+| `client_advanced.py`
+| Full client lifecycle: binding, sending, Unicode messages, all four event
+  handlers, and graceful response to server shutdown notifications.
+
+| `server_basic.py`
+| The smallest working server: one `serve_forever()` call, accepting every bind.
+
+| `server_advanced.py`
+| Full server lifecycle: authentication, all four event handlers, simple
+  text commands, broadcasting, and the enhanced graceful shutdown sequence.
+
+| `gsm_features_demo.py`
+| GSM 7-bit encoding, message segmentation, UDH construction/parsing, and
+  `SubmitSm` with a UDH attached.
+|===
+
+[source,bash]
+----
+PYTHONPATH=src python examples/client_basic.py
+PYTHONPATH=src python examples/client_advanced.py
+PYTHONPATH=src python examples/server_basic.py
+PYTHONPATH=src python examples/server_advanced.py
+PYTHONPATH=src python examples/gsm_features_demo.py
+----
+
+To try a client against a real server, start one of the server examples
+first, then run a client example against it in another terminal.
+
+== Troubleshooting
+
+* *Connection refused* — the server isn't running, or the host/port don't match.
+* *Bind failed* — check `system_id`/`password` against the server's
+  `authenticate` callback, and that both fit SMPP's field limits (see
+  <<client,The client>>).
+* *`SMPPMessageException` on submit* — the text doesn't fit the chosen
+  `data_coding`, or exceeds the 254-octet single-part limit; see
+  <<data-coding,Data coding schemes>> and <<gsm,GSM encoding, segmentation
+  and UDH>>.
+* *No response / timeout* — check `response_timeout`/`bind_timeout` against
+  your network, and that `enquire_link_interval` keeps the connection alive.
+
+== References
+
+* https://smpp.org/SMPP_v3_4_Issue1_2.pdf[SMPP v3.4 Specification]
+* https://smpp.org/[SMPP Protocol Overview]
+* https://www.smsforum.net/[SMS Forum]

@@ -1,0 +1,94 @@
+[#gsm]
+= GSM encoding, segmentation and UDH
+
+`smpp.gsm` provides GSM 7-bit encoding, automatic message segmentation, and
+User Data Header (UDH) handling for concatenated SMS — usage compatible
+with `python-smpplib`'s `gsm.make_parts()`.
+
+== GSM 7-bit encoding
+
+[source,python]
+----
+import smpp.gsm as gsm
+
+encoded, char_count = gsm.encode_gsm7("Hello World! £¥€")
+decoded = gsm.decode_gsm7(encoded, char_count)
+----
+
+`encode_gsm7`/`decode_gsm7` implement the packed GSM 7-bit alphabet
+directly; `encode_gsm0338`/`decode_gsm0338` use the `gsm0338` codec
+registered on import (see <<data-coding,Data coding schemes>>) for the
+unpacked, one-septet-per-octet form that `submit_sm`/`deliver_sm` use for
+`DataCoding.DEFAULT`.
+
+== Splitting long messages
+
+A single SMS part is capped at 160 GSM-7 / 140 GSM-8 / 70 UCS2 characters
+(less when a UDH is present). `make_parts()` splits a longer message and
+attaches a concatenated-SMS UDH to each part:
+
+[source,python]
+----
+parts = gsm.make_parts(long_message, encoding="gsm7")  # "gsm7" | "latin1" | "utf8" | "utf16"
+
+for part in parts:
+    pdu = SubmitSm(
+        source_addr="1234",
+        destination_addr="5678",
+        short_message=part.get_short_message(),   # UDH + content, ready for the wire
+        esm_class=part.get_esm_class(),            # UDH indicator bit set automatically
+        data_coding=part.encoding,
+    )
+    await client.submit_sm(...)  # or send `pdu` directly over the connection
+----
+
+Each `MessagePart` carries `content`, `udh`, `encoding`, `part_number`,
+`total_parts` and `reference`, plus `get_short_message()`,
+`get_esm_class(base_esm_class=0)` and `get_concatenated_info()`. Pass
+`max_sms_length` to override the per-part size and `reference` to control
+(or share) the concatenation reference; both default to
+auto-detected/auto-generated.
+
+`reassemble_parts(parts, encoding="gsm7")` does the inverse: sorts by
+`part_number`, validates completeness (raises `ValueError` on a missing or
+inconsistent part), and returns the original `str`/`bytes`.
+
+== UDH on a PDU directly
+
+`SubmitSm`/`DeliverSm` (via `MessagePDU`) expose UDH-aware helpers so you
+don't have to track the `esm_class` bit by hand:
+
+[cols="1,2"]
+|===
+| Method | Purpose
+
+| `has_udh()`
+| `esm_class & 0x40` is set.
+
+| `get_udh()`
+| Decoded `UDH` from `short_message`, or `None`.
+
+| `get_message_content()`
+| `short_message` with any UDH stripped.
+
+| `set_udh(udh)`
+| Sets the indicator bit and prepends the encoded UDH to the message content.
+
+| `is_concatenated_sms()`
+| `True` if the UDH contains an 8- or 16-bit concatenated-SMS element.
+
+| `get_concatenated_info()`
+| That element decoded as a `ConcatenatedSMSHeader`, or `None`.
+|===
+
+Lower-level pieces, if you're building a UDH element by hand:
+`UDH`/`UDHElement` (generic IE container, `add_element`/`get_element`,
+`encode`/`decode`) and `ConcatenatedSMSHeader` (`reference`, `total_parts`,
+`part_number`, `use_16bit_ref`, `to_udh_element()` /
+`from_udh_element()`). `UDH.IEI_CONCATENATED_SMS_8BIT` /
+`_16BIT` and `UDH.IEI_APPLICATION_PORT_8BIT` / `_16BIT` are the IEIs
+`smpp.gsm` currently understands.
+
+See `examples/gsm_features_demo.py` for a runnable walkthrough of all of
+the above, including reassembling a decoded UDH back into
+`ConcatenatedSMSHeader` fields.

@@ -30,3 +30,7 @@ dist/
 # graphify-out/cost.json
 # graphify-out/graph.html
 graphify-out/
+
+# Snowball
+docs/*.pdf
+docs/*.epub

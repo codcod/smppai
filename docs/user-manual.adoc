@@ -1,0 +1,28 @@
+= smppai User Manual
+:doctype: book
+:toc:
+:toclevels: 3
+:sectnums:
+:icons: font
+
+include::attributes.adoc[]
+
+include::user-manual/introduction.adoc[leveloffset=+1]
+
+include::user-manual/installation.adoc[leveloffset=+1]
+
+include::user-manual/quickstart.adoc[leveloffset=+1]
+
+include::user-manual/client.adoc[leveloffset=+1]
+
+include::user-manual/server.adoc[leveloffset=+1]
+
+include::user-manual/protocol.adoc[leveloffset=+1]
+
+include::user-manual/data-coding.adoc[leveloffset=+1]
+
+include::user-manual/gsm.adoc[leveloffset=+1]
+
+include::user-manual/error-handling.adoc[leveloffset=+1]
+
+include::user-manual/appendix.adoc[leveloffset=+1]

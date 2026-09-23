@@ -1,0 +1,62 @@
+[#quickstart]
+= Quick Start
+
+== Send one SMS
+
+[source,python]
+----
+import asyncio
+from smpp import SMPPClient
+
+async def send_sms():
+    async with SMPPClient(
+        host="localhost",
+        port=2775,
+        system_id="test_client",
+        password="password",   # SMPP passwords are capped at 8 chars
+    ) as client:
+        await client.bind_transmitter()
+
+        message_id = await client.submit_sm(
+            source_addr="1234",
+            destination_addr="5678",
+            short_message="Hello World!",
+        )
+
+        print(f"Message sent with ID: {message_id}")
+
+asyncio.run(send_sms())
+----
+
+The async context manager calls `connect()` on entry and `disconnect()` on
+exit (which also unbinds if still bound).
+
+== Run a minimal SMSC
+
+[source,python]
+----
+import asyncio
+from smpp import SMPPServer
+
+async def run_server():
+    server = SMPPServer(host="localhost", port=2775, system_id="TEST_SMSC")
+    print("SMSC server running on localhost:2775")
+    await server.serve_forever()  # starts the server, returns once stopped
+
+asyncio.run(run_server())
+----
+
+`serve_forever()` starts the server itself, blocks until a shutdown signal
+is received or `stop()` is called elsewhere, then runs the graceful
+shutdown sequence described in <<server-shutdown,Graceful shutdown>> before
+returning — don't also wrap the server in `async with`, since that calls
+`start()` a second time and raises.
+
+== Next steps
+
+* <<client,The client>> — binding, sending, event handlers, waiting helpers.
+* <<server,The server>> — sessions, authentication, delivering to clients, shutdown.
+* `examples/client_basic.py` and `examples/server_basic.py` are runnable
+  versions of the two snippets above. `examples/client_advanced.py` and
+  `examples/server_advanced.py` add event handling, Unicode messages and
+  graceful-shutdown handling wired up end to end.

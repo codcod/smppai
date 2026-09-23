@@ -1,0 +1,92 @@
+[#error-handling]
+= Error handling
+
+Every {product} exception inherits from `SMPPException`, so catching it
+alone is a safe default:
+
+[source,python]
+----
+from smpp import (
+    SMPPBindException,
+    SMPPException,
+    SMPPMessageException,
+    SMPPTimeoutException,
+)
+
+try:
+    await client.submit_sm(...)
+except SMPPBindException as e:
+    print(f"Bind error: {e}")
+except SMPPTimeoutException as e:
+    print(f"Timeout: {e}")
+except SMPPMessageException as e:
+    print(f"Message error: {e}")
+except SMPPException as e:
+    print(f"General SMPP error: {e}")
+----
+
+== Exception hierarchy
+
+All of these are importable from the top-level `smpp` package, except
+`SMPPConfigurationException`, which lives in `smpp.exceptions` only:
+
+[cols="1,3"]
+|===
+| Exception | Raised for
+
+| `SMPPConnectionException`
+| TCP connect/disconnect failures.
+
+| `SMPPPDUException`
+| Malformed or invalid PDU data (encode/decode, field validation).
+
+| `SMPPTimeoutException`
+| A request didn't get a response within its timeout.
+
+| `SMPPBindException`
+| A bind attempt failed or timed out.
+
+| `SMPPProtocolException`
+| A protocol-level violation outside normal PDU validation.
+
+| `SMPPAuthenticationException`
+| Credentials rejected (available for server-side `authenticate` callbacks to raise).
+
+| `SMPPInvalidStateException`
+| An operation was attempted in the wrong connection/bind state
+  (e.g. `submit_sm` while unbound).
+
+| `SMPPThrottlingException`
+| Rate-limit signaling (available for callers to raise/catch; the library
+  doesn't raise it itself).
+
+| `SMPPMessageException`
+| `submit_sm`/`deliver_sm` failed — SMSC error response, encoding failure,
+  message too long, no response.
+
+| `SMPPValidationException`
+| Generic field validation failure.
+
+| `SMPPConfigurationException`
+| Invalid configuration (e.g. out-of-range shutdown timeouts raise plain
+  `ValueError`/`TypeError` from `SMPPServer.configure_shutdown()`, not this
+  class — it exists for application-level use).
+|===
+
+== Rich context on every exception
+
+`SMPPException` carries more than a message: `command_status` (the raw
+SMPP status code, if any), `pdu` (the PDU involved, if any), `error_code`
+(an `SMPPErrorCode` — `CONNECTION_FAILED`, `BIND_FAILED`, `TIMEOUT`, etc.),
+`context` (a dict of extra key/value pairs), and `original_error` (the
+wrapped lower-level exception, if any). `str(exc)` formats all of the
+populated fields together, e.g.:
+
+....
+Bind failed: Invalid Password | Error Code: BIND_FAILED (1001) | Context: bind_type=transmitter
+....
+
+Subclasses populate `context` from their own constructor arguments — e.g.
+`SMPPBindException(message, bind_type=..., system_id=...)` — so catching
+the specific subclass gives you typed attributes (`exc.bind_type`) instead
+of parsing the formatted string.

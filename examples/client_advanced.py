@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SMPP Client Example
+SMPP Client Example - Advanced
 
 This example demonstrates how to use the SMPP client to connect to an SMSC,
 send SMS messages, handle delivery receipts, and properly handle enhanced shutdown
@@ -11,6 +11,8 @@ Shutdown features:
 - Graceful disconnection when server requests shutdown
 - Proper handling of connection loss during shutdown
 - Interactive commands for testing shutdown scenarios
+
+For a minimal connect/send/receive walkthrough, see client_basic.py.
 """
 
 import asyncio
@@ -53,7 +55,7 @@ class SMSClient:
             port=port,
             system_id=system_id,
             password=password,
-            system_type='CLIENT',  # SMPP system_type must be <= 13 characters
+            system_type='CLIENT',  # SMPP system_type must be <= 12 characters
             enquire_link_interval=30.0,
             response_timeout=10.0,
         )
@@ -78,8 +80,8 @@ class SMSClient:
 
             # Check if this is a delivery receipt
             if pdu.esm_class & 0x04:  # Delivery receipt
-                logger.info('📧 Delivery receipt received:')
-                logger.info(f'   From: {pdu.source_addr} → To: {pdu.destination_addr}')
+                logger.info('Delivery receipt received:')
+                logger.info(f'   From: {pdu.source_addr} -> To: {pdu.destination_addr}')
                 logger.debug(f'   Receipt: {message}')
 
             # Check for shutdown notifications from the server
@@ -87,16 +89,16 @@ class SMSClient:
                 self._handle_shutdown_notification(pdu, message)
 
             else:  # Mobile Originated SMS or server message
-                logger.info('📥 Message received:')
-                logger.info(f'   From: {pdu.source_addr} → To: {pdu.destination_addr}')
+                logger.info('Message received:')
+                logger.info(f'   From: {pdu.source_addr} -> To: {pdu.destination_addr}')
                 logger.info(f'   Content: "{message}"')
 
                 # Handle interactive responses if this is a response to our commands
                 if pdu.source_addr == 'SYSTEM':
-                    logger.info('🤖 Server response received')
+                    logger.info('Server response received')
 
         except Exception as e:
-            logger.error(f'❌ Error handling deliver_sm: {e}')
+            logger.error(f'Error handling deliver_sm: {e}')
 
     def _is_shutdown_notification(self, pdu: DeliverSm, message: str) -> bool:
         """Check if this message is a server shutdown notification."""
@@ -115,7 +117,7 @@ class SMSClient:
             'SYSTEM',
             'SMSC',
             'DEMO_SMSC',
-        )  # Fixed: Updated for SMPP-compliant system IDs
+        )
 
         return is_from_system and any(
             indicator in message_lower for indicator in shutdown_indicators
@@ -127,17 +129,17 @@ class SMSClient:
 
         if 'reminder' in message_lower or 'final warning' in message_lower:
             if not self._received_shutdown_reminder:
-                logger.warning('🔔 SHUTDOWN REMINDER received from server!')
+                logger.warning('SHUTDOWN REMINDER received from server!')
                 logger.warning(f'   Message: "{message}"')
                 logger.warning(
-                    '⚠️  Server will force disconnect soon - preparing for graceful shutdown'
+                    'Server will force disconnect soon - preparing for graceful shutdown'
                 )
                 self._received_shutdown_reminder = True
                 # Start graceful shutdown process
                 asyncio.create_task(self._initiate_graceful_shutdown(urgent=True))
 
         elif not self._received_shutdown_notification:
-            logger.info('🛑 SHUTDOWN NOTIFICATION received from server!')
+            logger.info('SHUTDOWN NOTIFICATION received from server!')
             logger.info(f'   Message: "{message}"')
 
             # Extract grace period if mentioned
@@ -149,14 +151,14 @@ class SMSClient:
                         grace_str = parts[1].split('s')[0].strip()
                         self._shutdown_grace_period = float(grace_str)
                         logger.info(
-                            f'📅 Grace period: {self._shutdown_grace_period} seconds'
+                            f'Grace period: {self._shutdown_grace_period} seconds'
                         )
             except Exception:
                 pass  # Continue even if grace period extraction fails
 
             self._received_shutdown_notification = True
             logger.info(
-                '✅ Acknowledged shutdown notification - will disconnect gracefully'
+                'Acknowledged shutdown notification - will disconnect gracefully'
             )
 
             # Start graceful shutdown process
@@ -174,7 +176,7 @@ class SMSClient:
 
         try:
             if urgent:
-                logger.warning('🚨 Urgent shutdown - disconnecting immediately')
+                logger.warning('Urgent shutdown - disconnecting immediately')
                 delay = 0.1  # Minimal delay for urgent shutdown
             else:
                 # Give some time for any pending operations, but respect server's grace period
@@ -183,17 +185,17 @@ class SMSClient:
                     delay = min(max(0.1, self._shutdown_grace_period * 0.5), 2.0)
                 else:
                     delay = default_delay  # Default to 0.5s instead of 3.0s for faster tests
-                logger.info(f'⏱️  Graceful shutdown in {delay:.1f} seconds...')
+                logger.info(f'Graceful shutdown in {delay:.1f} seconds...')
 
             await asyncio.sleep(delay)
 
-            logger.info('👋 Initiating graceful disconnect from server')
+            logger.info('Initiating graceful disconnect from server')
             await self.disconnect()
 
         except asyncio.CancelledError:
             raise  # Re-raise cancellation
         except Exception as e:
-            logger.error(f'❌ Error during graceful shutdown: {e}')
+            logger.error(f'Error during graceful shutdown: {e}')
         finally:
             async with self._shutdown_lock:
                 self._shutdown_state = 'stopped'
@@ -201,27 +203,27 @@ class SMSClient:
     def handle_connection_lost(self, client: SMPPClient, error: Exception) -> None:
         """Handle connection lost event with enhanced shutdown awareness."""
         if self._shutdown_state != 'running' or self._received_shutdown_notification:
-            logger.info('🔌 Connection closed - server shutdown completed')
+            logger.info('Connection closed - server shutdown completed')
         else:
-            logger.error(f'❌ Unexpected connection lost: {error}')
+            logger.error(f'Unexpected connection lost: {error}')
             logger.warning(
-                '🛑 Server has disconnected unexpectedly - initiating graceful client shutdown'
+                'Server has disconnected unexpectedly - initiating graceful client shutdown'
             )
             # When server disconnects unexpectedly, treat it as a shutdown request
             asyncio.create_task(self._initiate_graceful_shutdown(urgent=True))
 
     def handle_bind_success(self, client: SMPPClient, bind_type: BindType) -> None:
         """Handle successful bind with enhanced logging."""
-        logger.info(f'🔐 Successfully bound as {bind_type.value}')
-        logger.info('✅ Client ready to send/receive messages')
-        logger.info('🛑 Will respond appropriately to server shutdown notifications')
+        logger.info(f'Successfully bound as {bind_type.value}')
+        logger.info('Client ready to send/receive messages')
+        logger.info('Will respond appropriately to server shutdown notifications')
 
     def handle_unbind(self, client: SMPPClient) -> None:
         """Handle unbind event with enhanced logging."""
         if self._shutdown_state == 'shutting_down':
-            logger.info('👋 Gracefully unbound from SMSC during shutdown')
+            logger.info('Gracefully unbound from SMSC during shutdown')
         else:
-            logger.info('🔓 Client unbound from SMSC')
+            logger.info('Client unbound from SMSC')
 
     async def connect_and_bind(
         self, bind_type: BindType = BindType.TRANSCEIVER
@@ -230,7 +232,7 @@ class SMSClient:
         try:
             # Connect to SMSC
             await self.client.connect()
-            logger.info('🔗 Connected to SMSC')
+            logger.info('Connected to SMSC')
 
             # Bind as requested type
             if bind_type == BindType.TRANSMITTER:
@@ -241,7 +243,7 @@ class SMSClient:
                 await self.client.bind_transceiver()
 
         except Exception as e:
-            logger.error(f'❌ Failed to connect and bind: {e}')
+            logger.error(f'Failed to connect and bind: {e}')
             raise
 
     async def send_sms(
@@ -259,7 +261,7 @@ class SMSClient:
         try:
             if not self.client.is_bound:
                 if self.shutdown_requested:
-                    logger.debug('🔇 Skipping SMS send - shutdown in progress')
+                    logger.debug('Skipping SMS send - shutdown in progress')
                     return None
                 raise Exception('Client is not bound to SMSC')
 
@@ -282,12 +284,12 @@ class SMSClient:
                 data_coding=DataCoding.DEFAULT,
             )
 
-            logger.info(f'📤 SMS sent successfully, message ID: {message_id}')
+            logger.info(f'SMS sent successfully, message ID: {message_id}')
             return message_id
 
         except Exception as e:
             if not self.shutdown_requested:
-                logger.error(f'❌ Failed to send SMS: {e}')
+                logger.error(f'Failed to send SMS: {e}')
             return None
 
     async def send_command(self, command: str) -> Optional[str]:
@@ -341,11 +343,11 @@ class SMSClient:
                 registered_delivery=registered_delivery,
             )
 
-            logger.info(f'📤 Unicode SMS sent successfully, message ID: {message_id}')
+            logger.info(f'Unicode SMS sent successfully, message ID: {message_id}')
             return message_id
 
         except Exception as e:
-            logger.error(f'❌ Failed to send Unicode SMS: {e}')
+            logger.error(f'Failed to send Unicode SMS: {e}')
             return None
 
     async def disconnect(self) -> None:
@@ -353,11 +355,11 @@ class SMSClient:
         try:
             if self.client.is_connected:
                 await self.client.disconnect()
-                logger.info('👋 Disconnected from SMSC')
+                logger.info('Disconnected from SMSC')
             else:
-                logger.info('🔌 Already disconnected from SMSC')
+                logger.info('Already disconnected from SMSC')
         except Exception as e:
-            logger.error(f'❌ Error during disconnect: {e}')
+            logger.error(f'Error during disconnect: {e}')
 
     @property
     def shutdown_requested(self) -> bool:
@@ -390,15 +392,15 @@ async def main():
     """
     # SMSC connection details - compatible with SMPP protocol (max 8 chars for password)
     SMSC_HOST = 'localhost'
-    SMSC_PORT = 2775  # Changed to high port number
+    SMSC_PORT = 2775
     SYSTEM_ID = 'test_client'
-    PASSWORD = 'password'  # Fixed: SMPP passwords must be <= 8 characters
+    PASSWORD = 'password'
 
     # Create enhanced SMS client
     sms_client = SMSClient(SMSC_HOST, SMSC_PORT, SYSTEM_ID, PASSWORD)
 
     try:
-        logger.info('🚀 Enhanced SMPP Client starting...')
+        logger.info('Enhanced SMPP Client starting...')
 
         # Connect and bind as transceiver (can send and receive)
         await sms_client.connect_and_bind(BindType.TRANSCEIVER)
@@ -412,7 +414,7 @@ async def main():
         )
 
         # Test server commands
-        logger.info('🧪 Testing server commands...')
+        logger.info('Testing server commands...')
 
         # Send HELP command to see available server commands
         await sms_client.send_command('HELP')
@@ -430,13 +432,13 @@ async def main():
         await sms_client.send_unicode_sms(
             source_addr='12345',
             destination_addr='67890',
-            message='Unicode test: Hello 世界! 🌍 Shutdown ready!',
+            message='Unicode test: Hello 世界! Shutdown ready!',
             request_delivery_receipt=True,
         )
 
         # Simulate some activity while monitoring for shutdown notifications
-        logger.info('📡 Monitoring for messages and shutdown notifications...')
-        logger.info('💡 To test enhanced shutdown:')
+        logger.info('Monitoring for messages and shutdown notifications...')
+        logger.info('To test enhanced shutdown:')
         logger.info('   1. Send "SHUTDOWN" command: triggers demo shutdown')
         logger.info('   2. Press Ctrl+C on server: triggers signal-based shutdown')
         logger.info('   3. Watch this client respond to shutdown notifications')
@@ -447,7 +449,7 @@ async def main():
         while not sms_client.shutdown_requested:
             # Check if we're still connected before trying to send messages
             if not sms_client.client.is_connected:
-                logger.warning('⚠️  No longer connected to server - stopping activity')
+                logger.warning('No longer connected to server - stopping activity')
                 break
 
             # Send periodic activity messages
@@ -460,153 +462,66 @@ async def main():
                         request_delivery_receipt=True,
                     )
                     logger.info(
-                        f'📊 Activity counter: {activity_counter} (client running normally)'
+                        f'Activity counter: {activity_counter} (client running normally)'
                     )
                 except Exception as e:
-                    logger.warning(f'⚠️  Failed to send activity message: {e}')
+                    logger.warning(f'Failed to send activity message: {e}')
                     # If we can't send messages, something is wrong
                     break
 
             # Check if user wants to trigger shutdown demo
             if activity_counter == 60:  # After 1 minute, offer to test shutdown
                 logger.info('')
-                logger.info(
-                    '🧪 Testing enhanced shutdown - sending SHUTDOWN command...'
-                )
+                logger.info('Testing enhanced shutdown - sending SHUTDOWN command...')
                 try:
                     await sms_client.send_command('SHUTDOWN')
-                    logger.info(
-                        '🎬 Enhanced shutdown demo initiated! Watch the logs...'
-                    )
+                    logger.info('Enhanced shutdown demo initiated! Watch the logs...')
                 except Exception as e:
-                    logger.warning(f'⚠️  Failed to send shutdown command: {e}')
+                    logger.warning(f'Failed to send shutdown command: {e}')
 
             await asyncio.sleep(2)
             activity_counter += 2
 
             # Break if we've been running for too long without shutdown
             if activity_counter > 300:  # 5 minutes max
-                logger.info('⏰ Timeout reached - ending demo')
+                logger.info('Timeout reached - ending demo')
                 break
 
         # If shutdown was requested, wait a bit for it to complete
         if sms_client.shutdown_requested:
-            logger.info('⏳ Waiting for shutdown to complete...')
+            logger.info('Waiting for shutdown to complete...')
             await asyncio.sleep(3)
 
     except KeyboardInterrupt:
-        logger.info('🔴 Client interrupted by user')
+        logger.info('Client interrupted by user')
     except Exception as e:
-        logger.error(f'❌ Error in main: {e}', exc_info=True)
+        logger.error(f'Error in main: {e}', exc_info=True)
     finally:
         # Show final shutdown status
         status = sms_client.get_shutdown_status()
-        logger.info('📋 Final shutdown status:')
+        logger.info('Final shutdown status:')
         for key, value in status.items():
             logger.info(f'   {key}: {value}')
 
         # Clean disconnect
         await sms_client.disconnect()
-        logger.info('✅ Enhanced SMPP client shutdown complete')
-
-
-async def simple_send_example():
-    """Simple example of sending one SMS with enhanced shutdown awareness."""
-    logger.info('🚀 Simple enhanced client example...')
-
-    async with SMPPClient(
-        host='localhost',
-        port=2775,  # Changed to high port number
-        system_id='test_client',
-        password='password',  # Fixed: SMPP passwords must be <= 8 characters
-    ) as client:
-        # Bind as transmitter
-        await client.bind_transmitter()
-        logger.info('🔐 Bound as transmitter')
-
-        # Send SMS
-        message_id = await client.submit_sm(
-            source_addr='12345',
-            destination_addr='67890',
-            short_message='Hello World from enhanced client!',
-        )
-
-        logger.info(f'📤 Message sent with ID: {message_id}')
-
-
-async def monitor_messages_example():
-    """
-    Example of monitoring incoming messages with enhanced shutdown handling.
-
-    This client will properly handle server shutdown notifications.
-    """
-    logger.info('🎧 Enhanced message monitoring client starting...')
-
-    client = SMPPClient(
-        host='localhost',
-        port=2775,  # Changed to high port number
-        system_id='test_receiver',
-        password='password',  # Fixed: SMPP passwords must be <= 8 characters
-    )
-
-    shutdown_requested = False
-
-    def handle_message(client: SMPPClient, pdu: DeliverSm):
-        nonlocal shutdown_requested
-
-        message = pdu.short_message.decode('utf-8', errors='ignore')
-
-        # Check for shutdown notifications
-        if (
-            pdu.source_addr
-            in ('SYSTEM', 'SMSC')  # Fixed: Updated for SMPP-compliant system IDs
-            and 'shutdown' in message.lower()
-        ):
-            logger.warning(f'🛑 Server shutdown notification: {message}')
-            logger.info('✅ Will disconnect gracefully...')
-            shutdown_requested = True
-        else:
-            logger.info(f'📥 Message from {pdu.source_addr}: {message}')
-
-    client.on_deliver_sm = handle_message
-
-    try:
-        await client.connect()
-        await client.bind_receiver()
-        logger.info('🔐 Bound as receiver')
-
-        logger.info('👂 Monitoring for incoming messages and shutdown notifications...')
-        logger.info('🛑 Press Ctrl+C to stop, or server will notify when shutting down')
-
-        # Keep running until interrupted or shutdown requested
-        while not shutdown_requested:
-            await asyncio.sleep(1)
-
-        logger.info('🏁 Shutdown requested - exiting gracefully')
-
-    except KeyboardInterrupt:
-        logger.info('🔴 Client interrupted by user')
-    finally:
-        await client.disconnect()
-        logger.info('👋 Monitor client disconnected')
+        logger.info('Enhanced SMPP client shutdown complete')
 
 
 async def interactive_client_example():
     """
     Interactive client that can send commands to test enhanced shutdown.
     """
-    logger.info('🎮 Interactive enhanced SMPP client starting...')
+    logger.info('Interactive enhanced SMPP client starting...')
 
     # Create enhanced client
-    sms_client = SMSClient(
-        'localhost', 2775, 'demo_client', 'demo_pas'
-    )  # Changed to high port number
+    sms_client = SMSClient('localhost', 2775, 'demo_client', 'demo_pas')
 
     try:
         await sms_client.connect_and_bind(BindType.TRANSCEIVER)
 
         logger.info('')
-        logger.info('🎯 Interactive commands available:')
+        logger.info('Interactive commands available:')
         logger.info('   HELP     - Show server help')
         logger.info('   STATUS   - Show server status')
         logger.info('   CLIENTS  - List connected clients')
@@ -614,7 +529,7 @@ async def interactive_client_example():
         logger.info('   SHUTDOWN - Trigger enhanced shutdown demo')
         logger.info('   QUIT     - Disconnect client')
         logger.info('')
-        logger.info('💡 The client will automatically handle shutdown notifications!')
+        logger.info('The client will automatically handle shutdown notifications!')
         logger.info('')
 
         # Send initial status request
@@ -627,33 +542,33 @@ async def interactive_client_example():
             commands = ['HELP', 'STATUS', 'CLIENTS', 'TIME']
             command = commands[command_count % len(commands)]
 
-            logger.info(f'📤 Sending command: {command}')
+            logger.info(f'Sending command: {command}')
             await sms_client.send_command(command)
 
             # After a few commands, trigger shutdown demo
             if command_count == 3:
                 logger.info('')
-                logger.info('🧪 Testing enhanced shutdown...')
+                logger.info('Testing enhanced shutdown...')
                 await sms_client.send_command('SHUTDOWN')
-                logger.info('🎬 Shutdown demo initiated!')
+                logger.info('Shutdown demo initiated!')
 
             await asyncio.sleep(5)
             command_count += 1
 
         # Wait for shutdown to complete if requested
         if sms_client.shutdown_requested:
-            logger.info('⏳ Waiting for shutdown sequence to complete...')
+            logger.info('Waiting for shutdown sequence to complete...')
             await asyncio.sleep(5)
 
     except Exception as e:
-        logger.error(f'❌ Interactive client error: {e}')
+        logger.error(f'Interactive client error: {e}')
     finally:
         await sms_client.disconnect()
-        logger.info('✅ Interactive client session ended')
+        logger.info('Interactive client session ended')
 
 
 if __name__ == '__main__':
-    print('🎯 Enhanced SMPP Client Example')
+    print('Enhanced SMPP Client Example')
     print('=' * 40)
     print()
     print('Features demonstrated:')
@@ -664,7 +579,7 @@ if __name__ == '__main__':
     print('• Automatic response to server shutdown notifications')
     print()
     print('To test enhanced shutdown:')
-    print('1. Start the enhanced server (examples/server.py)')
+    print('1. Start the enhanced server (examples/server_advanced.py)')
     print('2. Run this client')
     print('3. Watch how client handles server shutdown notifications')
     print('4. Client will disconnect gracefully when server shuts down')
@@ -676,14 +591,8 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print('\n🛑 Client interrupted - enhanced shutdown handling demonstrated')
+        print('\nClient interrupted - enhanced shutdown handling demonstrated')
 
-    # Uncomment to run other examples:
-    # print("Running simple send example...")
-    # asyncio.run(simple_send_example())
-    #
-    # print("Running message monitor example...")
-    # asyncio.run(monitor_messages_example())
-    #
+    # Uncomment to run the interactive example instead:
     # print("Running interactive client example...")
     # asyncio.run(interactive_client_example())

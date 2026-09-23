@@ -1,0 +1,44 @@
+= Introduction
+
+{product} is a Python library implementing the SMPP (Short Message Peer-to-Peer) protocol
+version 3.4, built on `asyncio` for non-blocking network I/O.
+
+== What {product} provides
+
+{product} implements both sides of an SMPP session:
+
+* **`SMPPClient`** — an ESME (External Short Messaging Entity) client that can bind as
+  transmitter, receiver, or transceiver, send messages with `submit_sm`, and receive
+  delivery receipts and inbound messages through event handlers such as
+  `on_pdu_received` and `on_connection_lost`.
+* **`SMPPServer`** — an SMSC-like server that accepts multiple concurrent client
+  connections, authenticates binds through a pluggable `authenticate` callback, and
+  delivers messages to bound clients with `deliver_sm`. It also runs a staged
+  graceful-shutdown sequence (notify, grace period, reminder, unbind, force
+  disconnect) instead of dropping connections outright.
+
+The protocol layer covers the PDU types needed for a working SMPP session: the bind
+operations (`bind_transmitter`, `bind_receiver`, `bind_transceiver`, `unbind`, `outbind`),
+message operations (`submit_sm`, `deliver_sm`), and auxiliary operations (`enquire_link`,
+`generic_nack`), along with encoding and decoding of optional TLV (Tag-Length-Value)
+parameters. `smpp.gsm` adds GSM 7-bit encoding, automatic message segmentation for
+messages longer than one SMS part, and User Data Header (UDH) handling for
+concatenated SMS.
+
+Text messages are encoded and decoded according to the `data_coding` value on each PDU,
+using `smpp.protocol.codec_for_data_coding` as the single source of truth for the mapping.
+Supported schemes include the GSM 03.38 default alphabet (registered as the Python codec
+`gsm0338`), IA5/ASCII, Latin-1, Cyrillic and Hebrew ISO-8859 variants, UCS2, and
+ISO-2022-JP. Coding values with no text codec (JIS, pictogram, KS C 5601) still accept raw
+bytes but reject text, and reserved `data_coding` ranges are rejected outright.
+
+== Who this manual is for
+
+This manual is for developers integrating {product} into an application that sends or
+receives SMS traffic over SMPP — either as a client connecting to a carrier's SMSC, or as
+a server emulating an SMSC for testing or routing purposes.
+
+== Requirements
+
+{product} requires Python 3.10 or later and depends only on `typing-extensions` at
+runtime.

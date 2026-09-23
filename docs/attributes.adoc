@@ -1,0 +1,2 @@
+// Shared attribute definitions, included by the book master document.
+:product: smppai

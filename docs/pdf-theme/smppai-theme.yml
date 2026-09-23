@@ -1,0 +1,19 @@
+# A minimal asciidoctor-pdf theme. Keep this file's name ending in "-theme.yml":
+# snowball derives the theme *name* passed to asciidoctor-pdf by stripping ".yml"
+# then "-theme" from this filename, then asciidoctor-pdf reloads
+# "<dir>/<name>-theme.yml" — a differently-suffixed file does not round-trip. The
+# failure mode is silent: asciidoctor-pdf falls back to its built-in default theme
+# and still renders a PDF, but the command still exits non-zero.
+extends: default
+
+base:
+  font-size: 10.5
+
+heading:
+  font-style: bold
+
+code:
+  font-size: 9
+
+table:
+  font-size: 9.5

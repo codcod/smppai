@@ -1,0 +1,68 @@
+[#data-coding]
+= Data coding schemes
+
+`submit_sm` and `deliver_sm` take `short_message` as `str` and encode it
+according to `data_coding`; `smpp.protocol.codec_for_data_coding` is the
+single source of truth for the mapping.
+
+[cols="1,2,2"]
+|===
+| `data_coding` | Scheme | Encoded as
+
+| `0x00` `DEFAULT`
+| SMSC default alphabet
+| GSM 03.38, unpacked (one septet per octet; `€ { } [ ] ~ \ ^ \|` and form feed as `0x1B` + code)
+
+| `0x01` `IA5_ASCII`
+| IA5 / ASCII
+| `ascii`
+
+| `0x02`, `0x04`
+| Octet unspecified
+| `utf-8` (the bytes' meaning is up to the caller)
+
+| `0x03` `LATIN_1`
+| ISO-8859-1
+| `latin-1`
+
+| `0x06` `CYRILLIC`
+| ISO-8859-5
+| `iso8859_5`
+
+| `0x07` `LATIN_HEBREW`
+| ISO-8859-8
+| `iso8859_8`
+
+| `0x08` `UCS2`
+| UCS2
+| `utf-16-be`
+
+| `0x0A` `ISO_2022_JP`
+| ISO-2022-JP
+| `iso2022_jp`
+
+| `0xF0`–`0xF7`
+| GSM message class
+| GSM 03.38 when bit `0x04` is clear, `utf-8` when set
+|===
+
+`short_message` is capped at 254 octets on every coding (SMPP v3.4
+§5.2.21), and every value in the table, `0xF0`–`0xF7` included, is accepted
+on encode. Single-part limits (160 GSM / 70 UCS2 characters) are the
+caller's to enforce — or use `smpp.gsm.make_parts()` to split automatically;
+see <<gsm,GSM encoding, segmentation and UDH>>.
+
+JIS `0x05`, pictogram `0x09`, `0x0D` and KS C 5601 `0x0E` have no text
+codec: raw `short_message` bytes on them encode, but text is rejected
+(`submit_sm` raises `SMPPMessageException`, and `set_message_text` raises
+`SMPPPDUException`). The MWI groups `0xC0`–`0xEF`, `0xF8`–`0xFF` (bit 3 is
+reserved in GSM 03.38) and other reserved values are rejected outright.
+Text that the chosen coding cannot represent raises `SMPPMessageException`
+too, so send it with `DataCoding.UCS2` instead.
+
+On receipt, `get_message_text()` never raises: it decodes an unsupported
+coding as latin-1 and replaces undecodable bytes.
+
+The GSM 03.38 codec is registered as the Python codec `gsm0338`
+(`'@€'.encode('gsm0338')`) as a side effect of importing `smpp` — no
+separate registration step is needed.

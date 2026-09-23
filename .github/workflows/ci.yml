@@ -160,10 +160,14 @@ jobs:
           # Run examples to ensure they work
           cd examples
           uv run python --version
-          echo "Testing client example..."
-          timeout 10s uv run python client.py || true
-          echo "Testing server example..."
-          timeout 10s uv run python server.py || true
+          echo "Testing basic client example..."
+          timeout 10s uv run python client_basic.py || true
+          echo "Testing advanced client example..."
+          timeout 10s uv run python client_advanced.py || true
+          echo "Testing basic server example..."
+          timeout 10s uv run python server_basic.py || true
+          echo "Testing advanced server example..."
+          timeout 10s uv run python server_advanced.py || true
 
       - name: Test import
         env:

@@ -1,0 +1,21 @@
+books:
+  - src: docs/user-manual.adoc
+    out: smppai-user-manual
+# a second book is only ever needed if you actually have one:
+#  - src: docs/developer-handbook.adoc
+#    out: smppai-developer-handbook
+theme: docs/pdf-theme/smppai-theme.yml
+attributes:
+  toc: left
+  sectnums: ""
+formats: [pdf, epub]
+revision:
+  from: git-describe
+  date-format: "%d %B %Y"
+mermaid:
+  format: png
+  puppeteer-args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+failure-level:
+  pdf: WARN
+  epub: ERROR
+  check: WARN

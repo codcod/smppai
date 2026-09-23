@@ -215,3 +215,13 @@ security: ## Run security checks
 shell: ## Start Python shell with project loaded
 	@echo "$(BLUE)Starting Python shell...$(RESET)"
 	$(UV) run python
+
+# Validate the AsciiDoc manual via snowball (broken includes/xrefs fail the check)
+.PHONY: docs-check
+docs-check:
+	snowball check
+
+# Render the user manual to PDF + EPUB into dist/docs/
+.PHONY: docs-build
+docs-build:
+	snowball build -o dist/docs

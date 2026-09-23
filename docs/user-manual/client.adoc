@@ -1,0 +1,152 @@
+[#client]
+= The client
+
+`SMPPClient` is an ESME (External Short Messaging Entity): it connects
+outward to an SMSC, binds, and then sends or receives.
+
+== Constructing a client
+
+[source,python]
+----
+from smpp import SMPPClient, NpiType, TonType
+
+client = SMPPClient(
+    host="localhost",
+    port=2775,
+    system_id="my_client",        # <= 15 chars
+    password="my_pass",           # <= 8 chars
+    system_type="SMS_APP",        # <= 12 chars
+    interface_version=0x34,
+    addr_ton=TonType.UNKNOWN,
+    addr_npi=NpiType.UNKNOWN,
+    address_range="",
+    bind_timeout=30.0,
+    enquire_link_interval=30.0,   # automatic keepalive; 0 disables it
+    response_timeout=10.0,        # default timeout for bind/submit/enquire
+)
+----
+
+`system_id`, `password`, `system_type` and `address_range` are validated
+against SMPP v3.4's field limits (16/9/13/41 bytes respectively, each
+including the C-string terminator) when you bind.
+
+== Connecting and binding
+
+[source,python]
+----
+await client.connect()
+
+await client.bind_transmitter()   # can only submit_sm
+await client.bind_receiver()      # can only receive deliver_sm
+await client.bind_transceiver()   # both
+----
+
+Or use the client as an async context manager, which calls `connect()` on
+entry and `disconnect()` (which unbinds first, if bound) on exit — see
+<<quickstart,Quick Start>>.
+
+State is exposed through properties:
+
+[cols="1,3"]
+|===
+| Property | Meaning
+
+| `is_connected`
+| TCP connection to the SMSC is open.
+
+| `is_bound`
+| Connected *and* a bind succeeded.
+
+| `bind_type`
+| `BindType.TRANSMITTER` / `RECEIVER` / `TRANSCEIVER`, or `None`.
+
+| `connection_state`
+| The underlying `ConnectionState` (`CLOSED`, `CONNECTING`, `CONNECTED`, `BOUND`, ...).
+|===
+
+Two coroutines poll state instead of raising, for callers that would rather
+wait than handle an exception:
+
+* `await client.wait_for_connection(timeout=None) -> bool`
+* `await client.wait_for_bind(timeout=None) -> bool`
+
+Both return `False` on timeout instead of raising.
+
+== Sending a message
+
+[source,python]
+----
+message_id = await client.submit_sm(
+    source_addr="1234",
+    destination_addr="5678",
+    short_message="Hello World!",
+    source_addr_ton=TonType.INTERNATIONAL,
+    source_addr_npi=NpiType.ISDN,
+    dest_addr_ton=TonType.INTERNATIONAL,
+    dest_addr_npi=NpiType.ISDN,
+    registered_delivery=RegisteredDelivery.SUCCESS_FAILURE,  # request a delivery receipt
+    data_coding=DataCoding.DEFAULT,
+    timeout=10.0,   # overrides response_timeout for this call
+)
+----
+
+`submit_sm` requires a transmitter or transceiver bind; it raises
+`SMPPInvalidStateException` otherwise. `short_message` is a `str` and is
+encoded according to `data_coding` — see <<data-coding,Data coding
+schemes>> for the full mapping and what happens when text doesn't fit the
+chosen coding. The call returns the SMSC-assigned message ID as a string.
+
+For messages longer than 254 octets, use `smpp.gsm.make_parts()` to split
+into multiple `submit_sm` calls — see <<gsm,GSM encoding, segmentation and
+UDH>>.
+
+== Testing the link
+
+[source,python]
+----
+ok = await client.enquire_link(timeout=5.0)  # True/False, never raises
+----
+
+An `enquire_link_interval` was already set on the client's connection at
+construction time, so this is only needed for an explicit, synchronous
+liveness check; the periodic keepalive runs on its own regardless.
+
+== Event handlers
+
+Set these as plain callable attributes on the client instance — none are
+required, and unset ones are simply skipped:
+
+[cols="1,3"]
+|===
+| Handler | Signature
+
+| `on_deliver_sm`
+| `(client, pdu: DeliverSm) -> None` — inbound message or delivery receipt.
+  Check `pdu.esm_class & 0x04` to tell a delivery receipt from a
+  mobile-originated message. The client auto-acknowledges with
+  `deliver_sm_resp` before this handler runs.
+
+| `on_connection_lost`
+| `(client, error: Exception) -> None` — the socket dropped, expectedly or not.
+
+| `on_bind_success`
+| `(client, bind_type: BindType) -> None` — fired right after a bind completes.
+
+| `on_unbind`
+| `(client) -> None` — fired after `unbind()` completes, or after the
+  server sends an unbind request that the client auto-acknowledges.
+|===
+
+An exception raised inside a handler is caught and logged
+(`logger.exception`); it never propagates back into the client's internals.
+
+`enquire_link` and `unbind` requests initiated *by the server* are handled
+automatically: the client responds and, for unbind, updates its own bound
+state and fires `on_unbind` — no handler needs to be set for that to work.
+
+== Full example
+
+`examples/client_advanced.py` builds on all of the above: multiple bind types,
+Unicode messages via `DataCoding.UCS2`, and a client that recognizes and
+gracefully responds to the server's shutdown notifications (see
+<<server-shutdown,Graceful shutdown>>).

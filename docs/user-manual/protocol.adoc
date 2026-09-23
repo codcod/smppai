@@ -1,0 +1,66 @@
+[#protocol]
+= Protocol reference
+
+== PDUs available from the top-level package
+
+`from smpp import ...` exposes the PDUs, and their factory functions, that
+`SMPPClient` and `SMPPServer` use:
+
+[cols="1,2"]
+|===
+| Category | PDU classes
+
+| Session management
+| `BindTransmitter(Resp)`, `BindReceiver(Resp)`, `BindTransceiver(Resp)`,
+  `Unbind`, `UnbindResp`, `Outbind`
+
+| Message operations
+| `SubmitSm`, `SubmitSmResp`, `DeliverSm`, `DeliverSmResp`
+
+| Auxiliary
+| `EnquireLink`, `EnquireLinkResp`, `GenericNack`
+|===
+
+Factory helpers: `create_pdu(command_id, **kwargs)`,
+`create_bind_pdu(bind_type, **kwargs)`, `create_submit_sm_pdu(**kwargs)`,
+`decode_pdu(data: bytes) -> PDU` (equivalent to `PDU.decode(data)`).
+
+A wider set of command IDs is defined in `smpp.protocol.constants.CommandId`
+(`query_sm`, `replace_sm`, `cancel_sm`, `submit_multi`,
+`alert_notification`, `data_sm`) and a few of their PDU classes exist under
+`smpp.protocol.pdu` (`AlertNotification`, `DataSm`, `DataSmResp`, `QuerySm`,
+`QuerySmResp`) for anyone decoding raw traffic — but `SMPPClient` and
+`SMPPServer` don't send or handle them, so they aren't re-exported from the
+top-level `smpp` package.
+
+== Optional parameters (TLV)
+
+Every `PDU` carries an `optional_parameters: list[TLVParameter]`. Manage it
+directly:
+
+[source,python]
+----
+from smpp import OptionalTag, TLVParameter
+
+pdu.add_optional_parameter(OptionalTag.MESSAGE_PAYLOAD, b"extra data")
+value = pdu.get_optional_parameter_value(OptionalTag.MESSAGE_PAYLOAD)
+pdu.has_optional_parameter(OptionalTag.MESSAGE_PAYLOAD)  # bool
+pdu.remove_optional_parameter(OptionalTag.MESSAGE_PAYLOAD)
+----
+
+or construct a `TLVParameter(tag, value)` and append it to
+`pdu.optional_parameters` yourself; both paths validate the tag range
+(0–0xFFFF) and a 0xFFFF-byte value cap. `OptionalTag` enumerates the
+standard SMPP v3.4 tags (message state, receipted message ID, SAR
+segmentation tags, callback numbers, and more).
+
+== PDU header and framing
+
+`PDU.encode()` / `PDU.decode(data)` handle the 16-byte header
+(`command_length`, `command_id`, `command_status`, `sequence_number`),
+body, and optional parameters together. `command_status` uses
+`smpp.CommandStatus` (`ESME_ROK` and friends); `get_error_message(status)`
+turns one into the human-readable string from the spec. Every PDU exposes
+`is_request()` / `is_response()` and the length/validation helpers
+(`get_total_length()`, `validate()`) used internally before a PDU goes on
+the wire.

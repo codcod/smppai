@@ -1,0 +1,50 @@
+# Attach the AsciiDoc user manual (built with snowball) to a GitHub release.
+# GitHub-only: this workflow relies on `gh` and the `release` event, both specific
+# to GitHub — there is no equivalent step here for other forges.
+#
+# Triggers whenever a release is published, regardless of what created it (a
+# manual release, goreleaser, or anything else) — the manual is not the release,
+# so a broken manual build never blocks or unpublishes the release itself.
+name: docs-release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  attach-manual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # `brew update` first: a preinstalled runner image's Homebrew snapshot can
+      # lag behind the tap's bottle metadata, which otherwise only fails on fresh
+      # runners and not on an already-updated developer machine.
+      - name: Install snowball
+        run: |
+          brew update --quiet
+          brew install codcod/tap/snowball
+          snowball setup
+
+      # A broken or missing docs source must never block the release: this step
+      # is allowed to fail without failing the workflow.
+      - name: Build user manual
+        continue-on-error: true
+        run: snowball build -o dist/docs
+
+      - name: Attach user manual to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          shopt -s nullglob
+          existing=(dist/docs/*.pdf dist/docs/*.epub)
+          if [ ${#existing[@]} -eq 0 ]; then
+            echo "::warning::Release $TAG has no user manual attached — the build step failed" \
+              "or produced nothing; see the 'Build user manual' step's log."
+            exit 0
+          fi
+          gh release upload "$TAG" "${existing[@]}" --clobber

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SMPP Server Example
+SMPP Server Example - Advanced
 
 This example demonstrates how to use the SMPP server with enhanced shutdown features
 to accept client connections, handle bind requests, and process SMS messages.
@@ -11,7 +11,7 @@ Enhanced Shutdown Features:
 - Automatic unbind sequence
 - Comprehensive logging of shutdown process
 
-Updated for the new modular code structure with clean imports from the main smpp package.
+For a minimal server, see server_basic.py.
 """
 
 import asyncio
@@ -47,14 +47,12 @@ class SMSCServer:
     - Comprehensive client authentication
     """
 
-    def __init__(
-        self, host: str = 'localhost', port: int = 2775
-    ):  # Changed to high port number
+    def __init__(self, host: str = 'localhost', port: int = 2775):
         # Initialize server with enhanced shutdown enabled
         self.server = SMPPServer(
             host=host,
             port=port,
-            system_id='SMSC',  # Fixed: SMPP system_id must be <= 16 characters
+            system_id='SMSC',  # SMPP system_id must be <= 15 characters
             max_connections=50,
             setup_signal_handlers=True,  # Enable signal-based shutdown
         )
@@ -141,11 +139,11 @@ class SMSCServer:
 
         if is_valid:
             logger.info(
-                f'✓ Authentication successful for {system_id} (type: {system_type})'
+                f'Authentication successful for {system_id} (type: {system_type})'
             )
         else:
             logger.warning(
-                f'✗ Authentication failed for {system_id} (type: {system_type})'
+                f'Authentication failed for {system_id} (type: {system_type})'
             )
 
         return is_valid
@@ -155,21 +153,21 @@ class SMSCServer:
     ) -> None:
         """Handle new client connection with enhanced logging."""
         client_info = f'{session.connection.host}:{session.connection.port}'
-        logger.info(f'🔗 New client connected from {client_info}')
+        logger.info(f'New client connected from {client_info}')
 
         # Log current connection count
-        logger.info(f'📊 Total active connections: {server.client_count}')
+        logger.info(f'Total active connections: {server.client_count}')
 
     def handle_client_disconnected(
         self, server: SMPPServer, session: ClientSession
     ) -> None:
         """Handle client disconnection with enhanced logging."""
-        logger.info(f'🔌 Client {session.system_id or "unknown"} disconnected')
-        logger.info(f'📊 Total active connections: {server.client_count}')
+        logger.info(f'Client {session.system_id or "unknown"} disconnected')
+        logger.info(f'Total active connections: {server.client_count}')
 
     def handle_client_bound(self, server: SMPPServer, session: ClientSession) -> None:
         """Handle successful client bind with enhanced logging."""
-        logger.info(f'🔐 Client {session.system_id} bound as {session.bind_type}')
+        logger.info(f'Client {session.system_id} bound as {session.bind_type}')
 
         # Send welcome message to clients that can receive
         if session.bind_type in ('receiver', 'transceiver'):
@@ -183,8 +181,8 @@ class SMSCServer:
             # Decode message
             message = pdu.short_message.decode('utf-8', errors='ignore')
 
-            logger.info(f'📥 Message received from {session.system_id}:')
-            logger.info(f'   From: {pdu.source_addr} → To: {pdu.destination_addr}')
+            logger.info(f'Message received from {session.system_id}:')
+            logger.info(f'   From: {pdu.source_addr} -> To: {pdu.destination_addr}')
             logger.info(f'   Content: "{message}"')
             logger.info(f'   Data Coding: {pdu.data_coding}')
 
@@ -209,7 +207,7 @@ class SMSCServer:
             return message_id
 
         except Exception as e:
-            logger.error(f'❌ Error handling message: {e}')
+            logger.error(f'Error handling message: {e}')
             return None
 
     async def process_message(
@@ -224,7 +222,7 @@ class SMSCServer:
             if not message_info:
                 return
 
-            logger.info(f'⚙️  Processing message {message_id}')
+            logger.info(f'Processing message {message_id}')
 
             # Enhanced command processing
             message = message_info['message'].lower().strip()
@@ -285,7 +283,7 @@ class SMSCServer:
                 await self._send_delivery_receipt(session, message_id, pdu)
 
         except Exception as e:
-            logger.error(f'❌ Error processing message {message_id}: {e}')
+            logger.error(f'Error processing message {message_id}: {e}')
 
     async def _send_response(
         self, session: ClientSession, original_pdu: SubmitSm, response_text: str
@@ -294,7 +292,7 @@ class SMSCServer:
         try:
             if session.bind_type not in ('receiver', 'transceiver'):
                 logger.warning(
-                    f'⚠️  Cannot send response to {session.system_id} - not bound as receiver'
+                    f'Cannot send response to {session.system_id} - not bound as receiver'
                 )
                 return
 
@@ -311,12 +309,12 @@ class SMSCServer:
             )
 
             if success:
-                logger.info(f'📤 Response sent to {session.system_id}')
+                logger.info(f'Response sent to {session.system_id}')
             else:
-                logger.warning(f'⚠️  Failed to send response to {session.system_id}')
+                logger.warning(f'Failed to send response to {session.system_id}')
 
         except Exception as e:
-            logger.error(f'❌ Error sending response: {e}')
+            logger.error(f'Error sending response: {e}')
 
     async def _demonstrate_shutdown(
         self, session: ClientSession, original_pdu: SubmitSm
@@ -345,7 +343,7 @@ class SMSCServer:
             # Schedule shutdown after delay
             async def delayed_shutdown():
                 await asyncio.sleep(10)
-                logger.info('🛑 Demo shutdown initiated by client command')
+                logger.info('Demo shutdown initiated by client command')
                 self._shutdown_requested = True
                 # Trigger shutdown via the server's shutdown event
                 self.server._shutdown_event.set()
@@ -355,7 +353,7 @@ class SMSCServer:
             task.add_done_callback(self._background_tasks.discard)
 
         except Exception as e:
-            logger.error(f'❌ Error in shutdown demonstration: {e}')
+            logger.error(f'Error in shutdown demonstration: {e}')
 
     async def _send_delivery_receipt(
         self, session: ClientSession, message_id: str, original_pdu: SubmitSm
@@ -382,26 +380,26 @@ class SMSCServer:
             )
 
             if success:
-                logger.info(f'📧 Delivery receipt sent for message {message_id}')
+                logger.info(f'Delivery receipt sent for message {message_id}')
             else:
                 logger.warning(
-                    f'⚠️  Failed to send delivery receipt for message {message_id}'
+                    f'Failed to send delivery receipt for message {message_id}'
                 )
 
         except Exception as e:
-            logger.error(f'❌ Error sending delivery receipt: {e}')
+            logger.error(f'Error sending delivery receipt: {e}')
 
     async def start(self) -> None:
         """Start the SMSC server."""
         await self.server.start()
-        logger.info(f'🚀 SMSC server started on {self.server.host}:{self.server.port}')
+        logger.info(f'SMSC server started on {self.server.host}:{self.server.port}')
 
     async def stop(self) -> None:
         """Stop the SMSC server with enhanced shutdown."""
         if self._shutdown_requested:
             return
 
-        logger.info('🛑 SMSC server stopping - enhanced shutdown sequence will begin')
+        logger.info('SMSC server stopping - enhanced shutdown sequence will begin')
         self._shutdown_requested = True
 
         # Clean up all background tasks
@@ -437,10 +435,10 @@ class SMSCServer:
         ]
 
         if not receiver_clients:
-            logger.info('📢 No receiver clients to broadcast to')
+            logger.info('No receiver clients to broadcast to')
             return
 
-        logger.info(f'📢 Broadcasting message to {len(receiver_clients)} clients')
+        logger.info(f'Broadcasting message to {len(receiver_clients)} clients')
 
         # Send to all clients concurrently
         tasks = []
@@ -457,7 +455,7 @@ class SMSCServer:
         successful = sum(1 for result in results if result is True)
         failed = len(results) - successful
 
-        logger.info(f'📢 Broadcast complete: {successful} successful, {failed} failed')
+        logger.info(f'Broadcast complete: {successful} successful, {failed} failed')
 
     async def _send_broadcast_to_client(
         self, client: ClientSession, source_addr: str, message: str
@@ -473,14 +471,14 @@ class SMSCServer:
             )
 
             if success:
-                logger.debug(f'📤 Broadcast sent to {client.system_id}')
+                logger.debug(f'Broadcast sent to {client.system_id}')
             else:
-                logger.warning(f'⚠️  Failed to send broadcast to {client.system_id}')
+                logger.warning(f'Failed to send broadcast to {client.system_id}')
 
             return success
 
         except Exception as e:
-            logger.error(f'❌ Error sending broadcast to {client.system_id}: {e}')
+            logger.error(f'Error sending broadcast to {client.system_id}: {e}')
             return False
 
     def get_server_stats(self) -> dict:
@@ -524,16 +522,12 @@ class SMSCServer:
             )
 
             if success:
-                logger.info(f'📨 Welcome message sent to {session.system_id}')
+                logger.info(f'Welcome message sent to {session.system_id}')
             else:
-                logger.warning(
-                    f'⚠️  Failed to send welcome message to {session.system_id}'
-                )
+                logger.warning(f'Failed to send welcome message to {session.system_id}')
 
         except Exception as e:
-            logger.error(
-                f'❌ Error sending welcome message to {session.system_id}: {e}'
-            )
+            logger.error(f'Error sending welcome message to {session.system_id}: {e}')
 
 
 async def main():
@@ -547,7 +541,7 @@ async def main():
     - Comprehensive logging and monitoring
     """
     # Create SMSC server with enhanced shutdown
-    smsc = SMSCServer(host='localhost', port=2775)  # Changed to high port number
+    smsc = SMSCServer(host='localhost', port=2775)
 
     # Background task references
     stats_task = None
@@ -559,15 +553,15 @@ async def main():
         broadcast_task = asyncio.create_task(run_broadcast_scheduler(smsc))
 
         # Display startup information
-        logger.info('🎯 Enhanced SMSC server ready for connections!')
-        logger.info('🔧 Enhanced shutdown features:')
+        logger.info('Enhanced SMSC server ready for connections!')
+        logger.info('Enhanced shutdown features:')
         config = smsc.server.get_shutdown_config()
         logger.info(f'   • Grace period: {config["grace_period"]}s')
         logger.info(f'   • Reminder delay: {config["reminder_delay"]}s')
         logger.info(f'   • Force disconnect timeout: {config["shutdown_timeout"]}s')
         logger.info('')
-        logger.info('💡 Test enhanced shutdown by:')
-        logger.info('   1. Connect clients (see examples/client.py)')
+        logger.info('Test enhanced shutdown by:')
+        logger.info('   1. Connect clients (see examples/client_advanced.py)')
         logger.info('   2. Send "SHUTDOWN" command to trigger demo')
         logger.info('   3. Or press Ctrl+C to trigger signal-based shutdown')
         logger.info('   4. Watch the enhanced shutdown sequence in logs')
@@ -577,14 +571,14 @@ async def main():
         await smsc.server.serve_forever()
 
     except Exception as e:
-        logger.error(f'❌ Server error: {e}', exc_info=True)
+        logger.error(f'Server error: {e}', exc_info=True)
     finally:
         # Clean up background tasks
         await cleanup_background_tasks(stats_task, broadcast_task)
 
         # Mark wrapper as stopped
         smsc._shutdown_requested = True
-        logger.info('✅ SMSC server shutdown complete')
+        logger.info('SMSC server shutdown complete')
 
 
 async def run_stats_monitor(smsc: SMSCServer) -> None:
@@ -596,7 +590,7 @@ async def run_stats_monitor(smsc: SMSCServer) -> None:
         while not smsc._shutdown_requested:
             stats = smsc.get_server_stats()
             logger.info(
-                f'📊 Server Stats: {stats["total_connections"]} connections, '
+                f'Server Stats: {stats["total_connections"]} connections, '
                 f'{stats["bound_clients"]} bound, {stats["total_messages"]} messages processed'
             )
 
@@ -604,10 +598,10 @@ async def run_stats_monitor(smsc: SMSCServer) -> None:
             await asyncio.sleep(60)  # Every minute
 
     except asyncio.CancelledError:
-        logger.debug('📊 Stats monitor task cancelled')
+        logger.debug('Stats monitor task cancelled')
         raise
     except Exception as e:
-        logger.error(f'❌ Error in stats monitor: {e}')
+        logger.error(f'Error in stats monitor: {e}')
 
 
 async def run_broadcast_scheduler(smsc: SMSCServer) -> None:
@@ -620,7 +614,7 @@ async def run_broadcast_scheduler(smsc: SMSCServer) -> None:
         while not smsc._shutdown_requested:
             await smsc.broadcast_message(
                 source_addr='SYSTEM',
-                message=f'📢 System broadcast #{counter} - Enhanced SMSC is running!',
+                message=f'System broadcast #{counter} - Enhanced SMSC is running!',
             )
             counter += 1
 
@@ -628,55 +622,28 @@ async def run_broadcast_scheduler(smsc: SMSCServer) -> None:
             await asyncio.sleep(300)  # Every 5 minutes
 
     except asyncio.CancelledError:
-        logger.debug('📢 Broadcast scheduler task cancelled')
+        logger.debug('Broadcast scheduler task cancelled')
         raise
     except Exception as e:
-        logger.error(f'❌ Error in broadcast scheduler: {e}')
+        logger.error(f'Error in broadcast scheduler: {e}')
 
 
 async def cleanup_background_tasks(*tasks) -> None:
     """Clean up background tasks gracefully."""
     for task in tasks:
         if task and not task.done():
-            logger.debug(f'🧹 Cancelling background task: {task.get_name()}')
+            logger.debug(f'Cancelling background task: {task.get_name()}')
             task.cancel()
             try:
                 await task
             except asyncio.CancelledError:
                 pass
             except Exception as e:
-                logger.warning(f'⚠️  Error cancelling task {task.get_name()}: {e}')
-
-
-async def simple_server_example():
-    """
-    Simple server example showcasing async context manager with enhanced shutdown.
-
-    This demonstrates the cleanest way to use the enhanced shutdown features.
-    """
-    logger.info('🚀 Starting simple enhanced SMSC server...')
-
-    async with SMPPServer(
-        host='localhost',
-        port=2775,  # Changed to high port number
-        system_id='SIMPLE_SMSC',  # Fixed: SMPP system_id must be <= 16 characters
-        setup_signal_handlers=True,
-    ) as server:
-        # Configure enhanced shutdown
-        server.configure_shutdown(
-            grace_period=10.0, reminder_delay=5.0, shutdown_timeout=15.0
-        )
-
-        logger.info('✅ Simple enhanced SMSC server running...')
-        logger.info('🛑 Press Ctrl+C to see enhanced shutdown in action')
-
-        # Server will run until shutdown signal (SIGTERM/SIGINT)
-        # The async context manager will handle the enhanced shutdown automatically
-        await server.serve_forever()
+                logger.warning(f'Error cancelling task {task.get_name()}: {e}')
 
 
 if __name__ == '__main__':
-    print('🎯 Enhanced SMPP Server Example')
+    print('Enhanced SMPP Server Example')
     print('=' * 40)
     print()
     print('Features demonstrated:')
@@ -688,16 +655,11 @@ if __name__ == '__main__':
     print()
     print('To test enhanced shutdown:')
     print('1. Run this server')
-    print('2. Connect clients using examples/client.py')
+    print('2. Connect clients using examples/client_advanced.py')
     print("3. Send 'SHUTDOWN' command or press Ctrl+C")
     print('4. Watch the enhanced shutdown sequence in logs')
     print()
     print('Starting server...')
     print()
 
-    # Run the main enhanced server
     asyncio.run(main())
-
-    # Uncomment to run simple example instead:
-    # print("Running simple server example...")
-    # asyncio.run(simple_server_example())

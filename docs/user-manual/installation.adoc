@@ -1,0 +1,28 @@
+= Installation
+
+{product} requires Python 3.10 or later (below 3.14) and depends only on
+`typing-extensions` at runtime.
+
+== From source
+
+[source,bash]
+----
+git clone https://github.com/codcod/smppai.git
+cd smppai
+
+# Install with uv (recommended)
+uv sync
+
+# Or install with pip
+pip install -e .
+----
+
+== Verifying the install
+
+[source,bash]
+----
+uv run pytest
+----
+
+See <<testing,Testing>> for how to run the full suite, including integration tests
+that spin up a real client/server pair.

@@ -1,0 +1,149 @@
+[#server]
+= The server
+
+`SMPPServer` is a minimal SMSC: it accepts client connections, handles
+binds, authentication, `submit_sm` and `enquire_link`, and lets you push
+`deliver_sm` to bound clients. It ships with a multi-stage graceful
+shutdown sequence.
+
+== Constructing and running
+
+[source,python]
+----
+from smpp import SMPPServer
+
+server = SMPPServer(
+    host="0.0.0.0",
+    port=2775,
+    system_id="SMSC",             # <= 15 chars
+    interface_version=0x34,
+    max_connections=100,
+    setup_signal_handlers=True,   # install SIGTERM/SIGINT handlers
+)
+
+await server.serve_forever()  # starts, blocks until shutdown, then stops
+----
+
+`serve_forever()` drives the whole lifecycle itself, so don't also wrap the
+server in `async with server:` around it — `__aenter__` would call
+`start()` a second time and raise `SMPPException`. Use `async with`
+instead when you want to drive things yourself: it calls `start()` on
+entry and the graceful `stop()` sequence on exit, so you `await` your own
+work (other coroutines, a signal you define, polling `shutdown_requested`)
+in between rather than `serve_forever()`. Or skip both and call
+`await server.start()` / `await server.stop()` directly. `client_count` and
+`is_running` report live state regardless of which pattern you use.
+
+== Authentication
+
+[source,python]
+----
+def authenticate(system_id: str, password: str, system_type: str) -> bool:
+    return valid_clients.get(system_id) == password
+
+server.authenticate = authenticate
+----
+
+The default `authenticate` accepts every bind. Only one callback is
+supported at a time (assigning replaces it); it's called synchronously from
+inside bind handling.
+
+== Handling messages from clients
+
+[source,python]
+----
+def handle_message(server, session, pdu: SubmitSm) -> str | None:
+    print(f"{session.system_id}: {pdu.source_addr} -> {pdu.destination_addr}")
+    return None  # or a custom message ID string
+
+server.on_message_received = handle_message
+----
+
+Returning a string from `on_message_received` overrides the server's
+auto-incrementing message ID in the `submit_sm_resp`; returning `None`
+keeps the default. `submit_sm` is rejected with `ESME_RINVBNDSTS` unless the
+sending session is bound as transmitter or transceiver.
+
+== Event handlers
+
+[cols="1,3"]
+|===
+| Handler | Signature
+
+| `on_client_connected`
+| `(server, session: ClientSession) -> None` — TCP accepted, before any bind.
+
+| `on_client_disconnected`
+| `(server, session: ClientSession) -> None` — socket closed, bound or not.
+
+| `on_client_bound`
+| `(server, session: ClientSession) -> None` — bind accepted.
+
+| `on_message_received`
+| `(server, session: ClientSession, pdu: SubmitSm) -> Optional[str]` — see above.
+|===
+
+`ClientSession` (from `smpp.server`) exposes `system_id`, `bind_type`
+(`'transmitter'`/`'receiver'`/`'transceiver'`/`''`), `bound`, `address_range`,
+`message_counter` and the underlying `connection`.
+
+`get_client_sessions()` and `get_bound_clients()` return the current
+sessions (all, and bound-only, respectively).
+
+== Delivering to a client
+
+[source,python]
+----
+delivered = await server.deliver_sm(
+    target_system_id="my_client",
+    source_addr="SYSTEM",
+    destination_addr="my_client",
+    short_message="Hi there",
+    data_coding=DataCoding.DEFAULT,
+)  # bool
+----
+
+`deliver_sm` looks up a bound session by `system_id` (must be bound as
+receiver or transceiver) and returns `False` — never raises — if no
+matching session exists or the send fails.
+
+[#server-shutdown]
+== Graceful shutdown
+
+`stop()` (and the signal handlers installed when `setup_signal_handlers=True`)
+runs a staged sequence rather than dropping connections immediately:
+
+. Stop accepting new connections and new messages.
+. Broadcast a shutdown notification (a `deliver_sm`) to every bound
+  receiver/transceiver client.
+. Wait up to `grace_period` seconds for clients to unbind and disconnect on
+  their own.
+. If any remain bound, broadcast a reminder and wait
+  `reminder_delay` more seconds.
+. Send `unbind` to any clients still bound (10s budget).
+. Force-disconnect whatever's left, capped at `shutdown_timeout`.
+
+Configure the timings with one call:
+
+[source,python]
+----
+server.configure_shutdown(grace_period=15.0, reminder_delay=5.0, shutdown_timeout=10.0)
+----
+
+or individually with `set_shutdown_grace_period()`,
+`set_shutdown_reminder_delay()` and `set_shutdown_timeout()`. All setters
+validate their argument (non-negative, capped at one or two hours) and raise
+`ValueError`/`TypeError` on bad input. `get_shutdown_config()` returns the
+current values plus `shutdown_in_progress`, `accept_new_connections` and
+`accept_new_messages`. `shutdown_requested` (property) reports whether
+shutdown has been triggered, by signal or by `stop()`.
+
+A client that wants to participate gracefully watches `on_deliver_sm` for
+these notifications and disconnects on its own once it sees one — see
+`examples/client_advanced.py` for a complete implementation of that side.
+
+== Full example
+
+`examples/server_advanced.py` wires up authentication, all five event handlers,
+command-style message handling (`ECHO`, `HELP`, `STATUS`, broadcast), and
+the enhanced shutdown configuration end to end.
