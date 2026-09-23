@@ -18,7 +18,7 @@ from smpp.exceptions import (
     SMPPTimeoutException,
     SMPPValidationException,
 )
-from smpp.protocol.constants import PDU_HEADER_SIZE
+from smpp.protocol.constants import PDU_HEADER_SIZE, is_response_command
 from smpp.protocol.pdu import PDU, decode_pdu
 from smpp.protocol.pdu.session import EnquireLink
 from smpp.protocol.validation import validate_pdu_structure
@@ -416,8 +416,13 @@ class SMPPConnection:
 
     async def _handle_received_pdu(self, pdu: PDU) -> None:
         """Handle received PDU"""
-        # Check if this is a response to a pending request
-        pending_entry = self._pending_pdus.get(pdu.sequence_number)
+        # Only responses complete pending requests; the peer's own requests use its
+        # own sequence space and may carry the same number as one we await.
+        pending_entry = (
+            self._pending_pdus.get(pdu.sequence_number)
+            if is_response_command(pdu.command_id)
+            else None
+        )
         if pending_entry and not pending_entry[0].done():
             pending_entry[0].set_result(pdu)
             self._pending_pdus.pop(pdu.sequence_number, None)

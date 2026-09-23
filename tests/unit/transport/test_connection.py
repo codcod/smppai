@@ -447,6 +447,23 @@ class TestPDUReceiving:
         assert len(received_pdus) == 1
         assert received_pdus[0] == incoming_pdu
 
+    @pytest.mark.asyncio
+    async def test_handle_received_request_with_pending_seq_is_dispatched(
+        self, connected_connection
+    ):
+        """A peer request sharing a pending seq is dispatched, not taken as the response"""
+        received_pdus = []
+        connected_connection.on_pdu_received = received_pdus.append
+        future = asyncio.Future()
+        connected_connection._pending_pdus[1] = (future, time.time())
+
+        request_pdu = MockPDU(sequence_number=1, command_id=0x00000004)  # submit_sm
+        await connected_connection._handle_received_pdu(request_pdu)
+
+        assert received_pdus == [request_pdu]
+        assert not future.done()
+        assert 1 in connected_connection._pending_pdus
+
 
 class TestBackgroundTasks:
     """Test background task functionality"""
