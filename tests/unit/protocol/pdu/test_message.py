@@ -269,6 +269,13 @@ class TestStandardMessagePDU:
         with pytest.raises(SMPPPDUException, match='Invalid data coding: 248'):
             SubmitSm(data_coding=0xF8, short_message=b'x').encode()
 
+    def test_set_text_rejects_reserved_message_class_coding(self):
+        """0xF8-0xFF fail at set_message_text, before any text is encoded."""
+        pdu = SubmitSm(data_coding=0xF8)
+        with pytest.raises(SMPPPDUException, match='Unsupported data_coding'):
+            pdu.set_message_text('hi')
+        assert pdu.short_message == b''
+
     def test_encode_raw_bytes_on_textless_coding(self):
         """Codings without a text codec still accept raw short_message bytes."""
         SubmitSm(data_coding=0x09, short_message=b'\x01\x02').encode()
