@@ -247,6 +247,32 @@ class TestStandardMessagePDU:
         with pytest.raises(SMPPPDUException, match='Unsupported data_coding 0x05'):
             SubmitSm(data_coding=5).set_message_text('x')
 
+    def test_encode_full_gsm_single_part(self):
+        """160 GSM characters encode to 160 octets (unpacked) and pass encode()."""
+        pdu = SubmitSm(data_coding=0)
+        pdu.set_message_text('a' * 160)
+        assert len(pdu.short_message) == 160
+        pdu.encode()
+
+    @pytest.mark.parametrize(
+        ('data_coding', 'codec'), [(0xF0, 'gsm0338'), (0xF4, 'utf-8'), (0xF7, 'utf-8')]
+    )
+    def test_encode_message_class_coding(self, data_coding, codec):
+        """0xF0-0xF7 encode text with GSM 03.38, or 8-bit when bit 0x04 is set."""
+        pdu = SubmitSm(data_coding=data_coding)
+        pdu.set_message_text('hi@')
+        assert pdu.short_message == 'hi@'.encode(codec)
+        pdu.encode()
+
+    def test_encode_rejects_reserved_message_class_coding(self):
+        """0xF8-0xFF have the reserved bit 3 set (GSM 03.38) and are rejected at encode."""
+        with pytest.raises(SMPPPDUException, match='Invalid data coding: 248'):
+            SubmitSm(data_coding=0xF8, short_message=b'x').encode()
+
+    def test_encode_raw_bytes_on_textless_coding(self):
+        """Codings without a text codec still accept raw short_message bytes."""
+        SubmitSm(data_coding=0x09, short_message=b'\x01\x02').encode()
+
     def test_get_message_text_unsupported_coding_decodes_latin1(self):
         """A received PDU with an unsupported coding never makes the handler raise."""
         pdu = DeliverSm(data_coding=5, short_message=b'caf\xe9')
