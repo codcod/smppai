@@ -1,6 +1,36 @@
 # CHANGELOG
 
 
+## v1.0.0 (2026-09-23)
+
+### Bug Fixes
+
+- **protocol**: Use SMPP v3.4 status codes; raise throttling (SMP-005)
+  ([`4aaa0a9`](https://github.com/codcod/smppai/commit/4aaa0a9d667401548b6f3457395caed2806021a4))
+
+### Chores
+
+- Ignore generated graphify output
+  ([`c04ecd2`](https://github.com/codcod/smppai/commit/c04ecd22f52b44db13a54b619235bae1c1abe5b2))
+
+### Documentation
+
+- Split examples into basic/advanced, add AsciiDoc user manual
+  ([`b0801e9`](https://github.com/codcod/smppai/commit/b0801e980a778e69c9fef59474794f1693b1cda7))
+
+### Testing
+
+- **tests**: Pin all of Table 5-2; show throttle catch order (SMP-005)
+  ([`af22f0a`](https://github.com/codcod/smppai/commit/af22f0a44823d4361a50f91d1ef1af903b5ee264))
+
+### Breaking Changes
+
+- **tests**: CommandStatus numeric values now follow SMPP v3.4 Table 5-2 (0x06 upward were
+  renumbered, e.g. ESME_RINVPASWD 0x06 -> 0x0E), and ESME_RINVSRCADR/ESME_RINVDESTADR now mean
+  invalid address rather than invalid TON (use ESME_RINVSRCTON/ESME_RINVDSTTON).
+  SMPPThrottlingException now subclasses SMPPMessageException.
+
+
 ## v0.2.8 (2026-09-23)
 
 ### Bug Fixes
