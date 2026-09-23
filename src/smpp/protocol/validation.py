@@ -211,8 +211,12 @@ def validate_data_coding(data_coding: int) -> None:
     Raises:
         SMPPValidationException: If data coding is invalid
     """
-    # 0xF0-0xFF: GSM message class group (flash SMS etc.), encodable per codec_for_data_coding
-    if data_coding not in DataCoding._value2member_map_ and not 0xF0 <= data_coding <= 0xFF:
+    # 0xF0-0xF7: GSM 03.38 message class group (flash SMS etc.); bit 3 is reserved,
+    # so 0xF8-0xFF are rejected.
+    if not isinstance(data_coding, int) or (
+        data_coding not in DataCoding._value2member_map_
+        and not 0xF0 <= data_coding <= 0xF7
+    ):
         raise SMPPValidationException(
             f'Invalid data coding: {data_coding}',
             field_name='data_coding',

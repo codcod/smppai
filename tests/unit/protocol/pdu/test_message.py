@@ -254,10 +254,20 @@ class TestStandardMessagePDU:
         assert len(pdu.short_message) == 160
         pdu.encode()
 
-    def test_encode_message_class_coding(self):
-        pdu = SubmitSm(data_coding=0xF0)
-        pdu.set_message_text('hi')
+    @pytest.mark.parametrize(
+        ('data_coding', 'codec'), [(0xF0, 'gsm0338'), (0xF4, 'utf-8'), (0xF7, 'utf-8')]
+    )
+    def test_encode_message_class_coding(self, data_coding, codec):
+        """0xF0-0xF7 encode text with GSM 03.38, or 8-bit when bit 0x04 is set."""
+        pdu = SubmitSm(data_coding=data_coding)
+        pdu.set_message_text('hi@')
+        assert pdu.short_message == 'hi@'.encode(codec)
         pdu.encode()
+
+    def test_encode_rejects_reserved_message_class_coding(self):
+        """0xF8-0xFF have the reserved bit 3 set (GSM 03.38) and are rejected at encode."""
+        with pytest.raises(SMPPPDUException, match='Invalid data coding: 248'):
+            SubmitSm(data_coding=0xF8, short_message=b'x').encode()
 
     def test_encode_raw_bytes_on_textless_coding(self):
         """Codings without a text codec still accept raw short_message bytes."""

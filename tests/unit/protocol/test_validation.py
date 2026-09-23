@@ -224,7 +224,7 @@ class TestDataCodingValidation:
         validation.validate_data_coding(DataCoding.IA5_ASCII)
         validation.validate_data_coding(DataCoding.LATIN_1)
         validation.validate_data_coding(DataCoding.UCS2)
-        for data_coding in (0xF0, 0xFF, 0x05, 0x0E):
+        for data_coding in (0xF0, 0xF7, 0x05, 0x0E):
             validation.validate_data_coding(data_coding)
 
     def test_validate_data_coding_invalid(self):
@@ -235,7 +235,7 @@ class TestDataCodingValidation:
         with pytest.raises(SMPPValidationException, match='Invalid data coding'):
             validation.validate_data_coding(-1)
 
-        for data_coding in (0x0B, 0xC0, 0xEF, 256):
+        for data_coding in (0x0B, 0xC0, 0xEF, 0xF8, 0xFF, 256, None, '8', 240.5):
             with pytest.raises(SMPPValidationException, match='Invalid data coding'):
                 validation.validate_data_coding(data_coding)
 
