@@ -766,6 +766,47 @@ class TestSMPPClientSubmitSm:
             await client.submit_sm('12345', '67890', 'Test message')
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'status', [CommandStatus.ESME_RTHROTTLED, CommandStatus.ESME_RMSGQFUL]
+    )
+    async def test_submit_sm_throttled_response(self, status):
+        """Throttle statuses raise SMPPThrottlingException, still a message error."""
+        from smpp.exceptions import SMPPThrottlingException
+
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+        response = Mock()
+        response.command_status = status
+        client._connection.send_pdu.return_value = response
+
+        with pytest.raises(
+            SMPPThrottlingException, match='Message submission failed'
+        ) as exc_info:
+            await client.submit_sm('12345', '67890', 'Test message')
+        assert exc_info.value.command_status == status
+        assert isinstance(exc_info.value, SMPPMessageException)
+
+    @pytest.mark.asyncio
+    async def test_submit_sm_submitfail_is_not_throttling(self):
+        """Non-throttle failures stay plain SMPPMessageException."""
+        from smpp.exceptions import SMPPThrottlingException
+
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+        response = Mock()
+        response.command_status = CommandStatus.ESME_RSUBMITFAIL
+        client._connection.send_pdu.return_value = response
+
+        with pytest.raises(SMPPMessageException) as exc_info:
+            await client.submit_sm('12345', '67890', 'Test message')
+        assert not isinstance(exc_info.value, SMPPThrottlingException)
+        assert exc_info.value.command_status == 0x45
+
+    @pytest.mark.asyncio
     async def test_submit_sm_timeout(self):
         """Test submit_sm timeout."""
         client = SMPPClient('localhost', 2775, 'test_system', 'password')

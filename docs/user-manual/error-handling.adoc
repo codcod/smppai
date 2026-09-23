@@ -10,6 +10,7 @@ from smpp import (
     SMPPBindException,
     SMPPException,
     SMPPMessageException,
+    SMPPThrottlingException,
     SMPPTimeoutException,
 )
 
@@ -19,6 +20,8 @@ except SMPPBindException as e:
     print(f"Bind error: {e}")
 except SMPPTimeoutException as e:
     print(f"Timeout: {e}")
+except SMPPThrottlingException as e:  # before SMPPMessageException, its parent
+    print(f"Throttled, back off and retry: {e}")
 except SMPPMessageException as e:
     print(f"Message error: {e}")
 except SMPPException as e:
@@ -57,8 +60,10 @@ All of these are importable from the top-level `smpp` package, except
   (e.g. `submit_sm` while unbound).
 
 | `SMPPThrottlingException`
-| Rate-limit signaling (available for callers to raise/catch; the library
-  doesn't raise it itself).
+| `submit_sm` got `ESME_RTHROTTLED` or `ESME_RMSGQFUL`: the SMSC wants you
+  to slow down. A subclass of `SMPPMessageException`, so existing message
+  handlers still catch it; `command_status` holds the code. The library
+  doesn't retry — backing off is the caller's job.
 
 | `SMPPMessageException`
 | `submit_sm`/`deliver_sm` failed — SMSC error response, encoding failure,
@@ -76,7 +81,8 @@ All of these are importable from the top-level `smpp` package, except
 == Rich context on every exception
 
 `SMPPException` carries more than a message: `command_status` (the raw
-SMPP status code, if any), `pdu` (the PDU involved, if any), `error_code`
+SMPP status code, if any; `CommandStatus` values follow SMPP v3.4
+Table 5-2), `pdu` (the PDU involved, if any), `error_code`
 (an `SMPPErrorCode` — `CONNECTION_FAILED`, `BIND_FAILED`, `TIMEOUT`, etc.),
 `context` (a dict of extra key/value pairs), and `original_error` (the
 wrapped lower-level exception, if any). `str(exc)` formats all of the

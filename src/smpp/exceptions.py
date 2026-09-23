@@ -276,34 +276,6 @@ class SMPPInvalidStateException(SMPPException):
         self.operation = operation
 
 
-class SMPPThrottlingException(SMPPException):
-    """Exception raised when throttling limits are exceeded."""
-
-    def __init__(
-        self,
-        message: str,
-        current_rate: Optional[float] = None,
-        max_rate: Optional[float] = None,
-        original_error: Optional[Exception] = None,
-        **kwargs,
-    ):
-        context = {}
-        if current_rate is not None:
-            context['current_rate'] = current_rate
-        if max_rate is not None:
-            context['max_rate'] = max_rate
-
-        super().__init__(
-            message,
-            error_code=SMPPErrorCode.THROTTLING,
-            context=context,
-            original_error=original_error,
-            **kwargs,
-        )
-        self.current_rate = current_rate
-        self.max_rate = max_rate
-
-
 class SMPPMessageException(SMPPException):
     """Exception raised for message-related errors."""
 
@@ -330,6 +302,33 @@ class SMPPMessageException(SMPPException):
         )
         self.message_id = message_id
         self.destination = destination
+
+
+class SMPPThrottlingException(SMPPMessageException):
+    """Exception raised when the SMSC asks the client to slow down.
+
+    Raised by ``submit_sm`` on ESME_RTHROTTLED / ESME_RMSGQFUL. Subclasses
+    SMPPMessageException so existing message-error handlers still catch it.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        current_rate: Optional[float] = None,
+        max_rate: Optional[float] = None,
+        original_error: Optional[Exception] = None,
+        **kwargs,
+    ):
+        # SMPPMessageException passes error_code/context to its parent itself,
+        # so set them after super() rather than forwarding them.
+        super().__init__(message, original_error=original_error, **kwargs)
+        self.error_code = SMPPErrorCode.THROTTLING
+        if current_rate is not None:
+            self.context['current_rate'] = current_rate
+        if max_rate is not None:
+            self.context['max_rate'] = max_rate
+        self.current_rate = current_rate
+        self.max_rate = max_rate
 
 
 class SMPPValidationException(SMPPException):

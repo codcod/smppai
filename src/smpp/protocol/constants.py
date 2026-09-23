@@ -43,7 +43,7 @@ class CommandId(IntEnum):
 
 
 class CommandStatus(IntEnum):
-    """SMPP Command Status codes as defined in SMPP v3.4 specification"""
+    """SMPP Command Status codes as defined in SMPP v3.4 section 5.1.3 (Table 5-2)"""
 
     ESME_ROK = 0x00000000  # No Error
     ESME_RINVMSGLEN = 0x00000001  # Message Length is invalid
@@ -51,30 +51,41 @@ class CommandStatus(IntEnum):
     ESME_RINVCMDID = 0x00000003  # Invalid Command ID
     ESME_RINVBNDSTS = 0x00000004  # Incorrect BIND Status for given command
     ESME_RALYBND = 0x00000005  # ESME Already in Bound State
-    ESME_RINVPASWD = 0x00000006  # Invalid Password
-    ESME_RINVSYSID = 0x00000007  # Invalid System ID
-    ESME_RCANCELFAIL = 0x00000008  # Cancel SM Failed
-    ESME_RREPLACEFAIL = 0x00000009  # Replace SM Failed
-    ESME_RMSGQFUL = 0x0000000A  # Message Queue Full
-    ESME_RINVSERTYP = 0x0000000B  # Invalid Service Type
-    ESME_RINVNUMDESTS = 0x0000000C  # Invalid number of destinations
-    ESME_RINVDLNAME = 0x0000000D  # Invalid Distribution List name
-    ESME_RINVDESTFLAG = 0x0000000E  # Destination flag is invalid
-    ESME_RINVSUBREP = 0x0000000F  # Invalid 'submit with replace' request
-    ESME_RINVESMCLASS = 0x00000010  # Invalid esm_class field data
-    ESME_RCNTSUBDL = 0x00000011  # Cannot Submit to Distribution List
-    ESME_RSUBMITFAIL = 0x00000012  # submit_sm or submit_multi failed
-    ESME_RINVSRCADR = 0x00000013  # Invalid Source address TON
-    ESME_RINVDESTADR = 0x00000014  # Invalid Dest Addr TON
-    ESME_RINVMSGID = 0x00000015  # Invalid message_id
-    ESME_RBINDFAIL = 0x00000016  # Bind Failed
-    ESME_RINVPTIME = 0x00000033  # Invalid scheduled delivery time
-    ESME_RINVEXPIRY = 0x00000034  # Invalid message validity period
-    ESME_RINVDFTMSGID = 0x00000035  # Predefined Message Invalid or Not Found
-    ESME_RX_T_APPN = 0x00000036  # ESME Receiver Temporary App Error Code
-    ESME_RX_P_APPN = 0x00000037  # ESME Receiver Permanent App Error Code
-    ESME_RX_R_APPN = 0x00000038  # ESME Receiver Reject Message Error Code
-    ESME_RQUERYFAIL = 0x00000039  # query_sm request failed
+    ESME_RINVPRTFLG = 0x00000006  # Invalid Priority Flag
+    ESME_RINVREGDLVFLG = 0x00000007  # Invalid Registered Delivery Flag
+    ESME_RSYSERR = 0x00000008  # System Error
+    ESME_RINVSRCADR = 0x0000000A  # Invalid Source Address
+    ESME_RINVDESTADR = 0x0000000B  # Invalid Dest Addr (spec: ESME_RINVDSTADR)
+    ESME_RINVMSGID = 0x0000000C  # Message ID is invalid
+    ESME_RBINDFAIL = 0x0000000D  # Bind Failed
+    ESME_RINVPASWD = 0x0000000E  # Invalid Password
+    ESME_RINVSYSID = 0x0000000F  # Invalid System ID
+    ESME_RCANCELFAIL = 0x00000011  # Cancel SM Failed
+    ESME_RREPLACEFAIL = 0x00000013  # Replace SM Failed
+    ESME_RMSGQFUL = 0x00000014  # Message Queue Full
+    ESME_RINVSERTYP = 0x00000015  # Invalid Service Type
+    ESME_RINVNUMDESTS = 0x00000033  # Invalid number of destinations
+    ESME_RINVDLNAME = 0x00000034  # Invalid Distribution List name
+    ESME_RINVDESTFLAG = 0x00000040  # Destination flag is invalid (submit_multi)
+    ESME_RINVSUBREP = 0x00000042  # Invalid 'submit with replace' request
+    ESME_RINVESMCLASS = 0x00000043  # Invalid esm_class field data
+    ESME_RCNTSUBDL = 0x00000044  # Cannot Submit to Distribution List
+    ESME_RSUBMITFAIL = 0x00000045  # submit_sm or submit_multi failed
+    ESME_RINVSRCTON = 0x00000048  # Invalid Source address TON
+    ESME_RINVSRCNPI = 0x00000049  # Invalid Source address NPI
+    ESME_RINVDSTTON = 0x00000050  # Invalid Destination address TON
+    ESME_RINVDSTNPI = 0x00000051  # Invalid Destination address NPI
+    ESME_RINVSYSTYP = 0x00000053  # Invalid system_type field
+    ESME_RINVREPFLAG = 0x00000054  # Invalid replace_if_present flag
+    ESME_RINVNUMMSGS = 0x00000055  # Invalid number of messages
+    ESME_RTHROTTLED = 0x00000058  # Throttling error (message limit exceeded)
+    ESME_RINVPTIME = 0x00000061  # Invalid sched. delivery time (spec: ESME_RINVSCHED)
+    ESME_RINVEXPIRY = 0x00000062  # Invalid message validity period (Expiry time)
+    ESME_RINVDFTMSGID = 0x00000063  # Predefined Message Invalid or Not Found
+    ESME_RX_T_APPN = 0x00000064  # ESME Receiver Temporary App Error Code
+    ESME_RX_P_APPN = 0x00000065  # ESME Receiver Permanent App Error Code
+    ESME_RX_R_APPN = 0x00000066  # ESME Receiver Reject Message Error Code
+    ESME_RQUERYFAIL = 0x00000067  # query_sm request failed
     ESME_RINVOPTPARSTREAM = 0x000000C0  # Error in the optional part of the PDU Body
     ESME_ROPTPARNOTALLWD = 0x000000C1  # Optional Parameter not allowed
     ESME_RINVPARLEN = 0x000000C2  # Invalid Parameter Length
@@ -267,6 +278,13 @@ ERROR_MESSAGES: Dict[int, str] = {
     CommandStatus.ESME_RINVCMDID: 'Invalid Command ID',
     CommandStatus.ESME_RINVBNDSTS: 'Incorrect BIND Status for given command',
     CommandStatus.ESME_RALYBND: 'ESME Already in Bound State',
+    CommandStatus.ESME_RINVPRTFLG: 'Invalid Priority Flag',
+    CommandStatus.ESME_RINVREGDLVFLG: 'Invalid Registered Delivery Flag',
+    CommandStatus.ESME_RSYSERR: 'System Error',
+    CommandStatus.ESME_RINVSRCADR: 'Invalid Source Address',
+    CommandStatus.ESME_RINVDESTADR: 'Invalid Dest Addr',
+    CommandStatus.ESME_RINVMSGID: 'Message ID is invalid',
+    CommandStatus.ESME_RBINDFAIL: 'Bind Failed',
     CommandStatus.ESME_RINVPASWD: 'Invalid Password',
     CommandStatus.ESME_RINVSYSID: 'Invalid System ID',
     CommandStatus.ESME_RCANCELFAIL: 'Cancel SM Failed',
@@ -275,17 +293,21 @@ ERROR_MESSAGES: Dict[int, str] = {
     CommandStatus.ESME_RINVSERTYP: 'Invalid Service Type',
     CommandStatus.ESME_RINVNUMDESTS: 'Invalid number of destinations',
     CommandStatus.ESME_RINVDLNAME: 'Invalid Distribution List name',
-    CommandStatus.ESME_RINVDESTFLAG: 'Destination flag is invalid',
+    CommandStatus.ESME_RINVDESTFLAG: 'Destination flag is invalid (submit_multi)',
     CommandStatus.ESME_RINVSUBREP: "Invalid 'submit with replace' request",
     CommandStatus.ESME_RINVESMCLASS: 'Invalid esm_class field data',
     CommandStatus.ESME_RCNTSUBDL: 'Cannot Submit to Distribution List',
     CommandStatus.ESME_RSUBMITFAIL: 'submit_sm or submit_multi failed',
-    CommandStatus.ESME_RINVSRCADR: 'Invalid Source address TON',
-    CommandStatus.ESME_RINVDESTADR: 'Invalid Dest Addr TON',
-    CommandStatus.ESME_RINVMSGID: 'Invalid message_id',
-    CommandStatus.ESME_RBINDFAIL: 'Bind Failed',
-    CommandStatus.ESME_RINVPTIME: 'Invalid scheduled delivery time',
-    CommandStatus.ESME_RINVEXPIRY: 'Invalid message validity period',
+    CommandStatus.ESME_RINVSRCTON: 'Invalid Source address TON',
+    CommandStatus.ESME_RINVSRCNPI: 'Invalid Source address NPI',
+    CommandStatus.ESME_RINVDSTTON: 'Invalid Destination address TON',
+    CommandStatus.ESME_RINVDSTNPI: 'Invalid Destination address NPI',
+    CommandStatus.ESME_RINVSYSTYP: 'Invalid system_type field',
+    CommandStatus.ESME_RINVREPFLAG: 'Invalid replace_if_present flag',
+    CommandStatus.ESME_RINVNUMMSGS: 'Invalid number of messages',
+    CommandStatus.ESME_RTHROTTLED: 'Throttling error (ESME has exceeded allowed message limits)',
+    CommandStatus.ESME_RINVPTIME: 'Invalid Scheduled Delivery Time',
+    CommandStatus.ESME_RINVEXPIRY: 'Invalid message validity period (Expiry time)',
     CommandStatus.ESME_RINVDFTMSGID: 'Predefined Message Invalid or Not Found',
     CommandStatus.ESME_RX_T_APPN: 'ESME Receiver Temporary App Error Code',
     CommandStatus.ESME_RX_P_APPN: 'ESME Receiver Permanent App Error Code',

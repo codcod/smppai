@@ -18,6 +18,7 @@ from ..exceptions import (
     SMPPInvalidStateException,
     SMPPMessageException,
     SMPPPDUException,
+    SMPPThrottlingException,
     SMPPTimeoutException,
 )
 from ..protocol import (
@@ -44,6 +45,9 @@ from ..protocol.constants import DEFAULT_INTERFACE_VERSION, MAX_SHORT_MESSAGE_LE
 from ..transport import ConnectionState, SMPPConnection
 
 logger = logging.getLogger(__name__)
+
+# SMSC "can't take it now" statuses: callers should back off and retry.
+_THROTTLE_STATUSES = (CommandStatus.ESME_RTHROTTLED, CommandStatus.ESME_RMSGQFUL)
 
 
 class BindType(Enum):
@@ -422,7 +426,12 @@ class SMPPClient:
 
             if response.command_status != CommandStatus.ESME_ROK:
                 error_msg = get_error_message(response.command_status)
-                raise SMPPMessageException(
+                exc_type = (
+                    SMPPThrottlingException
+                    if response.command_status in _THROTTLE_STATUSES
+                    else SMPPMessageException
+                )
+                raise exc_type(
                     f'Message submission failed: {error_msg}',
                     command_status=response.command_status,
                 )
