@@ -18,7 +18,7 @@ from smpp.exceptions import (
     SMPPTimeoutException,
     SMPPValidationException,
 )
-from smpp.protocol.constants import PDU_HEADER_SIZE
+from smpp.protocol.constants import PDU_HEADER_SIZE, is_response_command
 from smpp.protocol.pdu import PDU, decode_pdu
 from smpp.protocol.pdu.session import EnquireLink
 from smpp.protocol.validation import validate_pdu_structure
@@ -133,6 +133,21 @@ class SMPPConnection:
             self._sequence_counter = 1
         return current
 
+    def _activate(self) -> None:
+        """Mark the connection open and start its background tasks."""
+        self._connected = True
+        self._set_state(ConnectionState.OPEN)
+        self._last_activity = time.time()
+
+        # Start background tasks
+        self._receive_task = asyncio.create_task(self._receive_loop())
+        self._enquire_link_task = asyncio.create_task(self._enquire_link_loop())
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+    def accept(self) -> None:
+        """Activate a connection whose reader/writer were provided by an accepted socket."""
+        self._activate()
+
     async def connect(self) -> None:
         """Establish TCP connection"""
         if self.is_connected:
@@ -145,14 +160,7 @@ class SMPPConnection:
                 timeout=self.write_timeout,
             )
 
-            self._connected = True
-            self._set_state(ConnectionState.OPEN)
-            self._last_activity = time.time()
-
-            # Start background tasks
-            self._receive_task = asyncio.create_task(self._receive_loop())
-            self._enquire_link_task = asyncio.create_task(self._enquire_link_loop())
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            self._activate()
 
             logger.info(f'Connected to {self.host}:{self.port}')
 
@@ -408,8 +416,13 @@ class SMPPConnection:
 
     async def _handle_received_pdu(self, pdu: PDU) -> None:
         """Handle received PDU"""
-        # Check if this is a response to a pending request
-        pending_entry = self._pending_pdus.get(pdu.sequence_number)
+        # Only responses complete pending requests; the peer's own requests use its
+        # own sequence space and may carry the same number as one we await.
+        pending_entry = (
+            self._pending_pdus.get(pdu.sequence_number)
+            if is_response_command(pdu.command_id)
+            else None
+        )
         if pending_entry and not pending_entry[0].done():
             pending_entry[0].set_result(pdu)
             self._pending_pdus.pop(pdu.sequence_number, None)

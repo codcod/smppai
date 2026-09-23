@@ -1,17 +1,17 @@
 # Graph Report - smppai  (2026-09-23)
 
 ## Corpus Check
-- 55 files · ~53,298 words
+- 55 files · ~53,223 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 8 file(s) not represented in the graph (top: (none) 7, .lock 1)
 
 ## Summary
-- 2295 nodes · 4018 edges · 147 communities (109 shown, 35 thin omitted)
-- Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 427 edges (avg confidence: 0.92)
+- 2290 nodes · 4047 edges · 157 communities (120 shown, 35 thin omitted)
+- Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 434 edges (avg confidence: 0.93)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `936b4dfa`
+- Built from commit: `ef701578`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -20,13 +20,13 @@
 - .__init__
 - SMPPServer
 - asyncio
-- create_pdu
+- TestCreatePDU
 - SMPPPDUException
 - SMPPClient
 - PDU
 - ClientSession
 - TestSystemIdValidation
-- .stop
+- .validate
 - TLVParameter
 - TestSMPPServerStartStop
 - TestStandardMessagePDU
@@ -41,9 +41,9 @@
 - TestMessagePDU
 - TestSMPPClientEdgeCases
 - TestAddressValidation
-- ._handle_client_connection
-- create_response_pdu
-- TestSMPPClientEnquireLink
+- ._handle_client_pdu
+- TestCreateResponsePDU
+- TestSMPPClientUnbinding
 - TestEnquireLink
 - TestOptionalParameterValidation
 - test_base.py
@@ -54,13 +54,14 @@
 - utils.py
 - exceptions.py
 - TestMessageDecoding
-- TestSMPPClientConnection
+- MockPDU
 - TestDeliverSmResp
 - TestRealWorldScenarios
 - TestMessageEncoding
 - TestEdgeCases
-- TestSMPPClientConnectionLost
-- AlertNotification
+- TestQuerySm
+- TestGenericNack
+- TestAlertNotification
 - .process_message
 - TestQuerySmResp
 - conftest.py
@@ -73,7 +74,7 @@
 - TestMessageLengthValidation
 - TestPDUStructureValidation
 - .set_message_payload
-- TestSMPPServerEnquireLinkHandling
+- EnquireLinkResp
 - .test_create_error_response_unknown_request
 - .test_set_event_handlers
 - TestTLVPacking
@@ -88,59 +89,63 @@
 - .decode
 - examples/client.py
 - UDH
-- asyncio
+- TestSMPPServerClientConnection
 - TestRoundTripOperations
-- TestSMPPServerGenericNack
-- test_factory.py
+- ._handle_pdu_received
+- TestPDUClasses
 - Unbind
 - patch
 - SMPPConnection
-- .test_set_state_with_handler
+- TestConnectionProperties
 - TestSubmitSmResp
 - test_client.py
 - TestRegisteredDeliveryValidation
-- TestBindRequestPDU
+- .test_custom_values
 - test_message.py
 - test_codec.py
 - TestPasswordValidation
 - TestSequenceNumberValidation
 - TestSMPPServerEdgeCases
-- validate_optional_parameter
+- test_session.py
 - TestBindTransmitterResp
-- .validate
+- TestSMPPServerMessageHandling
 - TestSMPPClientPDUHandling
 - BindTransmitter
 - examples/server.py
 - .get_optional_parameter
-- Enum
+- TestGetPDUClass
 - TestSequenceNumber
 - TestBindReceiver
 - decode_gsm7
 - .validate
 - TestUnbindResp
-- Exception
+- .encode_body
 - .__init__
 - TestPriorityFlagValidation
-- StreamReader
+- .test_post_init_preserves_sequence
 - .test_set_event_handlers
 - .test_handle_connection_error_handler_exception
 - PACKAGING.md
 - .test_decode_body_insufficient_data_source
 - RELEASING.md
 - .test_decode_body_insufficient_data_message
-- StreamWriter
-- fixture
+- DataSmResp
+- TestSMPPClientWaitMethods
 - .test_set_delivery_receipt_requested
 - .test_is_unicode_message
+- .test_default_values
 - SMPPException (base)
-- TestRepr
+- test_connection.py
 - ConcatenatedSMSHeader
 - gsm_features_demo.py
 - make_parts
+- TestCreateRequestPDU
 - .__init__
 - .test_get_message_encoding
-- MockPDU
+- .test_send_pdu_with_response
+- TestPDUReceiving
 - MessagePart
+- DeliverSm
 - unit/__init__.py
 - unit/protocol/pdu/__init__.py
 - Dependabot Configuration
@@ -151,26 +156,32 @@
 - TestServiceTypeValidation
 - TestEsmClassValidation
 - .decode_body
+- TestBindTransceiver
+- .decode_body
 - asyncio
 - .create_for_invalid_pdu
+- .encode_body
 - Enum
+- protocol/constants.py
+- .decode_body
+- Exception
 - Any
 - asyncio
 - IntEnum
 - .get_message_payload
 - TestMemoryManagement
-- get_pdu_name
+- test_factory.py
 
 ## God Nodes (most connected - your core abstractions)
 1. `SMPPServer` - 149 edges
 2. `SMPPClient` - 145 edges
-3. `SMPPPDUException` - 98 edges
+3. `SMPPPDUException` - 101 edges
 4. `ClientSession` - 89 edges
 5. `CommandId` - 66 edges
-6. `PDU` - 47 edges
-7. `SubmitSm` - 42 edges
-8. `SMPPValidationException` - 40 edges
-9. `SMPPConnection` - 38 edges
+6. `PDU` - 51 edges
+7. `SMPPConnection` - 43 edges
+8. `SMPPValidationException` - 42 edges
+9. `SubmitSm` - 42 edges
 10. `BindTransmitter` - 32 edges
 
 ## Surprising Connections (you probably didn't know these)
@@ -182,8 +193,8 @@
   CONTRIBUTING.md → .github/workflows/ci.yml
 - `smppai Project Structure (client/server/protocol/transport/config)` --semantically_similar_to--> `SMPPServer (SMSC)`  [INFERRED] [semantically similar]
   CONTRIBUTING.md → README.md
-- `TestBindingStates` --uses--> `ConnectionState`  [INFERRED]
-  tests/unit/transport/test_connection.py → src/smpp/transport/connection.py
+- `demo_submit_sm_with_udh()` --calls--> `SubmitSm`  [INFERRED]
+  examples/gsm_features_demo.py → src/smpp/protocol/pdu/message.py
 
 ## Import Cycles
 - None detected.
@@ -193,11 +204,11 @@
 - **Shared Quality-Check Toolchain (ruff/mypy/pytest/bandit)** — pre_commit_config, github_workflows_ci_lint, contributing, github_pull_request_template [INFERRED 0.85]
 - **SMPP Exception Hierarchy** — readme_smppexception, readme_smppconnectionexception, readme_smppbindexception, readme_smpptimeoutexception, readme_smppmessageexception [INFERRED 0.85]
 
-## Communities (147 total, 35 thin omitted)
+## Communities (157 total, 35 thin omitted)
 
 ### Community 0 - "SMPPValidationException"
 Cohesion: 0.11
-Nodes (31): Exception raised for validation errors., SMPPValidationException, SMPP Protocol Validation This module provides validation functions for SMPP…, Validate SMPP service type field. Args: service_type: Service type to validate…, Validate message length based on data coding. Args: message: Message bytes to…, Validate data coding scheme. Args: data_coding: Data coding value to validate…, Validate ESM class field. Args: esm_class: ESM class value to validate Raises:…, Validate priority flag field. Args: priority_flag: Priority flag value to… (+23 more)
+Nodes (33): Exception raised for validation errors., SMPPValidationException, SMPP Protocol Validation This module provides validation functions for SMPP…, Validate SMPP service type field. Args: service_type: Service type to validate…, Validate message length based on data coding. Args: message: Message bytes to…, Validate data coding scheme. Args: data_coding: Data coding value to validate…, Validate ESM class field. Args: esm_class: ESM class value to validate Raises:…, Validate priority flag field. Args: priority_flag: Priority flag value to… (+25 more)
 
 ### Community 1 - ".__init__"
 Cohesion: 0.21
@@ -205,43 +216,43 @@ Nodes (5): Any, IntEnum, Exception, SMPP-specific error codes for better error c
 
 ### Community 2 - "SMPPServer"
 Cohesion: 0.04
-Nodes (34): Event, create_simple_server(), Create a simple SMPP server with minimal configuration. Args: host: Server bind…, Set the grace period for shutdown notifications, Set the delay after grace period before final shutdown, Initialize SMPP Server Args: host: Server bind address port: Server bind port…, Get current shutdown configuration, Configure all shutdown parameters with comprehensive validation. Args:… (+26 more)
+Nodes (38): Event, create_simple_server(), Create a simple SMPP server with minimal configuration. Args: host: Server bind…, Set the grace period for shutdown notifications, Set the delay after grace period before final shutdown, Initialize SMPP Server Args: host: Server bind address port: Server bind port…, Get current shutdown configuration, Configure all shutdown parameters with comprehensive validation. Args:… (+30 more)
 
 ### Community 3 - "asyncio"
 Cohesion: 0.04
-Nodes (40): asyncio, Exception raised when operations timeout., SMPPTimeoutException, Tests for SMPPClient binding operations., Test successful bind as transmitter., Test successful bind as receiver., Test successful bind as transceiver., Test bind when not connected. (+32 more)
+Nodes (33): asyncio, Test successful connection., Test connect when no connection object., Test connect when already connected., Test successful disconnection., Test disconnect when not connected., Test disconnect when unbind fails., Test successful bind as transmitter. (+25 more)
 
-### Community 4 - "create_pdu"
-Cohesion: 0.07
-Nodes (26): Decode PDU from bytes. Args: data: The byte data to decode Returns: The decoded…, create_pdu(), create_typed_pdu(), get_pdu_class(), Any, Create a PDU with specific type for better type safety. Args: pdu_type:…, Get PDU class for a given command ID. Args: command_id: SMPP command ID…, Factory function to create PDU instances. Args: command_id: SMPP command ID… (+18 more)
+### Community 4 - "TestCreatePDU"
+Cohesion: 0.17
+Nodes (7): Test creating PDU with invalid command ID., Test creating PDU with invalid parameters., Test create_pdu function., Test creating BindTransmitter PDU., Test creating SubmitSm PDU., Test creating EnquireLink PDU., TestCreatePDU
 
 ### Community 5 - "SMPPPDUException"
-Cohesion: 0.03
-Nodes (72): Exception raised for PDU-related errors., SMPPPDUException, calculate_pdu_length(), decode_cstring(), decode_integer(), decode_message_with_encoding(), encode_cstring(), encode_integer() (+64 more)
+Cohesion: 0.04
+Nodes (62): Exception raised for PDU-related errors., SMPPPDUException, calculate_pdu_length(), decode_cstring(), decode_integer(), decode_message_with_encoding(), encode_cstring(), encode_integer() (+54 more)
 
 ### Community 6 - "SMPPClient"
 Cohesion: 0.03
-Nodes (44): ConnectionState, DeliverSm, Handle successful bind with enhanced logging., Exception, Check if client is connected to SMSC, Check if client is bound to SMSC, Get current bind type, Disconnect from SMSC server (+36 more)
+Nodes (40): ConnectionState, Handle successful bind with enhanced logging., Exception, Check if client is connected to SMSC, Check if client is bound to SMSC, Get current bind type, Disconnect from SMSC server, Bind as transmitter (can send SMS) (+32 more)
 
 ### Community 7 - "PDU"
-Cohesion: 0.07
-Nodes (18): ABC, PDU, Abstract base class for all SMPP PDUs. This class provides the common…, Initialize PDU after creation., Encode PDU body to bytes. Must be implemented by subclasses to encode the PDU-…, Decode PDU body from bytes. Must be implemented by subclasses to decode the…, Encode complete PDU to bytes. Returns: The complete encoded PDU including…, Add optional parameter. If a parameter with the same tag already exists, it… (+10 more)
+Cohesion: 0.06
+Nodes (24): ABC, CommandStatus, SMPP Command Status codes as defined in SMPP v3.4 specification, MessagePDU, PDU, SMPP PDU Base Classes and Utilities This module contains the base PDU class and…, Abstract base class for all SMPP PDUs. This class provides the common…, Initialize PDU after creation. (+16 more)
 
 ### Community 8 - "ClientSession"
-Cohesion: 0.07
-Nodes (24): ClientSession, Get list of bound client sessions, Represents a connected SMPP client session, Handle PDU received from client, Handle bind request from client, Handle unbind request from client, Handle enquire_link request from client, Send generic_nack to client (+16 more)
+Cohesion: 0.06
+Nodes (36): ClientSession, Get list of bound client sessions, Represents a connected SMPP client session, Get list of all client sessions, asyncio, Tests for enquire_link request handling., Test successful enquire_link request., Test enquire_link when exception occurs. (+28 more)
 
 ### Community 9 - "TestSystemIdValidation"
 Cohesion: 0.17
 Nodes (7): Tests for validate_system_id function., Test validating a valid system ID., Test validating an empty system ID., Test validating a system ID that's too long., Test validating a system ID with invalid characters., Test that underscores are allowed in system ID., TestSystemIdValidation
 
-### Community 10 - ".stop"
-Cohesion: 0.11
-Nodes (9): Async context manager entry, Async context manager exit with graceful shutdown, Start the SMPP server, Stop the SMPP server gracefully with enhanced shutdown sequence. This method is…, Stop the server and close connections., Reset shutdown state for potential restart., Set up signal handlers for graceful shutdown using proper async patterns., Unregister signal handlers to clean up on shutdown (+1 more)
+### Community 10 - ".validate"
+Cohesion: 0.40
+Nodes (3): Validate bind response fields. Raises: SMPPPDUException: If validation fails, Validate message PDU fields. Raises: SMPPPDUException: If validation fails, Validate empty body PDU. Only validates base PDU fields since there's no body…
 
 ### Community 11 - "TLVParameter"
-Cohesion: 0.09
-Nodes (16): Tag-Length-Value parameter for optional parameters. TLV parameters are used in…, Encode TLV parameter to bytes. Returns: The encoded TLV parameter as bytes, TLVParameter, Test TLV parameter string representation., Test TLVParameter class., Test TLV parameter equality., Test TLV parameter hashing., Test TLV parameter initialization with valid data. (+8 more)
+Cohesion: 0.08
+Nodes (17): Tag-Length-Value parameter for optional parameters. TLV parameters are used in…, Initialize TLV parameter. Args: tag: Parameter tag identifier value: Parameter…, Encode TLV parameter to bytes. Returns: The encoded TLV parameter as bytes, TLVParameter, Test TLV parameter string representation., Test TLVParameter class., Test TLV parameter equality., Test TLV parameter hashing. (+9 more)
 
 ### Community 12 - "TestSMPPServerStartStop"
 Cohesion: 0.20
@@ -264,8 +275,8 @@ Cohesion: 0.11
 Nodes (28): CHANGELOG, CONTRIBUTING Guide, Conventional Commits, smppai Project Structure (client/server/protocol/transport/config), Semantic Release / Automated Versioning, Examples README, Set up Python with uv (composite action), Pull Request Template (+20 more)
 
 ### Community 17 - "test_server.py"
-Cohesion: 0.09
-Nodes (15): Unit tests for SMPP Server implementation This module contains tests for the…, Tests for server stop with client disconnect exceptions., Test server stop when client disconnect raises exception., Tests for custom authentication., Test custom authentication that succeeds., Test when authentication is disabled., Tests for server async context manager., Test successful context manager usage. (+7 more)
+Cohesion: 0.07
+Nodes (19): Unit tests for SMPP Server implementation This module contains tests for the…, Tests for server stop with client disconnect exceptions., Test server stop when client disconnect raises exception., Tests for custom authentication., Test custom authentication that succeeds., Test when authentication is disabled., Tests for server async context manager., Test successful context manager usage. (+11 more)
 
 ### Community 18 - "gsm/__init__.py"
 Cohesion: 0.24
@@ -295,17 +306,17 @@ Nodes (6): Tests for edge cases and boundary conditions., Test submit_sm with Un
 Cohesion: 0.08
 Nodes (13): Test validating a valid national ISDN address., Test validating a valid alphanumeric address., Test validating an address that's too long., Test validating an address with invalid TON., Test validating an address with invalid NPI., Test validating international ISDN address with invalid format., Test validating national ISDN address with invalid format., Test validating alphanumeric address with invalid format. (+5 more)
 
-### Community 25 - "._handle_client_connection"
-Cohesion: 0.25
-Nodes (6): Exception, StreamReader, StreamWriter, Handle new client connection, Handle client disconnection, handle_connection_lost()
+### Community 25 - "._handle_client_pdu"
+Cohesion: 0.08
+Nodes (14): Exception, StreamReader, StreamWriter, Handle new client connection, Handle client disconnection, Handle PDU received from client, Handle bind request from client, Handle unbind request from client (+6 more)
 
-### Community 26 - "create_response_pdu"
-Cohesion: 0.21
-Nodes (8): create_response_pdu(), Create a response PDU for a given request command ID. Args: request_command_id:…, Test create_response_pdu function., Test creating response PDU successfully., Test creating response PDU with default status., Test creating response PDU from response command ID., Test creating response PDU for invalid command., TestCreateResponsePDU
+### Community 26 - "TestCreateResponsePDU"
+Cohesion: 0.20
+Nodes (6): Test create_response_pdu function., Test creating response PDU successfully., Test creating response PDU with default status., Test creating response PDU from response command ID., Test creating response PDU for invalid command., TestCreateResponsePDU
 
-### Community 27 - "TestSMPPClientEnquireLink"
-Cohesion: 0.12
-Nodes (9): Tests for SMPPClient enquire_link operations., Test successful enquire_link., Test enquire_link when not connected., Test enquire_link when connection is None., Test enquire_link when no response received., Test enquire_link when error response received., Test enquire_link when exception occurs., Test enquire_link with custom timeout. (+1 more)
+### Community 27 - "TestSMPPClientUnbinding"
+Cohesion: 0.14
+Nodes (8): Tests for SMPPClient unbinding operations., Test successful unbind., Test unbind when not bound., Test unbind when connection is None but client state thinks it's bound., Test unbind with error response., Test unbind when exception occurs., Test unbind when handler raises exception., TestSMPPClientUnbinding
 
 ### Community 28 - "TestEnquireLink"
 Cohesion: 0.14
@@ -316,40 +327,40 @@ Cohesion: 0.09
 Nodes (12): Tests for validate_optional_parameter function., Test validating valid optional parameters., Test validating optional parameter with negative tag., Test validating optional parameter with tag too large., Test validating optional parameter with value too long., Test validating valid receipted message ID., Test validating receipted message ID with non-printable characters., Test validating receipted message ID with invalid ASCII. (+4 more)
 
 ### Community 30 - "test_base.py"
-Cohesion: 0.13
-Nodes (5): Unit tests for SMPP PDU base classes., Test that __post_init__ preserves non-zero sequence number., Test PDU default values., Test PDU with custom values., TestPDU
+Cohesion: 0.15
+Nodes (6): Unit tests for SMPP PDU base classes., Test PDU with custom values., Test BindRequestPDU base class., Test BindRequestPDU default values., TestBindRequestPDU, TestPDU
 
 ### Community 31 - "Outbind"
-Cohesion: 0.15
-Nodes (11): Outbind, OUTBIND PDU - SMSC initiated bind request, Decode outbind body with system_id and password only, Test Outbind initialization., Test Outbind body encoding., Test Outbind body decoding., Test Outbind validation success., Test Outbind validation with empty system_id. (+3 more)
+Cohesion: 0.08
+Nodes (13): Outbind, OUTBIND PDU - SMSC initiated bind request, Encode outbind body with system_id and password only, Decode outbind body with system_id and password only, Validate outbind fields Raises: SMPPPDUException: If validation fails, Test Outbind initialization., Test Outbind body encoding., Test Outbind body decoding. (+5 more)
 
 ### Community 32 - "TestShutdownIntegration"
 Cohesion: 0.12
 Nodes (14): integration, performance, asyncio, fixture, Integration tests for SMPP Server and Client shutdown interaction These tests…, Test that client can reconnect after server restart., Integration tests for server-client shutdown interaction, Performance tests for shutdown operations (+6 more)
 
 ### Community 33 - "SubmitSm"
-Cohesion: 0.07
-Nodes (20): SUBMIT_SM PDU - Request to submit a short message, SubmitSm, Handle submit_sm request from client, Send submit_sm response to client, Generate next message ID, Test creating error response with message., Test SubmitSm initialization with defaults., Test SubmitSm with custom values. (+12 more)
+Cohesion: 0.08
+Nodes (17): SUBMIT_SM PDU - Request to submit a short message, SubmitSm, Test creating error response with message., Test SubmitSm initialization with defaults., Test SubmitSm with custom values., Test that custom command_id is preserved., TestSubmitSm, Test submit_sm from receiver (wrong bind type). (+9 more)
 
 ### Community 34 - "protocol/__init__.py"
-Cohesion: 0.04
-Nodes (105): SMPP AI - Async SMPP Protocol v3.4 Implementation A comprehensive, async…, CommandId, CommandStatus, EsmClass, get_request_command_id(), get_response_command_id(), InterfaceVersion, is_response_command() (+97 more)
+Cohesion: 0.08
+Nodes (66): SMPP AI - Async SMPP Protocol v3.4 Implementation A comprehensive, async…, CommandId, NpiType, Numbering Plan Indicator (NPI) values, SMPP Command IDs as defined in SMPP v3.4 specification, Type of Number (TON) values, TonType, SMPP Protocol Module This module contains the core SMPP protocol implementation… (+58 more)
 
 ### Community 35 - "utils.py"
 Cohesion: 0.11
 Nodes (19): calculate_message_length(), format_smpp_time(), generate_message_id(), is_valid_system_id(), mask_sensitive_data(), normalize_phone_number(), parse_smpp_time(), SMPP Utilities Module This module provides basic utility functions and helper… (+11 more)
 
 ### Community 36 - "exceptions.py"
-Cohesion: 0.05
-Nodes (54): Enum, fixture, BindType, SMPP Client (ESME) Implementation This module provides a comprehensive async…, Connect to SMSC server, Perform bind operation, Submit SMS message Args: source_addr: Source address (sender) destination_addr:…, SMPP Client Module This module provides a comprehensive async SMPP client… (+46 more)
+Cohesion: 0.07
+Nodes (38): Enum, BindType, SMPP Client (ESME) Implementation This module provides a comprehensive async…, Connect to SMSC server, Perform bind operation, Submit SMS message Args: source_addr: Source address (sender) destination_addr:…, SMPP Client Module This module provides a comprehensive async SMPP client…, SMPP Exception Classes This module defines all SMPP-specific exception classes… (+30 more)
 
 ### Community 37 - "TestMessageDecoding"
 Cohesion: 0.10
 Nodes (11): Tests for decode_message_with_encoding function., Test decoding with default data coding., Test decoding with ASCII data coding., Test decoding with Latin-1 data coding., Test decoding with UCS2 data coding., Test decoding with octet unspecified data coding., Test decoding with unknown data coding (should fallback to UTF-8)., Test decoding Unicode with UTF-8 fallback. (+3 more)
 
-### Community 38 - "TestSMPPClientConnection"
+### Community 38 - "MockPDU"
 Cohesion: 0.14
-Nodes (8): Tests for SMPPClient connection management., Test successful connection., Test connect when no connection object., Test connect when already connected., Test successful disconnection., Test disconnect when not connected., Test disconnect when unbind fails., TestSMPPClientConnection
+Nodes (7): MockEnquireLink, MockPDU, Test sending PDU when not connected, Test sending PDU without waiting for response, Test PDU response timeout, Return mock encoded PDU, Test send data failure
 
 ### Community 39 - "TestDeliverSmResp"
 Cohesion: 0.20
@@ -367,13 +378,17 @@ Nodes (10): Tests for encode_message_with_encoding function., Test encoding with
 Cohesion: 0.11
 Nodes (10): Tests for edge cases and boundary conditions., Test system ID at exact boundary length., Test password at exact boundary length., Test address at exact boundary length., Test service type at exact boundary length., Test message at exact boundary length for GSM 7-bit., Test message at exact general boundary length., Test sequence number at boundary values. (+2 more)
 
-### Community 44 - "TestSMPPClientConnectionLost"
-Cohesion: 0.33
-Nodes (4): Tests for SMPPClient connection lost handling., Test handling connection lost., Test handling connection lost when handler raises exception., TestSMPPClientConnectionLost
+### Community 43 - "TestQuerySm"
+Cohesion: 0.22
+Nodes (5): Test QuerySm initialization., Test QuerySm with custom values., Test QuerySm body encoding., Test QuerySm body decoding., TestQuerySm
 
-### Community 45 - "AlertNotification"
-Cohesion: 0.06
-Nodes (24): Base class for request PDUs. Request PDUs are sent by SMPP clients to servers…, RequestPDU, AlertNotification, QuerySm, Validate alert_notification fields, Validate data_sm fields, Validate data_sm_resp fields, QUERY_SM PDU - Query status of a submitted message (+16 more)
+### Community 44 - "TestGenericNack"
+Cohesion: 0.17
+Nodes (7): Test GenericNack body encoding (should be empty)., Test creating GenericNack for invalid PDU., Test creating GenericNack with error message., Test GenericNack PDU., Test GenericNack initialization., Test GenericNack with custom values., TestGenericNack
+
+### Community 45 - "TestAlertNotification"
+Cohesion: 0.17
+Nodes (7): Test AlertNotification PDU., Test AlertNotification initialization., Test AlertNotification with custom values., Test AlertNotification body encoding., Test AlertNotification body decoding., Test decode with insufficient data., TestAlertNotification
 
 ### Community 46 - ".process_message"
 Cohesion: 0.12
@@ -388,8 +403,8 @@ Cohesion: 0.17
 Nodes (14): event_loop(), mock_asyncio_sleep(), mock_logger(), mock_time(), fixture, Shared test fixtures and configuration for SMPP unit tests., Create an event loop for async tests., Mock asyncio.sleep to speed up tests. (+6 more)
 
 ### Community 49 - "test_bind.py"
-Cohesion: 0.14
-Nodes (10): Unit tests for SMPP bind PDUs., Test BindReceiverResp PDU., Test BindReceiverResp initialization., Test BindTransceiver PDU., Test BindTransceiver initialization., Test BindTransceiverResp PDU., Test BindTransceiverResp initialization., TestBindReceiverResp (+2 more)
+Cohesion: 0.20
+Nodes (7): Unit tests for SMPP bind PDUs., Test BindReceiverResp PDU., Test BindReceiverResp initialization., Test BindTransceiverResp PDU., Test BindTransceiverResp initialization., TestBindReceiverResp, TestBindTransceiverResp
 
 ### Community 50 - "TestCStringDecoding"
 Cohesion: 0.12
@@ -419,9 +434,9 @@ Nodes (9): Tests for validate_message_length function., Test validating valid me
 Cohesion: 0.12
 Nodes (9): Tests for validate_pdu_structure function., Test validating valid PDU structure for request., Test validating valid PDU structure for response., Test validating PDU structure with invalid command ID., Test validating PDU structure with invalid sequence number., Test validating PDU structure with command length too small., Test validating PDU structure with command length too large., Test validating PDU structure with invalid command status for response. (+1 more)
 
-### Community 58 - "TestSMPPServerEnquireLinkHandling"
-Cohesion: 0.33
-Nodes (4): Tests for enquire_link request handling., Test successful enquire_link request., Test enquire_link when exception occurs., TestSMPPServerEnquireLinkHandling
+### Community 58 - "EnquireLinkResp"
+Cohesion: 0.23
+Nodes (8): EnquireLinkResp, ENQUIRE_LINK_RESP PDU - Response to enquire_link, Test EnquireLinkResp PDU., Test EnquireLinkResp initialization., Test EnquireLinkResp with custom values., Test EnquireLinkResp body encoding (should be empty)., Test EnquireLinkResp body decoding., TestEnquireLinkResp
 
 ### Community 61 - "TestTLVPacking"
 Cohesion: 0.14
@@ -471,49 +486,49 @@ Nodes (9): interactive_client_example(), main(), monitor_messages_example(), SMP
 Cohesion: 0.13
 Nodes (10): Get total UDH length including length header., User Data Header element. Attributes: iei: Information Element Identifier data:…, Convert to UDH element., Encode UDH element to bytes., User Data Header for SMS messages. Handles parsing and generation of UDH for…, Initialize UDH with optional elements., Get UDH element by IEI., Encode UDH to bytes. Returns: UDH bytes including length header (+2 more)
 
-### Community 73 - "asyncio"
-Cohesion: 0.08
-Nodes (20): asyncio, Tests for deliver_sm functionality., Test successful message delivery., Test message delivery when target not found., Test message delivery when target not bound., Test message delivery when target has wrong bind type., Test message delivery to transceiver., Test message delivery with error response. (+12 more)
+### Community 73 - "TestSMPPServerClientConnection"
+Cohesion: 0.17
+Nodes (7): Tests for client connection handling., Test successful client connection handling., Test client connection with event handler., Test client connection when handler raises exception., Test client disconnection handling., Test client disconnection when handler raises exception., TestSMPPServerClientConnection
 
 ### Community 74 - "TestRoundTripOperations"
 Cohesion: 0.17
 Nodes (7): Tests for round-trip encoding/decoding operations., Test encoding and decoding C-strings., Test encoding and decoding integers., Test encoding and decoding messages with UTF-8., Test encoding and decoding messages with UCS2., Test packing and unpacking TLV parameters., TestRoundTripOperations
 
-### Community 75 - "TestSMPPServerGenericNack"
-Cohesion: 0.33
-Nodes (4): Tests for generic_nack handling., Test successful generic_nack sending., Test generic_nack when exception occurs., TestSMPPServerGenericNack
+### Community 75 - "._handle_pdu_received"
+Cohesion: 0.18
+Nodes (6): DeliverSm, PDU, Handle received PDU from connection, Handle deliver_sm PDU, Send enquire_link_resp, Handle unbind request from SMSC
 
-### Community 76 - "test_factory.py"
-Cohesion: 0.08
-Nodes (18): create_request_pdu(), Create a request PDU, ensuring it's not a response command ID. Args:…, Unit tests for SMPP PDU factory., Test create_request_pdu function., Test creating request PDU successfully., Test creating request PDU with response command ID., Test creating request PDU with invalid command ID., Test decode_pdu function. (+10 more)
+### Community 76 - "TestPDUClasses"
+Cohesion: 0.20
+Nodes (6): Test PDU_CLASSES mapping., Test bind command mappings., Test message command mappings., Test session command mappings., Test that all mapped commands have valid classes., TestPDUClasses
 
 ### Community 77 - "Unbind"
-Cohesion: 0.16
+Cohesion: 0.17
 Nodes (10): UNBIND PDU - Request to unbind from SMSC, Unbind, Test Unbind initialization., Test Unbind body encoding (should be empty)., Test Unbind body decoding (should handle empty body)., TestUnbind, Tests for unbind request handling., Test successful unbind request. (+2 more)
 
 ### Community 78 - "patch"
-Cohesion: 0.10
-Nodes (15): patch, Test that initialization creates SMPPConnection., Test PDU handling through _handle_client_pdu method., Test handling of BindTransmitter PDU through PDU handler., Test handling of BindReceiver PDU through PDU handler., Test handling of BindTransceiver PDU through PDU handler., Test handling of Unbind PDU through PDU handler., Test handling of SubmitSm PDU through PDU handler. (+7 more)
+Cohesion: 0.09
+Nodes (16): patch, Test that initialization creates SMPPConnection., Test PDU handling through _handle_client_pdu method., Test handling of BindTransmitter PDU through PDU handler., Test handling of BindReceiver PDU through PDU handler., Test handling of BindTransceiver PDU through PDU handler., Test handling of Unbind PDU through PDU handler., Test handling of SubmitSm PDU through PDU handler. (+8 more)
 
 ### Community 79 - "SMPPConnection"
 Cohesion: 0.05
-Nodes (28): Exception, PDU, Initialize SMPP Client Args: host: SMSC server hostname or IP port: SMSC server…, Check if connection is established, Check if connection is bound, Set connection state and trigger state change event, Get next sequence number, Mark the connection open and start its background tasks. (+20 more)
+Nodes (28): Initialize SMPP Client Args: host: SMSC server hostname or IP port: SMSC server…, Exception, Check if connection is established, Check if connection is bound, Set connection state and trigger state change event, Get next sequence number, Mark the connection open and start its background tasks., Activate a connection whose reader/writer were provided by an accepted socket. (+20 more)
+
+### Community 80 - "TestConnectionProperties"
+Cohesion: 0.18
+Nodes (6): Test connection properties and state management, Test state property getter, Test is_connected property, Test is_bound property, Test state change with handler, TestConnectionProperties
 
 ### Community 81 - "TestSubmitSmResp"
 Cohesion: 0.14
 Nodes (8): Test SubmitSmResp PDU., Test SubmitSmResp initialization., Test SubmitSmResp with custom values., Test SubmitSmResp body encoding., Test SubmitSmResp body encoding with empty message_id., Test SubmitSmResp body decoding., Test SubmitSmResp body decoding with empty message_id., TestSubmitSmResp
 
 ### Community 82 - "test_client.py"
-Cohesion: 0.05
-Nodes (27): Unit tests for SMPP Client implementation. Tests all functionality of the…, Tests for SMPPClient context manager., Test successful context manager usage., Test context manager when exception occurs., Tests for SMPPClient string representation., Test string representation., Test string representation when bound., Tests for SMPPClient event handlers. (+19 more)
+Cohesion: 0.06
+Nodes (23): Unit tests for SMPP Client implementation. Tests all functionality of the…, Tests for SMPPClient connection lost handling., Test handling connection lost., Test handling connection lost when handler raises exception., Tests for SMPPClient context manager., Test successful context manager usage., Test context manager when exception occurs., Tests for SMPPClient string representation. (+15 more)
 
 ### Community 83 - "TestRegisteredDeliveryValidation"
 Cohesion: 0.25
 Nodes (5): Tests for validate_registered_delivery function., Test validating valid registered delivery values., Test validating registered delivery value below valid range., Test validating registered delivery value above valid range., TestRegisteredDeliveryValidation
-
-### Community 84 - "TestBindRequestPDU"
-Cohesion: 0.20
-Nodes (4): Test BindRequestPDU base class., Test BindRequestPDU default values., Test BindRequestPDU with custom values., TestBindRequestPDU
 
 ### Community 85 - "test_message.py"
 Cohesion: 0.22
@@ -535,13 +550,17 @@ Nodes (6): Tests for validate_sequence_number function., Test validating valid s
 Cohesion: 0.20
 Nodes (6): Tests for edge cases and error scenarios., Test client count after various operations., Test message ID counter behavior., Test getting bound clients with mixed session states., Test client connection when peer info is not available., TestSMPPServerEdgeCases
 
-### Community 90 - "validate_optional_parameter"
-Cohesion: 0.50
-Nodes (3): Initialize TLV parameter. Args: tag: Parameter tag identifier value: Parameter…, Validate optional parameter (TLV) structure. Args: tag: Parameter tag value:…, validate_optional_parameter()
+### Community 90 - "test_session.py"
+Cohesion: 0.29
+Nodes (4): Unit tests for SMPP session PDUs., Test DataSm initialization., Test DataSm with custom values., TestDataSm
 
 ### Community 91 - "TestBindTransmitterResp"
 Cohesion: 0.20
 Nodes (6): Test BindTransmitterResp PDU., Test BindTransmitterResp initialization., Test BindTransmitterResp with custom values., Test BindTransmitterResp body encoding., Test BindTransmitterResp body decoding., TestBindTransmitterResp
+
+### Community 92 - "TestSMPPServerMessageHandling"
+Cohesion: 0.25
+Nodes (5): Tests for server message handling., Test message ID generation., Test getting all client sessions., Test getting only bound client sessions., TestSMPPServerMessageHandling
 
 ### Community 93 - "TestSMPPClientPDUHandling"
 Cohesion: 0.06
@@ -558,6 +577,10 @@ Nodes (12): cleanup_background_tasks(), main(), SMPP Server Example This example
 ### Community 96 - ".get_optional_parameter"
 Cohesion: 0.33
 Nodes (3): Get optional parameter by tag. Args: tag: The parameter tag to search for…, Get optional parameter value by tag. Args: tag: The parameter tag to search for…, Check if optional parameter exists. Args: tag: The parameter tag to check for…
+
+### Community 97 - "TestGetPDUClass"
+Cohesion: 0.25
+Nodes (5): Test get_pdu_class function., Test getting PDU class for valid command ID., Test getting PDU class for invalid command ID., Test getting PDU class for zero command ID., TestGetPDUClass
 
 ### Community 98 - "TestSequenceNumber"
 Cohesion: 0.33
@@ -577,7 +600,7 @@ Nodes (3): Test UnbindResp initialization., Test UnbindResp body encoding (shoul
 
 ### Community 104 - ".__init__"
 Cohesion: 0.50
-Nodes (3): Initialize SMPP connection Args: host: Remote host address port: Remote port…, StreamReader, StreamWriter
+Nodes (3): StreamReader, StreamWriter, Initialize SMPP connection Args: host: Remote host address port: Remote port…
 
 ### Community 105 - "TestPriorityFlagValidation"
 Cohesion: 0.25
@@ -591,9 +614,21 @@ Nodes (4): Tests for server event handler initialization., Test that event handl
 Cohesion: 0.20
 Nodes (5): Test state change handler exception handling, Test connection error handling, Test connection error handler exception, failing_handler(), TestErrorHandling
 
+### Community 114 - "DataSmResp"
+Cohesion: 0.17
+Nodes (9): DataSmResp, DATA_SM_RESP PDU - Response to data_sm, Encode data_sm_resp body, Decode data_sm_resp body, Test DataSmResp initialization., Test DataSmResp with custom values., Test DataSmResp body encoding., Test DataSmResp body decoding. (+1 more)
+
+### Community 115 - "TestSMPPClientWaitMethods"
+Cohesion: 0.12
+Nodes (8): Tests for SMPPClient wait methods., Test wait_for_connection when connection succeeds., Test wait_for_connection timeout., Test wait_for_connection when already connected., Test wait_for_bind when bind succeeds., Test wait_for_bind timeout., Test wait_for_bind when already bound., TestSMPPClientWaitMethods
+
 ### Community 119 - "SMPPException (base)"
 Cohesion: 0.40
 Nodes (5): SMPPBindException, SMPPConnectionException, SMPPException (base), SMPPMessageException, SMPPTimeoutException
+
+### Community 120 - "test_connection.py"
+Cohesion: 0.10
+Nodes (20): ConnectionState, Enum, SMPP Connection Handling This module provides async TCP connection handling for…, SMPP Connection States, Get current connection state, SMPP Transport Layer This module provides the transport layer abstraction for…, connected_connection(), connection() (+12 more)
 
 ### Community 121 - "ConcatenatedSMSHeader"
 Cohesion: 0.23
@@ -607,13 +642,21 @@ Nodes (11): demo_compatibility(), demo_gsm7_encoding(), demo_message_segmentatio
 Cohesion: 0.21
 Nodes (8): make_parts(), Split a message into SMS parts for transmission. Args: message: Message text or…, Test message segmentation., Test message that fits in single SMS., Test GSM 7-bit message requiring multiple parts., Test binary message requiring multiple parts., Test UTF-16 encoding segmentation., TestMessageSegmentation
 
-### Community 128 - "MockPDU"
-Cohesion: 0.06
-Nodes (20): MockEnquireLink, MockPDU, Test PDU sending functionality, Test sending PDU when not connected, Test sending PDU without waiting for response, Test sending PDU with response, Test PDU response timeout, Return mock encoded PDU (+12 more)
+### Community 124 - "TestCreateRequestPDU"
+Cohesion: 0.25
+Nodes (5): Test create_request_pdu function., Test creating request PDU successfully., Test creating request PDU with response command ID., Test creating request PDU with invalid command ID., TestCreateRequestPDU
+
+### Community 128 - "TestPDUReceiving"
+Cohesion: 0.12
+Nodes (9): Test PDU receiving functionality, Test successful PDU reception, Test PDU reception with no reader, Test PDU reception timeout, Test incomplete PDU read, Test PDU with invalid length, Test handling received PDU as response, Test handling received PDU as incoming (+1 more)
 
 ### Community 129 - "MessagePart"
 Cohesion: 0.33
 Nodes (4): MessagePart, A single part of a segmented SMS message. Attributes: content: Message content…, Get the complete short message including UDH. Returns: Complete message bytes…, Get ESM class with UDH indicator if needed. Args: base_esm_class: Base ESM…
+
+### Community 130 - "DeliverSm"
+Cohesion: 0.14
+Nodes (9): DeliverSm, Get message text as string using specified or auto-detected encoding Args:…, Set message text from string using specified or auto-detected encoding Args:…, Get appropriate encoding for the message based on data_coding Returns: str:…, DELIVER_SM PDU - Deliver a short message or delivery receipt, Check if this is a delivery receipt Returns: bool: True if this is a delivery…, Check if this is a mobile originated message Returns: bool: True if this is a…, Parse delivery receipt message into structured data Returns: dict: Parsed… (+1 more)
 
 ### Community 139 - "TestServiceTypeValidation"
 Cohesion: 0.25
@@ -623,33 +666,45 @@ Nodes (5): Tests for validate_service_type function., Test validating valid serv
 Cohesion: 0.25
 Nodes (5): Tests for validate_esm_class function., Test validating valid ESM class values., Test validating ESM class value below valid range., Test validating ESM class value above valid range., TestEsmClassValidation
 
+### Community 142 - "TestBindTransceiver"
+Cohesion: 0.50
+Nodes (3): Test BindTransceiver PDU., Test BindTransceiver initialization., TestBindTransceiver
+
+### Community 144 - "asyncio"
+Cohesion: 0.13
+Nodes (9): asyncio, Test successful connection, Test connect when already connected, Test connection timeout, Test disconnect when not connected, Test successful disconnection, Test background task functionality, Test enquire link loop (+1 more)
+
+### Community 148 - "protocol/constants.py"
+Cohesion: 0.11
+Nodes (22): EsmClass, get_request_command_id(), get_response_command_id(), InterfaceVersion, is_response_command(), MessageState, OptionalTag, PriorityFlag (+14 more)
+
 ### Community 162 - "TestMemoryManagement"
 Cohesion: 0.50
 Nodes (3): Test memory management and limits, Test memory limit enforcement, TestMemoryManagement
 
-### Community 168 - "get_pdu_name"
-Cohesion: 0.22
-Nodes (7): get_pdu_name(), Get the name of the PDU class for a command ID. Args: command_id: SMPP command…, Test command utility functions., Test is_command_supported function., Test get_pdu_name function., Test get_pdu_name for unknown command., TestCommandUtilities
+### Community 168 - "test_factory.py"
+Cohesion: 0.07
+Nodes (19): Decode PDU from bytes. Args: data: The byte data to decode Returns: The decoded…, decode_pdu(), Decode PDU from bytes using the factory. Args: data: Raw PDU bytes Returns:…, Receive and decode a single PDU, Unit tests for SMPP PDU factory., Test create_typed_pdu function., Test creating typed PDU successfully., Test creating typed PDU with type mismatch. (+11 more)
 
 ## Knowledge Gaps
 - **28 isolated node(s):** `Packaging`, `Releasing`, `smppai`, `body-leading-blank`, `footer-leading-blank` (+23 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1142 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1137 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **35 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `SMPPPDUException` connect `SMPPPDUException` to `.__init__`, `create_pdu`, `PDU`, `TLVParameter`, `TestStandardMessagePDU`, `create_response_pdu`, `Outbind`, `protocol/__init__.py`, `exceptions.py`, `TestMessageDecoding`, `get_pdu_name`, `TestMessageEncoding`, `AlertNotification`, `TestQuerySmResp`, `TestCStringDecoding`, `TestIntegerEncoding`, `TestIntegerDecoding`, `TestCStringEncoding`, `TestFieldValidation`, `TestTLVPacking`, `TestTLVUnpacking`, `TestPDULengthCalculation`, `TestHelperFunctions`, `.decode`, `test_factory.py`, `SMPPConnection`, `validate_optional_parameter`, `.validate`, `BindTransmitter`, `.validate`?**
-  _High betweenness centrality (0.224) - this node is a cross-community bridge._
-- **Why does `SMPPServer` connect `SMPPServer` to `ClientSession`, `.stop`, `TestSMPPServerStartStop`, `test_server.py`, `SMSCServer`, `._force_disconnect_remaining_clients`, `._handle_client_connection`, `SubmitSm`, `protocol/__init__.py`, `exceptions.py`, `.process_message`, `TestSMPPServerEnquireLinkHandling`, `asyncio`, `TestSMPPServerGenericNack`, `Unbind`, `patch`, `TestSMPPServerEdgeCases`, `examples/server.py`, `.test_set_event_handlers`?**
-  _High betweenness centrality (0.186) - this node is a cross-community bridge._
-- **Why does `SMPPClient` connect `SMPPClient` to `protocol/__init__.py`, `asyncio`, `exceptions.py`, `TestSMPPClientConnection`, `examples/client.py`, `TestSMPPClientConnectionLost`, `patch`, `SMSClient`, `SMPPConnection`, `test_client.py`, `TestSMPPClientEdgeCases`, `TestSMPPClientEnquireLink`, `.test_set_event_handlers`, `TestSMPPClientPDUHandling`?**
-  _High betweenness centrality (0.170) - this node is a cross-community bridge._
+- **Why does `SMPPPDUException` connect `SMPPPDUException` to `TestPDUReceiving`, `.__init__`, `DeliverSm`, `TestCreatePDU`, `PDU`, `.validate`, `TLVParameter`, `TestStandardMessagePDU`, `TestCreateResponsePDU`, `Outbind`, `protocol/__init__.py`, `exceptions.py`, `TestMessageDecoding`, `test_factory.py`, `TestMessageEncoding`, `TestAlertNotification`, `TestQuerySmResp`, `TestCStringDecoding`, `TestIntegerEncoding`, `TestIntegerDecoding`, `TestCStringEncoding`, `TestFieldValidation`, `TestTLVPacking`, `TestTLVUnpacking`, `TestPDULengthCalculation`, `TestHelperFunctions`, `.decode`, `SMPPConnection`, `BindTransmitter`, `TestGetPDUClass`, `.validate`, `DataSmResp`, `test_connection.py`, `TestCreateRequestPDU`?**
+  _High betweenness centrality (0.190) - this node is a cross-community bridge._
+- **Why does `SMPPClient` connect `SMPPClient` to `protocol/__init__.py`, `asyncio`, `exceptions.py`, `examples/client.py`, `._handle_pdu_received`, `patch`, `SMSClient`, `SMPPConnection`, `test_client.py`, `TestSMPPClientWaitMethods`, `TestSMPPClientEdgeCases`, `TestSMPPClientUnbinding`, `.test_set_event_handlers`, `TestSMPPClientPDUHandling`?**
+  _High betweenness centrality (0.181) - this node is a cross-community bridge._
+- **Why does `SMPPServer` connect `SMPPServer` to `TestSMPPServerEdgeCases`, `SubmitSm`, `protocol/__init__.py`, `exceptions.py`, `PDU`, `ClientSession`, `TestSMPPServerClientConnection`, `.test_set_event_handlers`, `TestSMPPServerStartStop`, `Unbind`, `.process_message`, `patch`, `test_server.py`, `SMSCServer`, `._force_disconnect_remaining_clients`, `._handle_client_pdu`, `TestSMPPServerMessageHandling`, `examples/server.py`?**
+  _High betweenness centrality (0.138) - this node is a cross-community bridge._
 - **Are the 20 inferred relationships involving `SMPPServer` (e.g. with `SMPPException` and `TestSMPPServerBindHandling`) actually correct?**
   _`SMPPServer` has 20 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 20 inferred relationships involving `SMPPClient` (e.g. with `SMPPBindException` and `SMPPConnectionException`) actually correct?**
   _`SMPPClient` has 20 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 42 inferred relationships involving `SMPPPDUException` (e.g. with `BindRequestPDU` and `BindResponsePDU`) actually correct?**
-  _`SMPPPDUException` has 42 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 43 inferred relationships involving `SMPPPDUException` (e.g. with `BindRequestPDU` and `BindResponsePDU`) actually correct?**
+  _`SMPPPDUException` has 43 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 14 inferred relationships involving `ClientSession` (e.g. with `TestShutdownPerformance` and `.test_shutdown_performance_with_many_clients()`) actually correct?**
   _`ClientSession` has 14 INFERRED edges - model-reasoned connections that need verification._

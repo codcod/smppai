@@ -691,6 +691,20 @@ class TestSMPPClientSubmitSm:
             await client.submit_sm('12345', '67890', long_message)
 
     @pytest.mark.asyncio
+    async def test_submit_sm_unencodable_for_data_coding(self):
+        """Test submit_sm raises SMPPMessageException, not UnicodeEncodeError."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        with pytest.raises(SMPPMessageException, match='not encodable'):
+            await client.submit_sm(
+                '12345', '67890', '\u041f\u0440\u0438\u0432\u0435\u0442'
+            )
+        client._connection.send_pdu.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_submit_sm_no_connection(self):
         """Test submit_sm when connection is None after being bound."""
         client = SMPPClient('localhost', 2775, 'test_system', 'password')
@@ -804,6 +818,30 @@ class TestSMPPClientSubmitSm:
         assert pdu.priority_flag == 3
         assert pdu.registered_delivery == RegisteredDelivery.SUCCESS_FAILURE
         assert pdu.data_coding == DataCoding.LATIN_1
+
+    @pytest.mark.asyncio
+    async def test_submit_sm_honors_ucs2_data_coding(self):
+        """Test submit_sm encodes short_message per data_coding, not hardcoded UTF-8."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = Mock()
+        response.command_status = CommandStatus.ESME_ROK
+        response.message_id = 'MSG123456'
+        client._connection.send_pdu.return_value = response
+
+        await client.submit_sm(
+            source_addr='12345',
+            destination_addr='67890',
+            short_message='caf\u00e9',
+            data_coding=DataCoding.UCS2,
+        )
+
+        call_args = client._connection.send_pdu.call_args[0]
+        pdu = call_args[0]
+        assert pdu.short_message == 'caf\u00e9'.encode('utf-16-be')
 
     @pytest.mark.asyncio
     async def test_submit_sm_null_message_id(self):
@@ -1388,17 +1426,21 @@ class TestSMPPClientEdgeCases:
         response.message_id = 'MSG123456'
         client._connection.send_pdu.return_value = response
 
-        # Unicode message
+        # Unicode message: needs an explicit UCS2 data_coding, since the
+        # default GSM/Latin-1-approximation encoding can't represent it
+        # (data_coding now governs encoding - see submit_sm's data_coding fix).
         unicode_message = 'Hello 🌍'
 
-        message_id = await client.submit_sm('12345', '67890', unicode_message)
+        message_id = await client.submit_sm(
+            '12345', '67890', unicode_message, data_coding=DataCoding.UCS2
+        )
 
         assert message_id == 'MSG123456'
 
         # Check that message was encoded correctly
         call_args = client._connection.send_pdu.call_args[0]
         pdu = call_args[0]
-        assert pdu.short_message == unicode_message.encode('utf-8')
+        assert pdu.short_message == unicode_message.encode('utf-16-be')
 
     @pytest.mark.asyncio
     async def test_submit_sm_boundary_message_length(self):

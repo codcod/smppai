@@ -35,7 +35,7 @@ from ..protocol import (
     UnbindResp,
     get_error_message,
 )
-from ..transport import ConnectionState, SMPPConnection
+from ..transport import SMPPConnection
 
 logger = logging.getLogger(__name__)
 
@@ -417,14 +417,7 @@ class SMPPServer:
         self._accept_new_messages = False
 
         if not self._clients:
-            logger.info(
-                'No clients connected - still respecting grace period for demonstration'
-            )
-            logger.info(
-                f'Grace period: waiting {self._shutdown_grace_period}s as configured'
-            )
-            await asyncio.sleep(self._shutdown_grace_period)
-            logger.info('Grace period complete - enhanced shutdown sequence complete')
+            logger.info('No clients connected - shutdown sequence complete')
             return
 
         logger.info(f'Shutting down with {len(self._clients)} clients connected')
@@ -585,12 +578,8 @@ class SMPPServer:
 
         connection.on_connection_lost = handle_connection_lost
 
-        # Mark connection as established
-        connection._connected = True
-        connection._set_state(ConnectionState.OPEN)
-
-        # Start receive loop
-        connection._receive_task = asyncio.create_task(connection._receive_loop())
+        # Mark connection as established and start its background tasks
+        connection.accept()
 
         # Trigger client connected event
         if self.on_client_connected:
@@ -931,9 +920,6 @@ class SMPPServer:
             return False
 
         try:
-            # Encode message
-            message_bytes = short_message.encode('utf-8')
-
             # Create deliver_sm PDU
             deliver_pdu = DeliverSm(  # type: ignore[call-arg]
                 service_type=service_type,
@@ -952,8 +938,8 @@ class SMPPServer:
                 replace_if_present_flag=0,
                 data_coding=data_coding,
                 sm_default_msg_id=0,
-                short_message=message_bytes,
             )
+            deliver_pdu.set_message_text(short_message)
 
             # Send deliver_sm and wait for response
             response = await target_session.connection.send_pdu(

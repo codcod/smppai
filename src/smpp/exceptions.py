@@ -5,7 +5,7 @@ This module defines all SMPP-specific exception classes used throughout the libr
 """
 
 from enum import IntEnum
-from typing import Any, Awaitable, Callable, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 
 class SMPPErrorCode(IntEnum):
@@ -394,74 +394,3 @@ class SMPPConfigurationException(SMPPException):
         self.config_section = config_section
         self.config_key = config_key
         self.config_value = config_value
-
-
-# Utility functions for exception handling
-def handle_smpp_error(
-    func: Callable[..., Any],
-    error_context: Optional[Dict[str, Any]] = None,
-    operation_name: Optional[str] = None,
-) -> Any:
-    """
-    Decorator to handle SMPP errors with consistent logging and context.
-
-    Args:
-        func: Function to wrap
-        error_context: Additional context for errors
-        operation_name: Name of the operation for logging
-
-    Returns:
-        Wrapped function result
-    """
-
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except SMPPException:
-            # Re-raise SMPP exceptions as-is
-            raise
-        except Exception as e:
-            # Convert generic exceptions to SMPP exceptions
-            context = error_context or {}
-            if operation_name:
-                context['operation'] = operation_name
-
-            raise SMPPException(
-                f'Unexpected error in {operation_name or "operation"}: {e}',
-                context=context,
-            ) from e
-
-    return wrapper
-
-
-async def async_handle_smpp_error(
-    coro: Awaitable[Any],
-    error_context: Optional[Dict[str, Any]] = None,
-    operation_name: Optional[str] = None,
-) -> Any:
-    """
-    Async version of handle_smpp_error.
-
-    Args:
-        coro: Coroutine to wrap
-        error_context: Additional context for errors
-        operation_name: Name of the operation for logging
-
-    Returns:
-        Coroutine result
-    """
-    try:
-        return await coro
-    except SMPPException:
-        # Re-raise SMPP exceptions as-is
-        raise
-    except Exception as e:
-        # Convert generic exceptions to SMPP exceptions
-        context = error_context or {}
-        if operation_name:
-            context['operation'] = operation_name
-
-        raise SMPPException(
-            f'Unexpected error in {operation_name or "operation"}: {e}',
-            context=context,
-        ) from e

@@ -27,7 +27,7 @@ from smpp.protocol import (
     UnbindResp,
 )
 from smpp.server.server import ClientSession, SMPPServer
-from smpp.transport import ConnectionState, SMPPConnection
+from smpp.transport import SMPPConnection
 
 
 class TestClientSession:
@@ -521,10 +521,7 @@ class TestSMPPServerClientConnection:
         mock_connection = AsyncMock(spec=SMPPConnection)
         mock_connection._receive_loop = AsyncMock()
 
-        with (
-            patch('smpp.server.server.SMPPConnection', return_value=mock_connection),
-            patch('asyncio.create_task') as mock_create_task,
-        ):
+        with patch('smpp.server.server.SMPPConnection', return_value=mock_connection):
             await server._handle_client_connection(mock_reader, mock_writer)
 
             # Verify connection setup
@@ -532,9 +529,8 @@ class TestSMPPServerClientConnection:
             session = server._clients['127.0.0.1:12345']
             assert session.connection is mock_connection
 
-            # Verify connection state
-            mock_connection._set_state.assert_called_with(ConnectionState.OPEN)
-            mock_create_task.assert_called()
+            # Verify connection was activated via the shared accept() path
+            mock_connection.accept.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handle_client_connection_max_connections(self):
@@ -1491,6 +1487,7 @@ class TestSMPPServerDeliverSm:
         assert sent_pdu.protocol_id == 0x02
         assert sent_pdu.priority_flag == 0x03
         assert sent_pdu.data_coding == DataCoding.UCS2
+        assert sent_pdu.short_message == 'Hello World'.encode('utf-16-be')
 
 
 class TestSMPPServerStopWithExceptions:

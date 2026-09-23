@@ -12,7 +12,6 @@ The module provides:
 """
 
 import struct
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, List, Optional, Tuple, TYPE_CHECKING
@@ -133,19 +132,7 @@ class PDU(ABC):
 
     def __post_init__(self) -> None:
         """Initialize PDU after creation."""
-        if self.sequence_number == 0:
-            # Generate a unique sequence number if not provided
-            self.sequence_number = self._generate_sequence_number()
-
-    @staticmethod
-    def _generate_sequence_number() -> int:
-        """
-        Generate a unique sequence number.
-
-        Returns:
-            A unique sequence number between 1 and 0x7FFFFFFF
-        """
-        return int(time.time() * 1000) % 0x7FFFFFFF
+        pass
 
     @abstractmethod
     def encode_body(self) -> bytes:
@@ -445,8 +432,8 @@ class PDU(ABC):
         Raises:
             SMPPPDUException: If validation fails
         """
-        # Validate sequence number
-        if not (1 <= self.sequence_number <= 0x7FFFFFFF):
+        # Validate sequence number (0 means "not yet sent" - send_pdu assigns it)
+        if not (0 <= self.sequence_number <= 0x7FFFFFFF):
             raise SMPPPDUException(f'Invalid sequence number: {self.sequence_number}')
 
         # Validate command status for response PDUs
