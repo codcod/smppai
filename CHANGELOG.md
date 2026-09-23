@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.2.8 (2026-09-23)
+
+### Bug Fixes
+
+- **protocol**: Stop mapping reserved data_coding 0xF8-0xFF to a codec (SMP-003)
+  ([`ce4855c`](https://github.com/codcod/smppai/commit/ce4855cb4a957fff8d117b317924d1ef0b6e87cb))
+
+### Chores
+
+- **deps**: Sync uv.lock with project version 0.2.7 (SMP-003)
+  ([`db46317`](https://github.com/codcod/smppai/commit/db46317d8a68c82ace1b7d2be5316b01aacc5bd7))
+
+
 ## v0.2.7 (2026-09-23)
 
 ### Bug Fixes
