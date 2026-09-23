@@ -10,6 +10,7 @@ from smpp import (
     SMPPBindException,
     SMPPException,
     SMPPMessageException,
+    SMPPThrottlingException,
     SMPPTimeoutException,
 )
 
@@ -19,6 +20,8 @@ except SMPPBindException as e:
     print(f"Bind error: {e}")
 except SMPPTimeoutException as e:
     print(f"Timeout: {e}")
+except SMPPThrottlingException as e:  # before SMPPMessageException, its parent
+    print(f"Throttled, back off and retry: {e}")
 except SMPPMessageException as e:
     print(f"Message error: {e}")
 except SMPPException as e:
