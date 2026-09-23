@@ -394,7 +394,12 @@ class SMPPClient:
             data_coding=data_coding,
             sm_default_msg_id=sm_default_msg_id,
         )
-        submit_pdu.set_message_text(short_message)
+        try:
+            submit_pdu.set_message_text(short_message)
+        except UnicodeEncodeError as e:
+            raise SMPPMessageException(
+                f'Message not encodable with data_coding {data_coding:#x}; use DataCoding.UCS2'
+            ) from e
         if len(submit_pdu.short_message) > 255:
             raise SMPPMessageException(f'Message too long: {len(submit_pdu.short_message)} bytes')
 
