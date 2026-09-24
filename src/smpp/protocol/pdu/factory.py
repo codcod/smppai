@@ -24,6 +24,8 @@ from .bind import (
 from .message import DeliverSm, DeliverSmResp, SubmitSm, SubmitSmResp
 from .session import (
     AlertNotification,
+    CancelSm,
+    CancelSmResp,
     DataSm,
     DataSmResp,
     EnquireLink,
@@ -31,6 +33,8 @@ from .session import (
     GenericNack,
     QuerySm,
     QuerySmResp,
+    ReplaceSm,
+    ReplaceSmResp,
 )
 
 # Add type variable for better type safety
@@ -63,6 +67,10 @@ PDU_CLASSES: Dict[int, Type[PDU]] = {
     CommandId.DATA_SM_RESP: DataSmResp,
     CommandId.QUERY_SM: QuerySm,
     CommandId.QUERY_SM_RESP: QuerySmResp,
+    CommandId.CANCEL_SM: CancelSm,
+    CommandId.CANCEL_SM_RESP: CancelSmResp,
+    CommandId.REPLACE_SM: ReplaceSm,
+    CommandId.REPLACE_SM_RESP: ReplaceSmResp,
 }
 
 

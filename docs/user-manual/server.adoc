@@ -81,7 +81,29 @@ sending session is bound as transmitter or transceiver.
 
 | `on_message_received`
 | `(server, session: ClientSession, pdu: SubmitSm) -> Optional[str]` — see above.
+
+| `on_query_sm`
+| `(server, session: ClientSession, pdu: QuerySm) -> Optional[tuple[int, str, int]]` —
+  return `(message_state, final_date, error_code)`. Returning `None` (or
+  leaving the handler unset, or raising — logged with `logger.exception`)
+  answers `ESME_RQUERYFAIL`.
+
+| `on_cancel_sm`
+| `(server, session: ClientSession, pdu: CancelSm) -> bool` — return `True`
+  to acknowledge the cancel. Returning `False` (or leaving the handler
+  unset, or raising) answers `ESME_RCANCELFAIL`.
+
+| `on_replace_sm`
+| `(server, session: ClientSession, pdu: ReplaceSm) -> bool` — return `True`
+  to acknowledge the replace. Returning `False` (or leaving the handler
+  unset, or raising) answers `ESME_RREPLACEFAIL`.
 |===
+
+`query_sm`, `cancel_sm` and `replace_sm` are rejected with
+`ESME_RINVBNDSTS` unless the sending session is bound as transmitter or
+transceiver, the same check `submit_sm` uses. The server never answers any
+of the three with `generic_nack`, and it keeps no message store of its
+own — the application's callback owns whatever state it needs.
 
 `ClientSession` (from `smpp.server`) exposes `system_id`, `bind_type`
 (`'transmitter'`/`'receiver'`/`'transceiver'`/`''`), `bound`, `address_range`,

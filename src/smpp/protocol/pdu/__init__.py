@@ -51,6 +51,8 @@ from .factory import (
 from .message import DeliverSm, DeliverSmResp, SubmitSm, SubmitSmResp
 from .session import (
     AlertNotification,
+    CancelSm,
+    CancelSmResp,
     DataSm,
     DataSmResp,
     EnquireLink,
@@ -58,6 +60,8 @@ from .session import (
     GenericNack,
     QuerySm,
     QuerySmResp,
+    ReplaceSm,
+    ReplaceSmResp,
 )
 
 __all__ = [
@@ -94,6 +98,10 @@ __all__ = [
     'DataSmResp',
     'QuerySm',
     'QuerySmResp',
+    'CancelSm',
+    'CancelSmResp',
+    'ReplaceSm',
+    'ReplaceSmResp',
     # Factory functions
     'create_pdu',
     'create_request_pdu',
