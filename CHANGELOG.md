@@ -1,6 +1,32 @@
 # CHANGELOG
 
 
+## v0.3.1 (2026-09-24)
+
+### Bug Fixes
+
+- **client**: Satisfy mypy on sent_message_ids assignment (SMP-004)
+  ([`7198b32`](https://github.com/codcod/smppai/commit/7198b32d645c137db04fa53b821f56f12b09a052))
+
+- **client**: Send long text as codec-encoded concatenated SMS (SMP-004)
+  ([`2975a9c`](https://github.com/codcod/smppai/commit/2975a9c0844f5ee62e2b167ce3ac3da60c06e0ba))
+
+### Continuous Integration
+
+- Mirror the GitHub Actions checks in make ci (SMP-004)
+  ([`64959d6`](https://github.com/codcod/smppai/commit/64959d6da2c39f40cb36cb22441b67b75d1587a8))
+
+### Refactoring
+
+- **client**: Drop unreachable UnicodeEncodeError branch (SMP-004)
+  ([`109ca75`](https://github.com/codcod/smppai/commit/109ca7538a3e014fe4c18dcc739a5f5477096c35))
+
+### Testing
+
+- **tests**: Cover submit_multipart and reassemble_parts (SMP-004)
+  ([`f23bd0c`](https://github.com/codcod/smppai/commit/f23bd0c031a076d67233d8ee16d1c92343931f2b))
+
+
 ## v0.3.0 (2026-09-23)
 
 ### Bug Fixes
