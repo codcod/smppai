@@ -13,6 +13,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import smpp.gsm as gsm
+from smpp.protocol.constants import DataCoding
 from smpp.protocol.pdu.message import SubmitSm
 
 
@@ -42,8 +43,8 @@ def demo_message_segmentation():
 
     print(f'Original message length: {len(long_message)} characters')
 
-    # Split into parts using GSM 7-bit encoding
-    parts = gsm.make_parts(long_message, encoding='gsm7')
+    # Split into parts using GSM 7-bit (unpacked) encoding
+    parts = gsm.make_parts(long_message, DataCoding.DEFAULT)
 
     print(f'Split into {len(parts)} parts:')
     for i, part in enumerate(parts, 1):
@@ -94,7 +95,7 @@ def demo_submit_sm_with_udh():
 
     # Create message parts
     message = 'Hello from part 1 of 2!'
-    parts = gsm.make_parts(message, encoding='gsm7')
+    parts = gsm.make_parts(message, DataCoding.DEFAULT)
 
     if parts:
         part = parts[0]
@@ -130,7 +131,7 @@ def demo_compatibility():
     message = 'Привет мир! ' * 10  # Unicode message
 
     # Split message (similar to smpplib.gsm.make_parts)
-    parts = gsm.make_parts(message, encoding='utf16')
+    parts = gsm.make_parts(message, DataCoding.UCS2)
 
     print(f'Unicode message split into {len(parts)} parts')
     print(f'Encoding flag: {parts[0].encoding}')

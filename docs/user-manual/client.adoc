@@ -96,9 +96,30 @@ encoded according to `data_coding` — see <<data-coding,Data coding
 schemes>> for the full mapping and what happens when text doesn't fit the
 chosen coding. The call returns the SMSC-assigned message ID as a string.
 
-For messages longer than 254 octets, use `smpp.gsm.make_parts()` to split
-into multiple `submit_sm` calls — see <<gsm,GSM encoding, segmentation and
-UDH>>.
+For messages longer than a single SMS segment, use
+`client.submit_multipart(...)` instead of `submit_sm` — same arguments,
+plus `data_coding` and `registered_delivery` are applied to every part:
+
+[source,python]
+----
+message_ids = await client.submit_multipart(
+    source_addr="1234",
+    destination_addr="5678",
+    message=long_text,
+    data_coding=DataCoding.DEFAULT,
+)
+----
+
+It splits the message with `smpp.gsm.make_parts()`, sends one `submit_sm`
+per part as a UDH-concatenated SMS, and returns their `message_id`s in part
+order (a message that fits one segment returns a list of length 1). Parts
+are sent sequentially and stop at the first failure; the raised
+`SMPPMessageException` carries `.sent_message_ids`, the ids already
+accepted, so the caller can correlate or cancel them — there is no rollback
+or retry. `submit_sm` itself still raises `SMPPMessageException` above
+`MAX_SHORT_MESSAGE_LENGTH` (254 octets) and never splits on its own. See
+<<gsm,GSM encoding, segmentation and UDH>> for the encoding and budget
+details.
 
 == Testing the link
 

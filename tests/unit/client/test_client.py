@@ -917,6 +917,77 @@ class TestSMPPClientSubmitSm:
         assert message_id == ''
 
 
+class TestSMPPClientSubmitMultipart:
+    """Tests for SMPPClient submit_multipart operations."""
+
+    @pytest.mark.asyncio
+    async def test_submit_multipart_splits_and_sets_udh(self):
+        """A message over one segment sends one submit_sm per part with UDHI set."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        responses = [Mock(), Mock()]
+        for i, response in enumerate(responses, 1):
+            response.command_status = CommandStatus.ESME_ROK
+            response.message_id = f'MSG{i}'
+        client._connection.send_pdu.side_effect = responses
+
+        message_ids = await client.submit_multipart(
+            '12345', '67890', 'a' * 161, data_coding=DataCoding.DEFAULT
+        )
+
+        assert message_ids == ['MSG1', 'MSG2']
+        assert client._connection.send_pdu.call_count == 2
+        for call in client._connection.send_pdu.call_args_list:
+            pdu = call.args[0]
+            assert pdu.esm_class & 0x40
+            assert pdu.data_coding == DataCoding.DEFAULT
+
+    @pytest.mark.asyncio
+    async def test_submit_multipart_single_segment(self):
+        """A message that fits one segment sends one submit_sm without UDHI."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = Mock()
+        response.command_status = CommandStatus.ESME_ROK
+        response.message_id = 'MSG1'
+        client._connection.send_pdu.return_value = response
+
+        message_ids = await client.submit_multipart('12345', '67890', 'short text')
+
+        assert message_ids == ['MSG1']
+        assert client._connection.send_pdu.call_count == 1
+        pdu = client._connection.send_pdu.call_args.args[0]
+        assert pdu.esm_class == 0
+
+    @pytest.mark.asyncio
+    async def test_submit_multipart_stops_at_first_failure(self):
+        """A failing part stops the send and reports already-sent ids."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        first_response = Mock()
+        first_response.command_status = CommandStatus.ESME_ROK
+        first_response.message_id = 'MSG1'
+        second_response = Mock()
+        second_response.command_status = CommandStatus.ESME_RINVDESTADR
+        client._connection.send_pdu.side_effect = [first_response, second_response]
+
+        with pytest.raises(SMPPMessageException) as exc_info:
+            await client.submit_multipart(
+                '12345', '67890', 'a' * 161, data_coding=DataCoding.DEFAULT
+            )
+
+        assert exc_info.value.sent_message_ids == ['MSG1']
+
+
 class TestSMPPClientEnquireLink:
     """Tests for SMPPClient enquire_link operations."""
 
