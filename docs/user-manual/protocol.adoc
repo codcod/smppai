@@ -60,6 +60,38 @@ or construct a `TLVParameter(tag, value)` and append it to
 standard SMPP v3.4 tags (message state, receipted message ID, SAR
 segmentation tags, callback numbers, and more).
 
+=== Typed access
+
+`get_tlv(tag)` / `set_tlv(tag, value)` read and write any of the 44 v3.4
+tags as the type the spec gives it, so you don't pack bytes yourself:
+
+[source,python]
+----
+from smpp import MessageState, OptionalTag
+
+pdu.set_tlv(OptionalTag.SOURCE_PORT, 5000)          # 2-byte integer
+pdu.set_tlv(OptionalTag.RECEIPTED_MESSAGE_ID, "abc123")  # NUL added on the wire
+
+msg_id = pdu.get_tlv(OptionalTag.RECEIPTED_MESSAGE_ID)   # "abc123"
+state = MessageState(pdu.get_tlv(OptionalTag.MESSAGE_STATE))
+pdu.get_tlv(OptionalTag.NETWORK_ERROR_CODE)          # bytes, or None if absent
+----
+
+Integer tags come back as `int`, C-Octet Strings as `str` (trailing NULs
+stripped) and octet strings as `bytes`; unknown or vendor-specific tags
+always come back as raw `bytes`. `set_tlv` checks the tag range, the value's
+type, integer range, printable ASCII (for strings) and length against the
+spec (`smpp.protocol.constants.TLV_SPEC`) and raises
+`SMPPValidationException` before anything is added.
+
+Decoding does not check TLVs against the spec, with one exception: a
+`receipted_message_id` that is not printable ASCII (after one trailing NUL)
+fails decode with `SMPPPDUException`. For everything else, `get_tlv` raises
+`SMPPValidationException` when a stored integer TLV has the wrong size or a
+stored C-Octet String is not printable ASCII or exceeds its spec length —
+fall back to
+`get_optional_parameter_value` there.
+
 == PDU header and framing
 
 `PDU.encode()` / `PDU.decode(data)` handle the 16-byte header

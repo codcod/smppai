@@ -224,7 +224,10 @@ class TestCreateErrorResponse:
         # Check that error message was added as optional parameter
         assert len(error_response.optional_parameters) == 1
         assert error_response.optional_parameters[0].tag == 0x001D
-        assert error_response.optional_parameters[0].value == error_msg.encode('utf-8')
+        assert (
+            error_response.optional_parameters[0].value
+            == error_msg.encode('ascii') + b'\x00'
+        )
 
     def test_create_error_response_for_response_pdu(self):
         """Test creating error response for response PDU."""

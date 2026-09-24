@@ -135,7 +135,7 @@ class TestGenericNack:
         # Check that error message was added as optional parameter
         assert len(pdu.optional_parameters) == 1
         assert pdu.optional_parameters[0].tag == 0x001D
-        assert pdu.optional_parameters[0].value == error_msg.encode('utf-8')
+        assert pdu.optional_parameters[0].value == error_msg.encode('ascii') + b'\x00'
 
 
 class TestAlertNotification:

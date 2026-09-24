@@ -19,9 +19,32 @@ from typing import Any, List, Optional, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     from ...gsm.udh import UDH, ConcatenatedSMSHeader
 
-from ...exceptions import SMPPPDUException
-from ..constants import MAX_PDU_SIZE, PDU_HEADER_SIZE, CommandStatus
+from ...exceptions import SMPPPDUException, SMPPValidationException
+from ..constants import (
+    MAX_PDU_SIZE,
+    PDU_HEADER_SIZE,
+    TLV_SPEC,
+    CommandStatus,
+    OptionalTag,
+)
 from ..validation import validate_optional_parameter
+
+
+def _tlv_name(tag: int) -> str:
+    """Lowercase OptionalTag name, or hex for unknown/vendor tags."""
+    try:
+        return OptionalTag(tag).name.lower()
+    except ValueError:
+        return f'tlv_0x{tag:04X}'
+
+
+def _printable_ascii(text: str) -> bool:
+    return text.isascii() and text.isprintable()
+
+
+def status_info_text(msg: str) -> str:
+    """Coerce msg into a valid additional_status_info_text (printable ASCII, ≤255)."""
+    return ''.join(c if _printable_ascii(c) else '?' for c in msg[:255])
 
 
 class TLVParameter:
@@ -362,6 +385,87 @@ class PDU(ABC):
         param = self.get_optional_parameter(tag)
         return param.value if param else None
 
+    def get_tlv(self, tag: int) -> int | str | bytes | None:
+        """
+        Get optional parameter value typed per its SMPP v3.4 wire type.
+
+        Returns int for integer TLVs, str for C-Octet Strings (trailing NULs
+        stripped), bytes for octet strings and unknown/vendor tags, or None if
+        absent.
+
+        Raises:
+            SMPPValidationException: If a stored integer TLV has the wrong length
+                or a stored C-Octet String is not printable ASCII or too long
+        """
+        value = self.get_optional_parameter_value(tag)
+        if value is None or tag not in TLV_SPEC:
+            return value
+        kind, size, max_len = TLV_SPEC[tag]
+        if kind == 'int':
+            if len(value) != size:
+                name = _tlv_name(tag)
+                raise SMPPValidationException(
+                    f'{name}: expected {size} bytes, got {len(value)}',
+                    field_name=name,
+                )
+            return int.from_bytes(value, 'big')
+        if kind == 'cstr':
+            text = value.rstrip(b'\x00').decode('latin-1')
+            if not _printable_ascii(text):
+                name = _tlv_name(tag)
+                raise SMPPValidationException(
+                    f'{name}: not printable ASCII', field_name=name
+                )
+            if len(text) + 1 > max_len:
+                name = _tlv_name(tag)
+                raise SMPPValidationException(
+                    f'{name}: length {len(text) + 1} exceeds {max_len}',
+                    field_name=name,
+                )
+            return text
+        return value
+
+    def set_tlv(
+        self, tag: int, value: int | str | bytes | bytearray | memoryview
+    ) -> None:
+        """
+        Set optional parameter from a typed value, validated against TLV_SPEC.
+
+        Unknown/vendor tags accept bytes-like values only.
+
+        Raises:
+            SMPPValidationException: If the tag, type, range or length is invalid
+        """
+        if not 0 <= tag <= 0xFFFF:
+            raise SMPPValidationException(
+                f'TLV tag {tag} outside 0x0000-0xFFFF', field_name='tlv_tag'
+            )
+        name = _tlv_name(tag)
+        kind, min_len, max_len = TLV_SPEC.get(tag, ('octets', 0, 0xFFFF))
+
+        def fail(msg: str) -> SMPPValidationException:
+            return SMPPValidationException(f'{name}: {msg}', field_name=name)
+
+        if kind == 'int':
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise fail('expected int')
+            if not 0 <= value < 256**min_len:
+                raise fail(f'{value} out of range for a {min_len}-byte integer')
+            data = value.to_bytes(min_len, 'big')
+        elif kind == 'cstr':
+            if not isinstance(value, str):
+                raise fail('expected str')
+            if not _printable_ascii(value):
+                raise fail('must be printable ASCII')
+            data = value.encode('ascii') + b'\x00'
+        else:
+            if not isinstance(value, (bytes, bytearray, memoryview)):
+                raise fail('expected bytes')
+            data = bytes(value)
+        if not min_len <= len(data) <= max_len:
+            raise fail(f'length {len(data)} outside {min_len}-{max_len}')
+        self.add_optional_parameter(tag, data)
+
     def has_optional_parameter(self, tag: int) -> bool:
         """
         Check if optional parameter exists.
@@ -544,8 +648,10 @@ class ResponsePDU(PDU):
         self.command_status = error_status
 
         if error_message:
-            # Add error message as optional parameter if supported
-            self.add_optional_parameter(0x001D, error_message.encode('utf-8'))
+            self.set_tlv(
+                OptionalTag.ADDITIONAL_STATUS_INFO_TEXT,
+                status_info_text(error_message),
+            )
 
         return self
 

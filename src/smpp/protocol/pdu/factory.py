@@ -8,8 +8,8 @@ based on command IDs, enabling centralized PDU creation and registration.
 from typing import Any, Dict, Optional, Type, TypeVar, cast
 
 from ...exceptions import SMPPPDUException
-from ..constants import CommandId
-from .base import PDU
+from ..constants import CommandId, OptionalTag
+from .base import PDU, status_info_text
 from .bind import (
     BindReceiver,
     BindReceiverResp,
@@ -227,7 +227,10 @@ def create_error_response(
 
         if error_message:
             # Add error message as optional parameter if supported
-            response_pdu.add_optional_parameter(0x001D, error_message.encode('utf-8'))
+            response_pdu.set_tlv(
+                OptionalTag.ADDITIONAL_STATUS_INFO_TEXT,
+                status_info_text(error_message),
+            )
 
         return response_pdu
 
