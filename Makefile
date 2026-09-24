@@ -56,6 +56,12 @@ lint: ## Run linting with ruff
 	$(UV) run ruff check $(SRC_DIR) $(TESTS_DIR) $(EXAMPLES_DIR)
 	@echo "$(GREEN)Linting completed$(RESET)"
 
+.PHONY: format-check
+format-check: ## Check formatting with ruff (no changes)
+	@echo "$(BLUE)Checking formatting...$(RESET)"
+	$(UV) run ruff format --check $(SRC_DIR) $(TESTS_DIR) $(EXAMPLES_DIR)
+	@echo "$(GREEN)Formatting check completed$(RESET)"
+
 .PHONY: lint-fix
 lint-fix: ## Run linting with auto-fix
 	@echo "$(BLUE)Running linter with auto-fix...$(RESET)"
@@ -92,6 +98,16 @@ build: clean ## Build distribution packages
 	@echo "$(BLUE)Building distribution packages...$(RESET)"
 	$(UV) build
 	@echo "$(GREEN)Build completed$(RESET)"
+
+.PHONY: build-check
+build-check: build ## Build and validate distribution metadata
+	$(UV) run twine check dist/*
+
+.PHONY: workflow-lint
+workflow-lint: ## Lint GitHub workflows, incl. shellcheck of run: scripts
+	@echo "$(BLUE)Linting GitHub workflows...$(RESET)"
+	uvx --from actionlint-py --with shellcheck-py actionlint
+	@echo "$(GREEN)Workflow lint completed$(RESET)"
 
 .PHONY: publish-test
 publish-test: build ## Publish to TestPyPI
@@ -133,7 +149,10 @@ clean-all: clean ## Clean everything including uv cache
 
 # Development workflows
 .PHONY: ci
-ci: dev lint test ## Run CI pipeline (install, lint, test)
+# Mirrors .github/workflows/ci.yml's jobs: lint + format, type-check, unit
+# tests, build, plus workflow/bash lint. ponytail: one local Python only; the
+# 3.10-3.13 and windows/macos matrix still runs in GitHub Actions alone.
+ci: dev lint format-check typecheck test build-check workflow-lint ## Run the GitHub Actions CI checks locally
 	@echo "$(GREEN)CI pipeline completed successfully$(RESET)"
 
 .PHONY: pre-commit
