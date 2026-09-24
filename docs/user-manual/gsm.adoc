@@ -23,13 +23,29 @@ unpacked, one-septet-per-octet form that `submit_sm`/`deliver_sm` use for
 
 == Splitting long messages
 
-A single SMS part is capped at 160 GSM-7 / 140 GSM-8 / 70 UCS2 characters
-(less when a UDH is present). `make_parts()` splits a longer message and
-attaches a concatenated-SMS UDH to each part:
+`make_parts(message, data_coding=DataCoding.DEFAULT, reference=None)` splits
+a message that doesn't fit one SMS segment and attaches a concatenated-SMS
+UDH (8-bit reference, `IEI` 0x00) to each part. Each part is encoded through
+the same `data_coding`-aware codec as `submit_sm`
+(<<data-coding,Data coding schemes>>), so `data_coding=0` carries unpacked
+GSM 03.38 and `data_coding=8` carries UCS2 — there is no separate
+encoding-name argument. A segment holds 160 octets (153 with a UDH) for GSM
+03.38, or 140 octets (134 with a UDH) for every other coding, including
+UCS2. Text is never split inside a character, so a GSM escape pair or a
+UCS2 surrogate pair always stays in one part; pre-encoded `bytes` are
+sliced at the octet budget as-is, on any `data_coding` (raw-only codings
+included), so keeping characters whole is then the caller's job.
+`reference` must be 0-255
+(random if omitted); more than 255 parts raises `ValueError`.
+
+The client-facing way to send a long message is
+`SMPPClient.submit_multipart(...)` (see <<client,Client>>), which wraps
+`make_parts` and returns one `message_id` per part. Call `make_parts`
+directly only when building `SubmitSm` PDUs by hand:
 
 [source,python]
 ----
-parts = gsm.make_parts(long_message, encoding="gsm7")  # "gsm7" | "latin1" | "utf8" | "utf16"
+parts = gsm.make_parts(long_message, DataCoding.DEFAULT)
 
 for part in parts:
     pdu = SubmitSm(
@@ -44,14 +60,11 @@ for part in parts:
 
 Each `MessagePart` carries `content`, `udh`, `encoding`, `part_number`,
 `total_parts` and `reference`, plus `get_short_message()`,
-`get_esm_class(base_esm_class=0)` and `get_concatenated_info()`. Pass
-`max_sms_length` to override the per-part size and `reference` to control
-(or share) the concatenation reference; both default to
-auto-detected/auto-generated.
+`get_esm_class(base_esm_class=0)` and `get_concatenated_info()`.
 
-`reassemble_parts(parts, encoding="gsm7")` does the inverse: sorts by
-`part_number`, validates completeness (raises `ValueError` on a missing or
-inconsistent part), and returns the original `str`/`bytes`.
+`reassemble_parts(parts, data_coding=DataCoding.DEFAULT)` does the inverse:
+sorts by `part_number`, validates completeness (raises `ValueError` on a
+missing or inconsistent part), and returns the original `str`.
 
 == UDH on a PDU directly
 

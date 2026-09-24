@@ -5,11 +5,17 @@ Provides automatic message splitting for long SMS messages with
 concatenated SMS support.
 """
 
-import time
+import random
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
-from .encoding import encode_gsm7, decode_gsm7
+from ..exceptions import SMPPPDUException
+from .constants import (
+    EIGHTBIT_LENGTH,
+    EIGHTBIT_PART_SIZE,
+    SEVENBIT_LENGTH,
+    SEVENBIT_PART_SIZE,
+)
 from .udh import UDH, ConcatenatedSMSHeader
 
 
@@ -85,193 +91,139 @@ class MessagePart:
 
 def make_parts(
     message: Union[str, bytes],
-    encoding: str = 'gsm7',
-    max_sms_length: Optional[int] = None,
+    data_coding: int = 0,  # smpp.protocol.constants.DataCoding.DEFAULT
     reference: Optional[int] = None,
 ) -> List[MessagePart]:
     """
     Split a message into SMS parts for transmission.
 
+    Each part is encoded through smpp.protocol.codec, so data_coding governs
+    the bytes on the wire the same way submit_sm's data_coding does. Text is
+    never split inside a character: a GSM escape pair or a UCS2 surrogate
+    pair (a non-BMP character) always stays in one part.
+
     Args:
-        message: Message text or bytes to split
-        encoding: Encoding to use ('gsm7', 'latin1', 'utf8', 'utf16')
-        max_sms_length: Maximum length per SMS (auto-detected if None)
-        reference: Message reference for concatenation (auto-generated if None)
+        message: Message text, or pre-encoded bytes (sliced at the octet
+            budget as-is, not re-encoded; any data_coding is accepted)
+        data_coding: SMPP data_coding value the parts are encoded/labeled with
+        reference: 0-255 concatenation reference (random if None)
 
     Returns:
-        List of MessagePart objects
+        List of MessagePart objects in part_number order. A message that
+        fits one segment returns a single part with udh=None.
 
     Raises:
-        ValueError: If encoding is unsupported or message cannot be encoded
+        ValueError: If reference is out of range, or the message needs more
+            than 255 parts
+        SMPPPDUException: If message can't be encoded with data_coding
     """
-    if isinstance(message, str):
-        if encoding == 'gsm7':
-            encoded_data, char_count = encode_gsm7(message)
-            data_coding = 0
-        elif encoding == 'latin1':
-            encoded_data = message.encode('latin1')
-            data_coding = 3
-        elif encoding == 'utf8':
-            encoded_data = message.encode('utf-8')
-            data_coding = 8
-        elif encoding == 'utf16':
-            # UTF-16 BE with BOM
-            encoded_data = b'\xfe\xff' + message.encode('utf-16be')
-            data_coding = 8
-        else:
-            raise ValueError(f'Unsupported encoding: {encoding}')
+    # protocol.codec imports smpp.gsm at module level to register the
+    # 'gsm0338' codec, so a module-level import back here would cycle.
+    from ..protocol.codec import codec_for_data_coding, encode_message_with_encoding
+
+    if reference is not None and not 0 <= reference <= 255:
+        raise ValueError(f'reference must be 0-255, got {reference}')
+
+    try:
+        is_gsm = codec_for_data_coding(data_coding) == 'gsm0338'
+    except SMPPPDUException:
+        # Raw-only coding (JIS, pictogram, ...): bytes still slice; text
+        # fails in encode_message_with_encoding below.
+        is_gsm = False
+    single_budget = SEVENBIT_LENGTH if is_gsm else EIGHTBIT_LENGTH
+    part_budget = SEVENBIT_PART_SIZE if is_gsm else EIGHTBIT_PART_SIZE
+
+    if isinstance(message, bytes):
+        chunks = (
+            [message]
+            if len(message) <= single_budget
+            else [
+                message[i : i + part_budget]
+                for i in range(0, len(message), part_budget)
+            ]
+        )
     else:
-        # Already bytes
-        encoded_data = message
-        data_coding = 0  # Assume GSM 7-bit
-        char_count = len(encoded_data)
+        encoded = encode_message_with_encoding(message, data_coding)
+        chunks = (
+            [encoded]
+            if len(encoded) <= single_budget
+            else _split_by_character(message, data_coding, part_budget)
+        )
 
-    # Determine maximum length per part
-    if max_sms_length is None:
-        if encoding == 'gsm7':
-            max_single = 160  # characters
-            max_concat = 153  # characters per part with UDH
-        else:
-            max_single = 140  # bytes
-            max_concat = 134  # bytes per part with UDH
-    else:
-        max_single = max_sms_length
-        max_concat = max_sms_length - 7  # Reserve space for UDH
+    if len(chunks) > 255:
+        raise ValueError('Message too long for concatenated SMS')
 
-    # Check if message fits in single SMS
-    message_length = len(encoded_data) if encoding != 'gsm7' else char_count
-
-    if message_length <= max_single:
-        # Single SMS
+    if len(chunks) == 1:
         return [
             MessagePart(
-                content=encoded_data, encoding=data_coding, part_number=1, total_parts=1
+                content=chunks[0], encoding=data_coding, part_number=1, total_parts=1
             )
         ]
 
-    # Multi-part SMS required
     if reference is None:
-        reference = int(time.time()) % 65536  # 16-bit reference
+        reference = random.randrange(256)
 
-    # Calculate number of parts needed
-    if encoding == 'gsm7':
-        # For GSM 7-bit, we need to re-encode each part
-        parts_needed = (char_count + max_concat - 1) // max_concat
-        use_16bit_ref = reference > 255 or parts_needed > 255
-
-        # Adjust max length if using 16-bit reference (longer UDH)
-        if use_16bit_ref:
-            max_concat -= 1  # 16-bit UDH is 1 byte longer
-            parts_needed = (char_count + max_concat - 1) // max_concat
-
-        if parts_needed > 255:
-            raise ValueError('Message too long for concatenated SMS')
-
-        # Split the original text and re-encode each part
-        parts = []
-        text = message if isinstance(message, str) else decode_gsm7(encoded_data)
-
-        char_offset = 0
-        for part_num in range(1, parts_needed + 1):
-            # Extract characters for this part
-            part_text = text[char_offset : char_offset + max_concat]
-            part_data, _ = encode_gsm7(part_text)
-            char_offset += len(part_text)
-
-            # Create UDH
-            concat_header = ConcatenatedSMSHeader(
+    total_parts = len(chunks)
+    parts = []
+    for part_number, chunk in enumerate(chunks, start=1):
+        header = ConcatenatedSMSHeader(
+            reference=reference, total_parts=total_parts, part_number=part_number
+        )
+        parts.append(
+            MessagePart(
+                content=chunk,
+                udh=UDH([header.to_udh_element()]),
+                encoding=data_coding,
+                part_number=part_number,
+                total_parts=total_parts,
                 reference=reference,
-                total_parts=parts_needed,
-                part_number=part_num,
-                use_16bit_ref=use_16bit_ref,
             )
-            udh = UDH([concat_header.to_udh_element()])
-
-            parts.append(
-                MessagePart(
-                    content=part_data,
-                    udh=udh,
-                    encoding=data_coding,
-                    part_number=part_num,
-                    total_parts=parts_needed,
-                    reference=reference,
-                )
-            )
-    else:
-        # For binary encodings, split by bytes
-        parts_needed = (len(encoded_data) + max_concat - 1) // max_concat
-        use_16bit_ref = reference > 255 or parts_needed > 255
-
-        if use_16bit_ref:
-            max_concat -= 1
-            parts_needed = (len(encoded_data) + max_concat - 1) // max_concat
-
-        if parts_needed > 255:
-            raise ValueError('Message too long for concatenated SMS')
-
-        parts = []
-        byte_offset = 0
-
-        for part_num in range(1, parts_needed + 1):
-            # Extract bytes for this part
-            part_data = encoded_data[byte_offset : byte_offset + max_concat]
-            byte_offset += len(part_data)
-
-            # Create UDH
-            concat_header = ConcatenatedSMSHeader(
-                reference=reference,
-                total_parts=parts_needed,
-                part_number=part_num,
-                use_16bit_ref=use_16bit_ref,
-            )
-            udh = UDH([concat_header.to_udh_element()])
-
-            parts.append(
-                MessagePart(
-                    content=part_data,
-                    udh=udh,
-                    encoding=data_coding,
-                    part_number=part_num,
-                    total_parts=parts_needed,
-                    reference=reference,
-                )
-            )
-
+        )
     return parts
 
 
-def reassemble_parts(
-    parts: List[MessagePart], encoding: str = 'gsm7'
-) -> Union[str, bytes]:
+def _split_by_character(text: str, data_coding: int, part_budget: int) -> List[bytes]:
+    """Greedily pack encoded characters into parts, never splitting one."""
+    from ..protocol.codec import encode_message_with_encoding
+
+    chunks: List[bytes] = []
+    current = bytearray()
+    for ch in text:
+        ch_bytes = encode_message_with_encoding(ch, data_coding)
+        if current and len(current) + len(ch_bytes) > part_budget:
+            chunks.append(bytes(current))
+            current = bytearray()
+        current.extend(ch_bytes)
+    if current:
+        chunks.append(bytes(current))
+    return chunks
+
+
+def reassemble_parts(parts: List[MessagePart], data_coding: int = 0) -> str:
     """
-    Reassemble message parts into original message.
+    Reassemble message parts into the original text.
+
+    For raw-bytes callers, joining `part.content` in `part_number` order is
+    trivial and needs no helper.
 
     Args:
-        parts: List of MessagePart objects to reassemble
-        encoding: Original encoding used
+        parts: MessagePart objects to reassemble (any order)
+        data_coding: SMPP data_coding the parts were encoded with
 
     Returns:
-        Reassembled message (str for text encodings, bytes for binary)
+        The original message text
 
     Raises:
-        ValueError: If parts are invalid or incomplete
+        ValueError: If parts are incomplete or inconsistent
+        SMPPPDUException: If the joined bytes can't be decoded with data_coding
     """
+    from ..protocol.codec import decode_message_with_encoding
+
     if not parts:
-        return '' if encoding in ('gsm7', 'latin1', 'utf8', 'utf16') else b''
+        return ''
 
-    if len(parts) == 1 and not parts[0].udh:
-        # Single part message
-        if encoding == 'gsm7':
-            return decode_gsm7(parts[0].content)
-        elif encoding in ('latin1', 'utf8', 'utf16'):
-            return parts[0].content.decode(encoding.replace('utf16', 'utf-16'))
-        else:
-            return parts[0].content
-
-    # Sort parts by part number
     sorted_parts = sorted(parts, key=lambda p: p.part_number)
 
-    # Validate completeness
     total_parts = sorted_parts[0].total_parts
     if len(sorted_parts) != total_parts:
         raise ValueError(f'Incomplete message: {len(sorted_parts)}/{total_parts} parts')
@@ -282,15 +234,6 @@ def reassemble_parts(
         if part.total_parts != total_parts:
             raise ValueError('Inconsistent total_parts across message parts')
 
-    # Reassemble content
-    if encoding == 'gsm7':
-        # Decode each part and concatenate text
-        text_parts = [decode_gsm7(part.content) for part in sorted_parts]
-        return ''.join(text_parts)
-    elif encoding in ('latin1', 'utf8', 'utf16'):
-        # Concatenate bytes and decode
-        all_bytes = b''.join(part.content for part in sorted_parts)
-        return all_bytes.decode(encoding.replace('utf16', 'utf-16'))
-    else:
-        # Binary data
-        return b''.join(part.content for part in sorted_parts)
+    return decode_message_with_encoding(
+        b''.join(part.content for part in sorted_parts), data_coding
+    )

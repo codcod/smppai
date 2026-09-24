@@ -9,7 +9,7 @@ import asyncio
 import logging
 import time
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 from ..exceptions import (
     SMPPBindException,
@@ -21,6 +21,7 @@ from ..exceptions import (
     SMPPThrottlingException,
     SMPPTimeoutException,
 )
+from ..gsm import make_parts
 from ..protocol import (
     PDU,
     BindReceiver,
@@ -364,19 +365,7 @@ class SMPPClient:
             SMPPInvalidStateException: If not bound as transmitter or transceiver
             SMPPMessageException: If message submission fails
         """
-        if not self.is_bound:
-            raise SMPPInvalidStateException('Not bound to SMSC')
-
-        if self._bind_type is None or self._bind_type not in (
-            BindType.TRANSMITTER,
-            BindType.TRANSCEIVER,
-        ):
-            bind_type_str = self._bind_type.value if self._bind_type else 'unknown'
-            raise SMPPInvalidStateException(
-                f'Cannot send SMS with bind type {bind_type_str}',
-                current_state=bind_type_str,
-                expected_state='transmitter or transceiver',
-            )
+        self._require_tx_bind()
 
         logger.debug(f'Submitting SMS from {source_addr} to {destination_addr}')
 
@@ -412,13 +401,32 @@ class SMPPClient:
                 f'Message too long: {len(submit_pdu.short_message)} bytes'
             )
 
+        return await self._send_submit(submit_pdu, timeout)
+
+    def _require_tx_bind(self) -> None:
+        """Raise SMPPInvalidStateException unless bound as transmitter or transceiver."""
+        if not self.is_bound:
+            raise SMPPInvalidStateException('Not bound to SMSC')
+
+        if self._bind_type is None or self._bind_type not in (
+            BindType.TRANSMITTER,
+            BindType.TRANSCEIVER,
+        ):
+            bind_type_str = self._bind_type.value if self._bind_type else 'unknown'
+            raise SMPPInvalidStateException(
+                f'Cannot send SMS with bind type {bind_type_str}',
+                current_state=bind_type_str,
+                expected_state='transmitter or transceiver',
+            )
+
+    async def _send_submit(self, pdu: SubmitSm, timeout: Optional[float]) -> str:
+        """Send a built submit_sm PDU and wait for its response message_id."""
         try:
-            # Send submit_sm and wait for response
             if self._connection is None:
                 raise SMPPMessageException('Not connected to SMSC')
 
             response = await self._connection.send_pdu(
-                submit_pdu, wait_response=True, timeout=timeout or self.response_timeout
+                pdu, wait_response=True, timeout=timeout or self.response_timeout
             )
 
             if response is None:
@@ -446,6 +454,78 @@ class SMPPClient:
             if isinstance(e, SMPPMessageException):
                 raise
             raise SMPPMessageException(f'Message submission failed: {e}')
+
+    async def submit_multipart(
+        self,
+        source_addr: str,
+        destination_addr: str,
+        message: str,
+        *,
+        data_coding: int = DataCoding.DEFAULT,
+        esm_class: int = 0,
+        registered_delivery: int = RegisteredDelivery.NO_RECEIPT,
+        timeout: Optional[float] = None,
+        **submit_kwargs,
+    ) -> List[str]:
+        """
+        Submit a message as one or more concatenated (UDH) SMS parts.
+
+        Splits `message` with smpp.gsm.make_parts and sends each part
+        through the same submission path as submit_sm, sequentially,
+        stopping at the first failure. submit_sm itself is unchanged; use
+        this whenever the message might not fit a single segment.
+
+        Args:
+            source_addr: Source address (sender)
+            destination_addr: Destination address (recipient)
+            message: Message text to split and send
+            data_coding: Data coding scheme, applied to every part
+            esm_class: Base ESM class (the UDH indicator bit is added
+                automatically for multi-part messages)
+            registered_delivery: Registered delivery flag, applied to every part
+            timeout: Response timeout per part
+            **submit_kwargs: Remaining submit_sm fields (e.g. source_addr_ton,
+                source_addr_npi, dest_addr_ton, dest_addr_npi, service_type,
+                protocol_id, priority_flag, schedule_delivery_time,
+                validity_period, replace_if_present_flag, sm_default_msg_id)
+
+        Returns:
+            One SMSC message_id per part, in part order. A message that fits
+            one segment returns a list of length 1.
+
+        Raises:
+            SMPPInvalidStateException: If not bound as transmitter or transceiver
+            SMPPMessageException: If the message can't be encoded with
+                data_coding (raised before any part is sent), or a part's
+                submission fails; a submission failure carries
+                `.sent_message_ids`, the ids of parts already accepted
+            ValueError: If the message needs more than 255 parts
+        """
+        self._require_tx_bind()
+
+        try:
+            parts = make_parts(message, data_coding)
+        except SMPPPDUException as e:
+            raise SMPPMessageException(str(e)) from e
+
+        message_ids: List[str] = []
+        for part in parts:
+            submit_pdu = SubmitSm(  # type: ignore[call-arg]
+                source_addr=source_addr,
+                destination_addr=destination_addr,
+                short_message=part.get_short_message(),
+                esm_class=part.get_esm_class(esm_class),
+                data_coding=data_coding,
+                registered_delivery=registered_delivery,
+                **submit_kwargs,
+            )
+            try:
+                message_ids.append(await self._send_submit(submit_pdu, timeout))
+            except Exception as e:
+                e.sent_message_ids = message_ids  # type: ignore[attr-defined]
+                raise
+
+        return message_ids
 
     async def enquire_link(self, timeout: Optional[float] = None) -> bool:
         """

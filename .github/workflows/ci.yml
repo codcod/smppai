@@ -249,15 +249,17 @@ jobs:
     steps:
       - name: Summarize results
         run: |
-          echo "## CI Results" >> $GITHUB_STEP_SUMMARY
-          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Type Check | ${{ needs.type-check.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security | ${{ needs.security.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration | ${{ needs.integration-test.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## CI Results"
+            echo "| Job | Status |"
+            echo "|-----|--------|"
+            echo "| Lint | ${{ needs.lint.result }} |"
+            echo "| Type Check | ${{ needs.type-check.result }} |"
+            echo "| Security | ${{ needs.security.result }} |"
+            echo "| Tests | ${{ needs.unit-tests.result }} |"
+            echo "| Integration | ${{ needs.integration-test.result }} |"
+            echo "| Build | ${{ needs.build.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check required jobs
         run: |

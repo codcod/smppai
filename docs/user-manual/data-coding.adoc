@@ -48,9 +48,11 @@ single source of truth for the mapping.
 
 `short_message` is capped at 254 octets on every coding (SMPP v3.4
 §5.2.21), and every value in the table, `0xF0`–`0xF7` included, is accepted
-on encode. Single-part limits (160 GSM / 70 UCS2 characters) are the
-caller's to enforce — or use `smpp.gsm.make_parts()` to split automatically;
-see <<gsm,GSM encoding, segmentation and UDH>>.
+on encode. `submit_sm` never splits a message on its own; for anything that
+might not fit one segment (160 GSM 03.38 / 140 other octets), send it with
+`client.submit_multipart(...)` instead, which splits it and sends one
+`submit_sm` per part — see <<gsm,GSM encoding, segmentation and UDH>> and
+<<client,Client>>.
 
 JIS `0x05`, pictogram `0x09`, `0x0D` and KS C 5601 `0x0E` have no text
 codec: raw `short_message` bytes on them encode, but text is rejected
