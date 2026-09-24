@@ -18,7 +18,7 @@ uv run examples/server_basic.py
 uv run examples/client_basic.py  # in a separate command line
 ```
 
-Requires Python 3.10+. The only runtime dependency is `typing-extensions`.
+Requires Python 3.10+. The only runtime dependency is `typing-extensions`. Optional: `uv add 'smppai[fast]'` for uvloop.
 
 ## Documentation
 

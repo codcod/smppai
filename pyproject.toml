@@ -26,6 +26,9 @@ keywords = [
 ]
 dependencies = ["typing-extensions>=4.0.0"]
 
+[project.optional-dependencies]
+fast = ["uvloop>=0.19; sys_platform != 'win32'"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

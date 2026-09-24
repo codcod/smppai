@@ -17,6 +17,26 @@ uv sync
 pip install -e .
 ----
 
+== Optional: uvloop
+
+For a faster event loop on Linux/macOS, install the `fast` extra:
+
+[source,bash]
+----
+pip install 'smppai[fast]'
+# or
+uv add 'smppai[fast]'
+----
+
+{product} never installs the loop itself; opt in explicitly in your application:
+
+[source,python]
+----
+import uvloop
+
+uvloop.run(main())
+----
+
 == Verifying the install
 
 [source,bash]

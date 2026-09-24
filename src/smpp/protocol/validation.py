@@ -18,12 +18,18 @@ from .constants import (
     DataCoding,
     NpiType,
     TonType,
+    is_response_command,
 )
 
 # Compiled regex patterns for better performance
 SYSTEM_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_]+$')
 ADDRESS_PATTERN = re.compile(r'^[0-9+]+$')
 PASSWORD_PATTERN = re.compile(r'^[a-zA-Z0-9!@#$%^&*()_+-=]+$')
+
+# Built once; validated per PDU on the hot path.
+_COMMAND_IDS = frozenset(cmd.value for cmd in CommandId)
+_TON_VALUES = frozenset(t.value for t in TonType)
+_NPI_VALUES = frozenset(n.value for n in NpiType)
 
 
 def validate_system_id(system_id: str) -> None:
@@ -109,7 +115,7 @@ def validate_address(
         )
 
     # Validate TON
-    if addr_ton not in [t.value for t in TonType]:
+    if addr_ton not in _TON_VALUES:
         raise SMPPValidationException(
             f'Invalid TON: {addr_ton}',
             field_name=f'{field_name}_ton',
@@ -117,7 +123,7 @@ def validate_address(
         )
 
     # Validate NPI
-    if addr_npi not in [n.value for n in NpiType]:
+    if addr_npi not in _NPI_VALUES:
         raise SMPPValidationException(
             f'Invalid NPI: {addr_npi}',
             field_name=f'{field_name}_npi',
@@ -308,8 +314,7 @@ def validate_command_id(command_id: int) -> None:
     Raises:
         SMPPValidationException: If command ID is invalid
     """
-    valid_command_ids = [cmd.value for cmd in CommandId]
-    if command_id not in valid_command_ids:
+    if command_id not in _COMMAND_IDS:
         raise SMPPValidationException(
             f'Invalid command ID: 0x{command_id:08X}',
             field_name='command_id',
@@ -354,8 +359,6 @@ def validate_pdu_structure(
         )
 
     # Validate command status for response PDUs
-    from .constants import is_response_command
-
     if is_response_command(command_id):
         if not (0 <= command_status <= 0xFFFFFFFF):
             raise SMPPValidationException(

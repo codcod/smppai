@@ -367,7 +367,7 @@ class SMPPClient:
         """
         self._require_tx_bind()
 
-        logger.debug(f'Submitting SMS from {source_addr} to {destination_addr}')
+        logger.debug('Submitting SMS from %s to %s', source_addr, destination_addr)
 
         # Create submit_sm PDU
         submit_pdu = SubmitSm(  # type: ignore[call-arg]
@@ -445,7 +445,7 @@ class SMPPClient:
                 )
 
             message_id = response.message_id  # type: ignore[attr-defined]
-            logger.debug(f'SMS submitted successfully, message_id: {message_id}')
+            logger.debug('SMS submitted successfully, message_id: %s', message_id)
             return str(message_id) if message_id is not None else ''
 
         except SMPPTimeoutException:
@@ -573,7 +573,7 @@ class SMPPClient:
                 # Handle unbind request from SMSC
                 asyncio.create_task(self._handle_unbind_request(pdu.sequence_number))
             else:
-                logger.debug(f'Received unhandled PDU: {pdu.__class__.__name__}')
+                logger.debug('Received unhandled PDU: %s', pdu.__class__.__name__)
 
         except Exception as e:
             logger.exception(f'Error handling received PDU: {e}')
@@ -581,7 +581,7 @@ class SMPPClient:
     def _handle_deliver_sm(self, pdu: DeliverSm) -> None:
         """Handle deliver_sm PDU"""
         logger.debug(
-            f'Received deliver_sm from {pdu.source_addr} to {pdu.destination_addr}'
+            'Received deliver_sm from %s to %s', pdu.source_addr, pdu.destination_addr
         )
 
         # Send deliver_sm_resp automatically
