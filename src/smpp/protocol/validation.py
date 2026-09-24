@@ -489,9 +489,12 @@ def validate_optional_parameter(tag: int, value: bytes) -> None:
     from .constants import OptionalTag
 
     if tag == OptionalTag.RECEIPTED_MESSAGE_ID:
-        # Message ID should be printable string
+        # receipted_message_id is a C-Octet String (SMPP v3.4 §5.3.2.12), so on
+        # the wire it ends in a NUL; strip one trailing NUL before the
+        # printable check. The stored TLV value itself is unchanged.
+        raw = value[:-1] if value.endswith(b'\x00') else value
         try:
-            msg_id = value.decode('ascii')
+            msg_id = raw.decode('ascii')
             if not msg_id.isprintable():
                 raise SMPPValidationException(
                     'Receipted message ID contains non-printable characters',
@@ -501,11 +504,4 @@ def validate_optional_parameter(tag: int, value: bytes) -> None:
             raise SMPPValidationException(
                 'Receipted message ID is not valid ASCII',
                 field_name='receipted_message_id',
-            )
-    elif tag == OptionalTag.MESSAGE_PAYLOAD:
-        # Message payload can be binary, but check reasonable size
-        if len(value) > 1024:  # Reasonable limit for extended messages
-            raise SMPPValidationException(
-                f'Message payload too large: {len(value)} > 1024 bytes',
-                field_name='message_payload',
             )

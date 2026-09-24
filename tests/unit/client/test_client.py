@@ -6,6 +6,7 @@ binding operations, message sending, event handling, and error scenarios.
 """
 
 import asyncio
+import struct
 import pytest
 from unittest.mock import AsyncMock, Mock, patch, PropertyMock
 
@@ -16,9 +17,11 @@ from smpp.exceptions import (
     SMPPException,
     SMPPInvalidStateException,
     SMPPMessageException,
+    SMPPThrottlingException,
     SMPPTimeoutException,
 )
 from smpp.protocol import (
+    BindTransceiverResp,
     BindTransmitter,
     CancelSmResp,
     CommandId,
@@ -1879,3 +1882,111 @@ class TestSMPPClientEdgeCases:
         await client.bind_receiver()
         assert client.is_bound is True
         assert client.bind_type == BindType.RECEIVER
+
+
+class TestHeaderOnlyErrorResponses:
+    """Loopback tests (real socket): a header-only error response (SMPP v3.4
+    allows omitting the body on a non-OK command_status) is decoded into the
+    typed exception instead of tearing the connection down (SMP-014)."""
+
+    async def _serve_one(self, reader, writer):
+        """Read one request header+body, return (length, command_id, sequence_number)."""
+        header = await reader.readexactly(16)
+        length, command_id, _status, sequence_number = struct.unpack('>LLLL', header)
+        if length > 16:
+            await reader.readexactly(length - 16)
+        return length, command_id, sequence_number
+
+    async def _hold_open(self, reader, writer):
+        """Keep the server side open until the client disconnects, so the
+        client's is_bound checks can't race a GC-closed socket."""
+        await reader.read()
+        writer.close()
+        await writer.wait_closed()
+
+    @pytest.mark.asyncio
+    async def test_submit_sm_header_only_throttle_keeps_connection(self):
+        async def handle(reader, writer):
+            _length, _command_id, seq = await self._serve_one(reader, writer)
+            writer.write(
+                BindTransceiverResp(system_id='smsc', sequence_number=seq).encode()
+            )
+            await writer.drain()
+
+            _length, _command_id, seq = await self._serve_one(reader, writer)
+            writer.write(
+                struct.pack(
+                    '>LLLL',
+                    16,
+                    CommandId.SUBMIT_SM_RESP,
+                    CommandStatus.ESME_RTHROTTLED,
+                    seq,
+                )
+            )
+            await writer.drain()
+            await self._hold_open(reader, writer)
+
+        server = await asyncio.start_server(handle, '127.0.0.1', 0)
+        port = server.sockets[0].getsockname()[1]
+        client = SMPPClient(
+            '127.0.0.1',
+            port,
+            'test_client',
+            'password',
+            bind_timeout=2.0,
+            response_timeout=2.0,
+        )
+        try:
+            await client.connect()
+            await client.bind_transceiver()
+            assert client.is_bound is True
+
+            with pytest.raises(SMPPThrottlingException) as exc_info:
+                await client.submit_sm('12345', '67890', 'hi')
+            assert exc_info.value.command_status == CommandStatus.ESME_RTHROTTLED
+
+            assert client.is_bound is True
+        finally:
+            client._bound = False
+            if client._connection:
+                await client._connection.disconnect()
+            server.close()
+            await server.wait_closed()
+
+    @pytest.mark.asyncio
+    async def test_bind_header_only_error_raises_bind_exception(self):
+        async def handle(reader, writer):
+            _length, _command_id, seq = await self._serve_one(reader, writer)
+            writer.write(
+                struct.pack(
+                    '>LLLL',
+                    16,
+                    CommandId.BIND_TRANSCEIVER_RESP,
+                    CommandStatus.ESME_RINVPASWD,
+                    seq,
+                )
+            )
+            await writer.drain()
+            await self._hold_open(reader, writer)
+
+        server = await asyncio.start_server(handle, '127.0.0.1', 0)
+        port = server.sockets[0].getsockname()[1]
+        client = SMPPClient(
+            '127.0.0.1',
+            port,
+            'test_client',
+            'password',
+            bind_timeout=2.0,
+            response_timeout=2.0,
+        )
+        try:
+            await client.connect()
+            with pytest.raises(SMPPBindException):
+                await client.bind_transceiver()
+            assert client.is_bound is False
+        finally:
+            client._bound = False
+            if client._connection:
+                await client._connection.disconnect()
+            server.close()
+            await server.wait_closed()
