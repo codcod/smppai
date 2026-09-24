@@ -393,7 +393,7 @@ async def main():
     # SMSC connection details - compatible with SMPP protocol (max 8 chars for password)
     SMSC_HOST = 'localhost'
     SMSC_PORT = 2775
-    SYSTEM_ID = 'test_client'
+    SYSTEM_ID = 'smppclient1'
     PASSWORD = 'password'
 
     # Create enhanced SMS client
