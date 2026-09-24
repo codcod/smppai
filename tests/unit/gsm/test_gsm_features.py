@@ -8,7 +8,9 @@ from smpp.gsm import (
     decode_gsm7,
     make_parts,
     reassemble_parts,
+    MessagePart,
     UDH,
+    UDHElement,
     ConcatenatedSMSHeader,
 )
 from smpp.exceptions import SMPPPDUException
@@ -252,6 +254,44 @@ class TestMessageSegmentation:
         text = 'Round trip test message, long enough to split. ' * 5
         parts = make_parts(text, data_coding)
         assert reassemble_parts(parts, data_coding) == text
+
+    def test_reassemble_empty(self):
+        assert reassemble_parts([]) == ''
+
+    def test_reassemble_incomplete(self):
+        parts = make_parts('a' * 400, DataCoding.DEFAULT)  # 3 parts
+        with pytest.raises(ValueError, match='Incomplete message: 2/3'):
+            reassemble_parts(parts[:2])
+
+    def test_reassemble_missing_part(self):
+        parts = make_parts('a' * 400, DataCoding.DEFAULT)
+        parts[2].part_number = 2  # duplicate 2, part 3 absent
+        with pytest.raises(ValueError, match='Missing part 3'):
+            reassemble_parts(parts)
+
+    def test_reassemble_inconsistent_total(self):
+        parts = make_parts('a' * 400, DataCoding.DEFAULT)
+        parts[1].total_parts = 4
+        with pytest.raises(ValueError, match='Inconsistent total_parts'):
+            reassemble_parts(parts)
+
+    def test_concatenated_info(self):
+        part = make_parts('a' * 161, DataCoding.DEFAULT, reference=9)[0]
+        assert part.get_concatenated_info().reference == 9
+        assert (
+            make_parts('short', DataCoding.DEFAULT)[0].get_concatenated_info() is None
+        )
+
+        header16 = ConcatenatedSMSHeader(
+            reference=12345, total_parts=2, part_number=1, use_16bit_ref=True
+        )
+        part16 = MessagePart(content=b'x', udh=UDH([header16.to_udh_element()]))
+        assert part16.get_concatenated_info().reference == 12345
+
+        other = UDHElement(UDH.IEI_APPLICATION_PORT_8BIT, b'\x00\x00')
+        assert (
+            MessagePart(content=b'x', udh=UDH([other])).get_concatenated_info() is None
+        )
 
 
 class TestMessagePDUIntegration:

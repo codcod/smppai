@@ -987,6 +987,44 @@ class TestSMPPClientSubmitMultipart:
 
         assert exc_info.value.sent_message_ids == ['MSG1']
 
+    @pytest.mark.asyncio
+    async def test_submit_multipart_unencodable_text(self):
+        """Text the data_coding can't encode fails before any part is sent."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        with pytest.raises(SMPPMessageException, match='encoding error'):
+            await client.submit_multipart(
+                '12345', '67890', 'Жук', data_coding=DataCoding.DEFAULT
+            )
+
+        client._connection.send_pdu.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_submit_multipart_wraps_unexpected_send_error(self):
+        """A non-SMPP send error becomes SMPPMessageException with sent ids."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+        client._connection.send_pdu.side_effect = RuntimeError('socket gone')
+
+        with pytest.raises(SMPPMessageException, match='socket gone') as exc_info:
+            await client.submit_multipart('12345', '67890', 'short text')
+
+        assert exc_info.value.sent_message_ids == []
+
+    @pytest.mark.asyncio
+    async def test_send_submit_without_connection(self):
+        """_send_submit guards a missing connection (unreachable via bound API)."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = None
+
+        with pytest.raises(SMPPMessageException, match='Not connected'):
+            await client._send_submit(Mock(), None)
+
 
 class TestSMPPClientEnquireLink:
     """Tests for SMPPClient enquire_link operations."""
