@@ -243,6 +243,57 @@ class OptionalTag(IntEnum):
     ITS_SESSION_INFO = 0x1383
 
 
+# Wire type per optional parameter (SMPP v3.4 §5.3.2): tag -> (kind, min_len, max_len).
+# kind is 'int' (length = integer size), 'cstr' (C-Octet String, lengths include
+# the NUL) or 'octets'.
+TLV_SPEC: dict[int, tuple[str, int, int]] = {
+    OptionalTag.DEST_ADDR_SUBUNIT: ('int', 1, 1),
+    OptionalTag.DEST_NETWORK_TYPE: ('int', 1, 1),
+    OptionalTag.DEST_BEARER_TYPE: ('int', 1, 1),
+    OptionalTag.SOURCE_ADDR_SUBUNIT: ('int', 1, 1),
+    OptionalTag.SOURCE_NETWORK_TYPE: ('int', 1, 1),
+    OptionalTag.SOURCE_BEARER_TYPE: ('int', 1, 1),
+    OptionalTag.SOURCE_TELEMATICS_ID: ('int', 1, 1),
+    OptionalTag.PAYLOAD_TYPE: ('int', 1, 1),
+    OptionalTag.MS_MSG_WAIT_FACILITIES: ('int', 1, 1),
+    OptionalTag.PRIVACY_INDICATOR: ('int', 1, 1),
+    OptionalTag.USER_RESPONSE_CODE: ('int', 1, 1),
+    OptionalTag.LANGUAGE_INDICATOR: ('int', 1, 1),
+    OptionalTag.SAR_TOTAL_SEGMENTS: ('int', 1, 1),
+    OptionalTag.SAR_SEGMENT_SEQNUM: ('int', 1, 1),
+    OptionalTag.SC_INTERFACE_VERSION: ('int', 1, 1),
+    OptionalTag.CALLBACK_NUM_PRES_IND: ('int', 1, 1),
+    OptionalTag.NUMBER_OF_MESSAGES: ('int', 1, 1),
+    OptionalTag.DPF_RESULT: ('int', 1, 1),
+    OptionalTag.SET_DPF: ('int', 1, 1),
+    OptionalTag.MS_AVAILABILITY_STATUS: ('int', 1, 1),
+    OptionalTag.DELIVERY_FAILURE_REASON: ('int', 1, 1),
+    OptionalTag.MORE_MESSAGES_TO_SEND: ('int', 1, 1),
+    OptionalTag.MESSAGE_STATE: ('int', 1, 1),
+    OptionalTag.DISPLAY_TIME: ('int', 1, 1),
+    OptionalTag.MS_VALIDITY: ('int', 1, 1),
+    OptionalTag.ITS_REPLY_TYPE: ('int', 1, 1),
+    OptionalTag.DEST_TELEMATICS_ID: ('int', 2, 2),
+    OptionalTag.USER_MESSAGE_REFERENCE: ('int', 2, 2),
+    OptionalTag.SOURCE_PORT: ('int', 2, 2),
+    OptionalTag.DESTINATION_PORT: ('int', 2, 2),
+    OptionalTag.SAR_MSG_REF_NUM: ('int', 2, 2),
+    OptionalTag.SMS_SIGNAL: ('int', 2, 2),
+    OptionalTag.QOS_TIME_TO_LIVE: ('int', 4, 4),
+    OptionalTag.ADDITIONAL_STATUS_INFO_TEXT: ('cstr', 1, 256),
+    OptionalTag.RECEIPTED_MESSAGE_ID: ('cstr', 1, 65),
+    OptionalTag.SOURCE_SUBADDRESS: ('octets', 2, 23),
+    OptionalTag.DEST_SUBADDRESS: ('octets', 2, 23),
+    OptionalTag.CALLBACK_NUM_ATAG: ('octets', 0, 65),
+    OptionalTag.CALLBACK_NUM: ('octets', 4, 19),
+    OptionalTag.NETWORK_ERROR_CODE: ('octets', 3, 3),
+    OptionalTag.MESSAGE_PAYLOAD: ('octets', 0, 65535),
+    OptionalTag.USSD_SERVICE_OP: ('octets', 1, 1),
+    OptionalTag.ITS_SESSION_INFO: ('octets', 2, 2),
+    OptionalTag.ALERT_ON_MESSAGE_DELIVERY: ('octets', 0, 0),
+}
+
+
 # Default Values
 DEFAULT_SYSTEM_TYPE = ''
 DEFAULT_INTERFACE_VERSION = InterfaceVersion.VERSION_3_4
