@@ -264,7 +264,10 @@ class SMPPConnection:
             # Encode and send PDU
             data = pdu.encode()
             logger.debug(
-                f'Sending PDU: {pdu.__class__.__name__} (seq={pdu.sequence_number}, len={len(data)})'
+                'Sending PDU: %s (seq=%d, len=%d)',
+                pdu.__class__.__name__,
+                pdu.sequence_number,
+                len(data),
             )
 
             await asyncio.wait_for(
@@ -357,10 +360,9 @@ class SMPPConnection:
                 raise SMPPConnectionException('Connection closed by peer')
 
             # Parse header to get total length
-            length = struct.unpack('>L', header_data[:4])[0]
-            command_id = struct.unpack('>L', header_data[4:8])[0]
-            command_status = struct.unpack('>L', header_data[8:12])[0]
-            sequence_number = struct.unpack('>L', header_data[12:16])[0]
+            length, command_id, command_status, sequence_number = struct.unpack(
+                '>LLLL', header_data
+            )
 
             # Validate PDU structure - convert validation errors to PDU errors for compatibility
             try:
@@ -374,16 +376,10 @@ class SMPPConnection:
                 else:
                     raise SMPPPDUException(f'Invalid PDU: {e}')
 
-            if length < PDU_HEADER_SIZE:
-                raise SMPPPDUException(f'Invalid PDU length: {length}')
-
             # Read remaining data
             remaining_length = length - PDU_HEADER_SIZE
             if remaining_length > 0:
-                body_data = await asyncio.wait_for(
-                    self._reader.readexactly(remaining_length),
-                    timeout=receive_timeout,
-                )
+                body_data = await self._reader.readexactly(remaining_length)
                 full_data = header_data + body_data
             else:
                 full_data = header_data
@@ -393,7 +389,10 @@ class SMPPConnection:
             self._last_activity = time.time()
 
             logger.debug(
-                f'Received PDU: {pdu.__class__.__name__} (seq={pdu.sequence_number}, len={len(full_data)})'
+                'Received PDU: %s (seq=%d, len=%d)',
+                pdu.__class__.__name__,
+                pdu.sequence_number,
+                len(full_data),
             )
             return pdu
 

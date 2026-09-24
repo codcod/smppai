@@ -616,7 +616,7 @@ class SMPPServer:
         """Handle PDU received from client"""
         try:
             logger.debug(
-                f'Received PDU from {session.system_id}: {pdu.__class__.__name__}'
+                'Received PDU from %s: %s', session.system_id, pdu.__class__.__name__
             )
 
             if isinstance(pdu, (BindTransmitter, BindReceiver, BindTransceiver)):
@@ -629,9 +629,9 @@ class SMPPServer:
                 asyncio.create_task(self._handle_enquire_link(session, pdu))
             elif isinstance(pdu, DeliverSmResp):
                 # Acknowledge delivery receipt
-                logger.debug(f'Received deliver_sm_resp from {session.system_id}')
+                logger.debug('Received deliver_sm_resp from %s', session.system_id)
             else:
-                logger.warning(f'Unhandled PDU type: {pdu.__class__.__name__}')
+                logger.warning('Unhandled PDU type: %s', pdu.__class__.__name__)
                 asyncio.create_task(
                     self._send_generic_nack(
                         session, pdu.sequence_number, CommandStatus.ESME_RINVCMDID
@@ -798,7 +798,10 @@ class SMPPServer:
                 return
 
             logger.info(
-                f'Message from {session.system_id}: {pdu.source_addr} -> {pdu.destination_addr}'
+                'Message from %s: %s -> %s',
+                session.system_id,
+                pdu.source_addr,
+                pdu.destination_addr,
             )
 
             # Generate message ID
@@ -822,7 +825,7 @@ class SMPPServer:
             )
 
             session.message_counter += 1
-            logger.debug(f'Message accepted, assigned ID: {message_id}')
+            logger.debug('Message accepted, assigned ID: %s', message_id)
 
         except Exception as e:
             logger.exception(f'Error handling submit_sm: {e}')
