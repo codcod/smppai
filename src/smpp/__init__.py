@@ -15,24 +15,26 @@ This package provides:
 - Unicode and multi-part message handling
 
 Quick Start:
-    from smpp import SMPPClient
+    import smpp
 
-    async with SMPPClient(
-        host="localhost",
-        port=2775,
-        system_id="test_client",
-        password="password",
-    ) as client:
-        await client.bind_transceiver()
-        message_id = await client.submit_sm(
-            source_addr="1234",
-            destination_addr="5678",
-            short_message="Hello World!"
-        )
+    async with smpp.connect("localhost", 2775, "test_client", "password") as client:
+        result = await client.send("+306900000000", "Hello World!", sender="ACME")
+        print(result.message_ids)
+
+The low-level SMPPClient stays available (and as `client.raw`).
 """
 
 # Main client and server classes
-from .client import BindType, SMPPClient
+from .client import (
+    Address,
+    BindType,
+    Client,
+    DeliveryReceipt,
+    Message,
+    SendResult,
+    SMPPClient,
+    connect,
+)
 
 # Exception classes
 from .exceptions import (
@@ -114,6 +116,13 @@ __all__ = [
     'SMPPClient',
     'SMPPServer',
     'BindType',
+    # High-level client API
+    'connect',
+    'Client',
+    'Address',
+    'SendResult',
+    'Message',
+    'DeliveryReceipt',
     # Protocol constants
     'CommandId',
     'CommandStatus',

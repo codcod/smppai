@@ -14,9 +14,17 @@ The module includes:
 """
 
 from .client import BindType, SMPPClient
+from .highlevel import Address, Client, DeliveryReceipt, Message, SendResult, connect
 
 __all__ = [
     # Main client class
     'SMPPClient',
     'BindType',
+    # High-level API
+    'connect',
+    'Client',
+    'Address',
+    'SendResult',
+    'Message',
+    'DeliveryReceipt',
 ]

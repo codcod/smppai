@@ -4,6 +4,74 @@
 `SMPPClient` is an ESME (External Short Messaging Entity): it connects
 outward to an SMSC, binds, and then sends or receives.
 
+[#high-level-api]
+== High-level API
+
+For most applications, `smpp.connect()` is all you need. It connects and
+binds in one step and hands back a `Client`:
+
+[source,python]
+----
+import smpp
+
+async with smpp.connect("localhost", 2775, "my_client", "my_pass") as client:
+    result = await client.send("+306900000000", "Γειά σου!", sender="ACME", receipt=True)
+    print(result.message_ids, result.parts, result.data_coding)
+
+    async for msg in client.messages():
+        if msg.is_receipt:
+            print("receipt", msg.receipt.id, msg.receipt.state)
+        else:
+            print("from", msg.sender.addr, ":", msg.text)
+----
+
+`connect(host, port, system_id, password, *, bind="trx", **client_kwargs)`::
+Binds as transceiver by default; pass `bind="tx"` or `bind="rx"` for
+transmitter or receiver. Any other value raises `ValueError` before a socket
+is opened. Extra keyword arguments go to the `SMPPClient` constructor.
+Leaving the block unbinds and disconnects.
+
+`send(to, text, *, sender="", receipt=False, timeout=None) -> SendResult`::
+Encodes as GSM-7 (`DataCoding.DEFAULT`) when the text fits the GSM alphabet,
+otherwise as UCS2, and splits long text into concatenated parts via
+`submit_multipart`. `receipt=True` requests a success/failure delivery
+receipt. The `SendResult` holds `message_ids` (one per part), `parts` and
+`data_coding`. Errors propagate unchanged from `submit_multipart`; a failure
+mid-sequence carries `.sent_message_ids`.
+
+`messages()`::
+An async iterator of inbound `Message` objects. Only one consumer may iterate
+at a time; a second concurrent `messages()` raises `RuntimeError`. Messages
+are queued from the moment `connect()` binds, so none are lost before you
+start iterating. Iteration ends when the `connect()` block exits, and raises
+the underlying error if the connection drops.
+
+`Message`::
+`sender` and `to` (`Address`), `text` (decoded per `data_coding`, or `None`
+when it cannot be decoded, e.g. binary data), `receipt` (`DeliveryReceipt` or
+`None`), `is_receipt`, and the raw `pdu`. Concatenated parts are reassembled
+into one `Message` before it is yielded; its `pdu` is the last part received.
+
+`DeliveryReceipt`::
+`id`, `state` (`MessageState`), `stat`, `err`, `submit_date`, `done_date` and
+`text`, parsed from the SMPP Appendix B receipt text. The
+`receipted_message_id` and `message_state` TLVs take precedence over the text
+when present and well-formed.
+
+`Address.parse(s)`::
+`"+306900000000"` becomes international/ISDN (the `+` is dropped), plain
+digits become unknown/unknown, and anything else (e.g. `"ACME"`) becomes an
+alphanumeric sender. `send` accepts a `str` or an `Address` for `to` and
+`sender`.
+
+`client.raw`::
+The underlying `SMPPClient`, for anything the high-level API does not cover
+(`query_sm`, `cancel_sm`, raw `submit_sm` fields, ...). Its `on_deliver_sm`
+and `on_connection_lost` handlers belong to `messages()`; replacing either one
+stops `messages()` from receiving.
+
+The rest of this chapter documents that low-level `SMPPClient`.
+
 == Constructing a client
 
 [source,python]

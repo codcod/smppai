@@ -11,6 +11,15 @@ message segmentation for concatenated SMS.
 
 Start with `uv sync`.
 
+Send an SMS:
+
+```python
+import smpp
+
+async with smpp.connect("localhost", 2775, "my_client", "my_pass") as client:
+    await client.send("+306900000000", "Hello!", sender="ACME")
+```
+
 Run examples with:
 
 ```bash
