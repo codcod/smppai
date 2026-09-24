@@ -1,30 +1,19 @@
 # SMPP AI - SMPP Protocol v3.4 Async Implementation
 
 An async implementation (hence "ai" in the name) of the SMPP (Short Message
-Peer-to-Peer) protocol v3.4 in Python. Built with asyncio.
+Peer-to-Peer) protocol v3.4 in Python.
 
 It provides an `SMPPClient` (ESME) and `SMPPServer` (SMSC), full PDU
 encoding/decoding with TLV optional parameters, GSM 7-bit encoding and
-message segmentation for concatenated SMS, and a graceful multi-stage
-server shutdown sequence.
+message segmentation for concatenated SMS.
 
 ## Installation
 
-```bash
-# Clone the repository
-git clone git@github.com:codcod/smppai.git
-cd smppai
-
-# Install with uv (recommended)
-uv sync
-
-# Or install with pip
-pip install -e .
-```
+Start with `uv sync`.
 
 Run examples with:
 
-````bash
+```bash
 uv run examples/server_basic.py
 uv run examples/client_basic.py  # in a separate command line
 ```
