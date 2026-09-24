@@ -526,7 +526,7 @@ class SMPPClient:
             try:
                 message_ids.append(await self._send_submit(submit_pdu, timeout))
             except Exception as e:
-                e.sent_message_ids = message_ids
+                e.sent_message_ids = message_ids  # type: ignore[attr-defined]
                 raise
 
         return message_ids
