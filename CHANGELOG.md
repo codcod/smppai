@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.1 (2026-09-24)
+
+### Bug Fixes
+
+- **protocol**: Decode header-only error resps and NUL TLVs (SMP-014)
+  ([`f5e8a2d`](https://github.com/codcod/smppai/commit/f5e8a2dddef1625f57d34d464fab555671b3e167))
+
+
 ## v0.4.0 (2026-09-24)
 
 ### Features
