@@ -1,13 +1,12 @@
 import asyncio
 
-from smpp import SMPPClient
+import smpp
 
 
 async def main():
-    async with SMPPClient('localhost', 2775, 'smppclient1', 'password') as client:
-        await client.bind_transmitter()
-        message_id = await client.submit_sm('12345', '67890', 'Hello World!')
-        print(f'Sent, message ID: {message_id}')
+    async with smpp.connect('localhost', 2775, 'smppclient1', 'password') as client:
+        result = await client.send('67890', 'Hello World!', sender='12345')
+        print(f'Sent, message IDs: {result.message_ids}')
 
 
 asyncio.run(main())

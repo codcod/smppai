@@ -6,6 +6,27 @@
 [source,python]
 ----
 import asyncio
+import smpp
+
+async def send_sms():
+    async with smpp.connect("localhost", 2775, "test_client", "password") as client:
+        result = await client.send("+306900000000", "Hello World!", sender="ACME")
+        print(f"Message sent with IDs: {result.message_ids}")
+
+asyncio.run(send_sms())
+----
+
+`connect()` connects and binds as a transceiver; leaving the block unbinds
+and disconnects. `send()` picks GSM-7 or UCS2 and splits long text for you.
+See <<high-level-api,High-level API>>.
+
+=== Low-level API
+
+The same send with `SMPPClient`, which exposes every SMPP field:
+
+[source,python]
+----
+import asyncio
 from smpp import SMPPClient
 
 async def send_sms():
