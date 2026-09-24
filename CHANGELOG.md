@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.4.0 (2026-09-24)
+
+### Features
+
+- Add query_sm, cancel_sm and replace_sm (SMP-006)
+  ([`5e1da8a`](https://github.com/codcod/smppai/commit/5e1da8a71a94839600ea1186945040f696c84505))
+
+### Testing
+
+- **client**: Cover replace_sm/_send_management errors (SMP-006)
+  ([`ec0a7bd`](https://github.com/codcod/smppai/commit/ec0a7bda94047cd9b381b176641e8c1449cdae6d))
+
+
 ## v0.3.3 (2026-09-24)
 
 ### Chores
