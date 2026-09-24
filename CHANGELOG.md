@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.6.0 (2026-09-24)
+
+### Chores
+
+- Upgrade uv.lock and remove stub justfile
+  ([`1308d46`](https://github.com/codcod/smppai/commit/1308d461e0e195d7032754a76295d3ed807af288))
+
+### Features
+
+- **client**: Add high-level connect/send/messages API (SMP-011)
+  ([`5a5ba44`](https://github.com/codcod/smppai/commit/5a5ba44906ed33d9ab5e8474950e22d729df732a))
+
+
 ## v0.5.0 (2026-09-24)
 
 ### Bug Fixes
