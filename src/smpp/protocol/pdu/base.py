@@ -38,6 +38,15 @@ def _tlv_name(tag: int) -> str:
         return f'tlv_0x{tag:04X}'
 
 
+def _printable_ascii(text: str) -> bool:
+    return text.isascii() and text.isprintable()
+
+
+def status_info_text(msg: str) -> str:
+    """Coerce msg into a valid additional_status_info_text (printable ASCII, ≤255)."""
+    return ''.join(c if _printable_ascii(c) else '?' for c in msg[:255])
+
+
 class TLVParameter:
     """
     Tag-Length-Value parameter for optional parameters.
@@ -380,18 +389,18 @@ class PDU(ABC):
         """
         Get optional parameter value typed per its SMPP v3.4 wire type.
 
-        Returns int for integer TLVs, str for C-Octet Strings (one trailing
-        NUL stripped), bytes for octet strings and unknown/vendor tags, or
-        None if absent.
+        Returns int for integer TLVs, str for C-Octet Strings (trailing NULs
+        stripped), bytes for octet strings and unknown/vendor tags, or None if
+        absent.
 
         Raises:
             SMPPValidationException: If a stored integer TLV has the wrong length
-                or a stored C-Octet String is not ASCII
+                or a stored C-Octet String is not printable ASCII or too long
         """
         value = self.get_optional_parameter_value(tag)
         if value is None or tag not in TLV_SPEC:
             return value
-        kind, size, _ = TLV_SPEC[tag]
+        kind, size, max_len = TLV_SPEC[tag]
         if kind == 'int':
             if len(value) != size:
                 name = _tlv_name(tag)
@@ -401,24 +410,36 @@ class PDU(ABC):
                 )
             return int.from_bytes(value, 'big')
         if kind == 'cstr':
-            try:
-                return value.removesuffix(b'\x00').decode('ascii')
-            except UnicodeDecodeError:
+            text = value.rstrip(b'\x00').decode('latin-1')
+            if not _printable_ascii(text):
                 name = _tlv_name(tag)
                 raise SMPPValidationException(
-                    f'{name}: not ASCII', field_name=name
-                ) from None
+                    f'{name}: not printable ASCII', field_name=name
+                )
+            if len(text) + 1 > max_len:
+                name = _tlv_name(tag)
+                raise SMPPValidationException(
+                    f'{name}: length {len(text) + 1} exceeds {max_len}',
+                    field_name=name,
+                )
+            return text
         return value
 
-    def set_tlv(self, tag: int, value: int | str | bytes) -> None:
+    def set_tlv(
+        self, tag: int, value: int | str | bytes | bytearray | memoryview
+    ) -> None:
         """
         Set optional parameter from a typed value, validated against TLV_SPEC.
 
-        Unknown/vendor tags accept bytes only.
+        Unknown/vendor tags accept bytes-like values only.
 
         Raises:
-            SMPPValidationException: If the type, range or length is invalid
+            SMPPValidationException: If the tag, type, range or length is invalid
         """
+        if not 0 <= tag <= 0xFFFF:
+            raise SMPPValidationException(
+                f'TLV tag {tag} outside 0x0000-0xFFFF', field_name='tlv_tag'
+            )
         name = _tlv_name(tag)
         kind, min_len, max_len = TLV_SPEC.get(tag, ('octets', 0, 0xFFFF))
 
@@ -434,13 +455,13 @@ class PDU(ABC):
         elif kind == 'cstr':
             if not isinstance(value, str):
                 raise fail('expected str')
-            if not (value.isascii() and value.isprintable()):
+            if not _printable_ascii(value):
                 raise fail('must be printable ASCII')
             data = value.encode('ascii') + b'\x00'
         else:
-            if not isinstance(value, bytes):
+            if not isinstance(value, (bytes, bytearray, memoryview)):
                 raise fail('expected bytes')
-            data = value
+            data = bytes(value)
         if not min_len <= len(data) <= max_len:
             raise fail(f'length {len(data)} outside {min_len}-{max_len}')
         self.add_optional_parameter(tag, data)
@@ -627,8 +648,10 @@ class ResponsePDU(PDU):
         self.command_status = error_status
 
         if error_message:
-            # Add error message as optional parameter if supported
-            self.add_optional_parameter(0x001D, error_message.encode('utf-8'))
+            self.set_tlv(
+                OptionalTag.ADDITIONAL_STATUS_INFO_TEXT,
+                status_info_text(error_message),
+            )
 
         return self
 

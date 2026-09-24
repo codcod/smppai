@@ -77,15 +77,20 @@ state = MessageState(pdu.get_tlv(OptionalTag.MESSAGE_STATE))
 pdu.get_tlv(OptionalTag.NETWORK_ERROR_CODE)          # bytes, or None if absent
 ----
 
-Integer tags come back as `int`, C-Octet Strings as `str` (trailing NUL
+Integer tags come back as `int`, C-Octet Strings as `str` (trailing NULs
 stripped) and octet strings as `bytes`; unknown or vendor-specific tags
-always come back as raw `bytes`. `set_tlv` checks the value's type, integer
-range, printable ASCII (for strings) and length against the spec
-(`smpp.protocol.constants.TLV_SPEC`) and raises `SMPPValidationException`
-before anything is added. Decoding stays lenient, so a peer's odd TLV never
-drops the connection; `get_tlv` raises `SMPPValidationException` only when a
-stored integer TLV has the wrong size or a stored C-Octet String is not
-ASCII — fall back to `get_optional_parameter_value` there.
+always come back as raw `bytes`. `set_tlv` checks the tag range, the value's
+type, integer range, printable ASCII (for strings) and length against the
+spec (`smpp.protocol.constants.TLV_SPEC`) and raises
+`SMPPValidationException` before anything is added.
+
+Decoding does not check TLVs against the spec, with one exception: a
+`receipted_message_id` that is not printable ASCII (after one trailing NUL)
+fails decode with `SMPPPDUException`. For everything else, `get_tlv` raises
+`SMPPValidationException` when a stored integer TLV has the wrong size or a
+stored C-Octet String is not printable ASCII or exceeds its spec length —
+fall back to
+`get_optional_parameter_value` there.
 
 == PDU header and framing
 

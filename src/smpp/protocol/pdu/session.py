@@ -11,8 +11,8 @@ from typing import Optional
 
 from ...exceptions import SMPPPDUException
 from ..codec import codec_for_data_coding
-from ..constants import CommandId
-from .base import EmptyBodyPDU, RequestPDU, ResponsePDU
+from ..constants import CommandId, OptionalTag
+from .base import EmptyBodyPDU, RequestPDU, ResponsePDU, status_info_text
 
 
 @dataclass
@@ -63,7 +63,10 @@ class GenericNack(EmptyBodyPDU, ResponsePDU):
 
         if error_message:
             # Add error message as optional parameter
-            self.add_optional_parameter(0x001D, error_message.encode('utf-8'))
+            self.set_tlv(
+                OptionalTag.ADDITIONAL_STATUS_INFO_TEXT,
+                status_info_text(error_message),
+            )
 
         return self
 
