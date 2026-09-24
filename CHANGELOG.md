@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.5.0 (2026-09-24)
+
+### Bug Fixes
+
+- **protocol**: Tighten typed TLV accessor edge cases (SMP-017)
+  ([`24ad98a`](https://github.com/codcod/smppai/commit/24ad98ae9db4d62dacc01e6015a79622cf891271))
+
+### Features
+
+- **protocol**: Add typed get_tlv/set_tlv TLV accessors (SMP-009)
+  ([`59ad11f`](https://github.com/codcod/smppai/commit/59ad11f61c3647ff08dd64bb5491116516a20d95))
+
+
 ## v0.4.1 (2026-09-24)
 
 ### Bug Fixes
