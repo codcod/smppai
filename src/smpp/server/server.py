@@ -9,7 +9,7 @@ import asyncio
 import logging
 import signal
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..exceptions import SMPPException
 from ..protocol import (
@@ -20,6 +20,8 @@ from ..protocol import (
     BindTransceiverResp,
     BindTransmitter,
     BindTransmitterResp,
+    CancelSm,
+    CancelSmResp,
     CommandStatus,
     DataCoding,
     DeliverSm,
@@ -28,6 +30,10 @@ from ..protocol import (
     EnquireLinkResp,
     GenericNack,
     NpiType,
+    QuerySm,
+    QuerySmResp,
+    ReplaceSm,
+    ReplaceSmResp,
     SubmitSm,
     SubmitSmResp,
     TonType,
@@ -156,6 +162,18 @@ class SMPPServer:
         ] = None
         self.on_message_received: Optional[
             Callable[['SMPPServer', ClientSession, SubmitSm], Optional[str]]
+        ] = None
+        self.on_query_sm: Optional[
+            Callable[
+                ['SMPPServer', ClientSession, QuerySm],
+                Optional[Tuple[int, str, int]],
+            ]
+        ] = None
+        self.on_cancel_sm: Optional[
+            Callable[['SMPPServer', ClientSession, CancelSm], bool]
+        ] = None
+        self.on_replace_sm: Optional[
+            Callable[['SMPPServer', ClientSession, ReplaceSm], bool]
         ] = None
 
         # Default authentication (allows all)
@@ -625,6 +643,12 @@ class SMPPServer:
                 asyncio.create_task(self._handle_unbind_request(session, pdu))
             elif isinstance(pdu, SubmitSm):
                 asyncio.create_task(self._handle_submit_sm(session, pdu))
+            elif isinstance(pdu, QuerySm):
+                asyncio.create_task(self._handle_query_sm(session, pdu))
+            elif isinstance(pdu, CancelSm):
+                asyncio.create_task(self._handle_cancel_sm(session, pdu))
+            elif isinstance(pdu, ReplaceSm):
+                asyncio.create_task(self._handle_replace_sm(session, pdu))
             elif isinstance(pdu, EnquireLink):
                 asyncio.create_task(self._handle_enquire_link(session, pdu))
             elif isinstance(pdu, DeliverSmResp):
@@ -851,6 +875,118 @@ class SMPPServer:
 
         except Exception as e:
             logger.error(f'Failed to send submit_sm response: {e}')
+
+    async def _send_response(
+        self, session: ClientSession, resp_pdu: PDU, operation: str
+    ) -> None:
+        """Send a query_sm/cancel_sm/replace_sm response to client"""
+        try:
+            await session.connection.send_pdu(resp_pdu, wait_response=False)
+        except Exception as e:
+            logger.error(f'Failed to send {operation} response: {e}')
+
+    async def _handle_query_sm(self, session: ClientSession, pdu: QuerySm) -> None:
+        """Handle query_sm request from client"""
+        if not session.bound or session.bind_type not in (
+            'transmitter',
+            'transceiver',
+        ):
+            await self._send_response(
+                session,
+                QuerySmResp(
+                    sequence_number=pdu.sequence_number,
+                    command_status=CommandStatus.ESME_RINVBNDSTS,
+                ),
+                'query_sm',
+            )
+            return
+
+        result = None
+        if self.on_query_sm:
+            try:
+                result = self.on_query_sm(self, session, pdu)
+            except Exception as e:
+                logger.exception(f'Error in query_sm handler: {e}')
+
+        if result is None:
+            resp = QuerySmResp(
+                sequence_number=pdu.sequence_number,
+                command_status=CommandStatus.ESME_RQUERYFAIL,
+                message_id=pdu.message_id,
+            )
+        else:
+            message_state, final_date, error_code = result
+            resp = QuerySmResp(
+                sequence_number=pdu.sequence_number,
+                command_status=CommandStatus.ESME_ROK,
+                message_id=pdu.message_id,
+                final_date=final_date,
+                message_state=message_state,
+                error_code=error_code,
+            )
+        await self._send_response(session, resp, 'query_sm')
+
+    async def _handle_cancel_sm(self, session: ClientSession, pdu: CancelSm) -> None:
+        """Handle cancel_sm request from client"""
+        if not session.bound or session.bind_type not in (
+            'transmitter',
+            'transceiver',
+        ):
+            await self._send_response(
+                session,
+                CancelSmResp(
+                    sequence_number=pdu.sequence_number,
+                    command_status=CommandStatus.ESME_RINVBNDSTS,
+                ),
+                'cancel_sm',
+            )
+            return
+
+        success = False
+        if self.on_cancel_sm:
+            try:
+                success = self.on_cancel_sm(self, session, pdu)
+            except Exception as e:
+                logger.exception(f'Error in cancel_sm handler: {e}')
+                success = False
+
+        status = CommandStatus.ESME_ROK if success else CommandStatus.ESME_RCANCELFAIL
+        await self._send_response(
+            session,
+            CancelSmResp(sequence_number=pdu.sequence_number, command_status=status),
+            'cancel_sm',
+        )
+
+    async def _handle_replace_sm(self, session: ClientSession, pdu: ReplaceSm) -> None:
+        """Handle replace_sm request from client"""
+        if not session.bound or session.bind_type not in (
+            'transmitter',
+            'transceiver',
+        ):
+            await self._send_response(
+                session,
+                ReplaceSmResp(
+                    sequence_number=pdu.sequence_number,
+                    command_status=CommandStatus.ESME_RINVBNDSTS,
+                ),
+                'replace_sm',
+            )
+            return
+
+        success = False
+        if self.on_replace_sm:
+            try:
+                success = self.on_replace_sm(self, session, pdu)
+            except Exception as e:
+                logger.exception(f'Error in replace_sm handler: {e}')
+                success = False
+
+        status = CommandStatus.ESME_ROK if success else CommandStatus.ESME_RREPLACEFAIL
+        await self._send_response(
+            session,
+            ReplaceSmResp(sequence_number=pdu.sequence_number, command_status=status),
+            'replace_sm',
+        )
 
     async def _handle_enquire_link(
         self, session: ClientSession, pdu: EnquireLink

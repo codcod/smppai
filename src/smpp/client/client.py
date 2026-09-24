@@ -27,6 +27,7 @@ from ..protocol import (
     BindReceiver,
     BindTransceiver,
     BindTransmitter,
+    CancelSm,
     CommandId,
     CommandStatus,
     DataCoding,
@@ -35,11 +36,15 @@ from ..protocol import (
     EnquireLink,
     EnquireLinkResp,
     NpiType,
+    QuerySm,
+    QuerySmResp,
     RegisteredDelivery,
+    ReplaceSm,
     SubmitSm,
     TonType,
     Unbind,
     UnbindResp,
+    encode_message_with_encoding,
     get_error_message,
 )
 from ..protocol.constants import DEFAULT_INTERFACE_VERSION, MAX_SHORT_MESSAGE_LENGTH
@@ -526,6 +531,181 @@ class SMPPClient:
                 raise
 
         return message_ids
+
+    async def query_sm(
+        self,
+        message_id: str,
+        source_addr: str = '',
+        source_addr_ton: int = TonType.UNKNOWN,
+        source_addr_npi: int = NpiType.UNKNOWN,
+        timeout: Optional[float] = None,
+    ) -> QuerySmResp:
+        """
+        Query the status of a previously submitted message
+
+        Args:
+            message_id: SMSC-assigned message ID to query
+            source_addr: Source address used on the original submission
+            source_addr_ton: Source address Type of Number
+            source_addr_npi: Source address Numbering Plan Indicator
+            timeout: Response timeout
+
+        Returns:
+            QuerySmResp, with typed message_state, final_date and error_code
+
+        Raises:
+            SMPPInvalidStateException: If not bound as transmitter or transceiver
+            SMPPMessageException: If the query fails
+        """
+        self._require_tx_bind()
+
+        query_pdu = QuerySm(  # type: ignore[call-arg]
+            message_id=message_id,
+            source_addr_ton=source_addr_ton,
+            source_addr_npi=source_addr_npi,
+            source_addr=source_addr,
+        )
+        response = await self._send_management(query_pdu, timeout)
+        return response  # type: ignore[return-value]
+
+    async def cancel_sm(
+        self,
+        message_id: str,
+        source_addr: str = '',
+        destination_addr: str = '',
+        service_type: str = '',
+        source_addr_ton: int = TonType.UNKNOWN,
+        source_addr_npi: int = NpiType.UNKNOWN,
+        dest_addr_ton: int = TonType.UNKNOWN,
+        dest_addr_npi: int = NpiType.UNKNOWN,
+        timeout: Optional[float] = None,
+    ) -> None:
+        """
+        Cancel a previously submitted message
+
+        Args:
+            message_id: SMSC-assigned message ID to cancel
+            source_addr: Source address used on the original submission
+            destination_addr: Destination address used on the original submission
+            service_type: Service type used on the original submission
+            source_addr_ton: Source address Type of Number
+            source_addr_npi: Source address Numbering Plan Indicator
+            dest_addr_ton: Destination address Type of Number
+            dest_addr_npi: Destination address Numbering Plan Indicator
+            timeout: Response timeout
+
+        Raises:
+            SMPPInvalidStateException: If not bound as transmitter or transceiver
+            SMPPMessageException: If the cancel fails
+        """
+        self._require_tx_bind()
+
+        cancel_pdu = CancelSm(  # type: ignore[call-arg]
+            service_type=service_type,
+            message_id=message_id,
+            source_addr_ton=source_addr_ton,
+            source_addr_npi=source_addr_npi,
+            source_addr=source_addr,
+            dest_addr_ton=dest_addr_ton,
+            dest_addr_npi=dest_addr_npi,
+            destination_addr=destination_addr,
+        )
+        await self._send_management(cancel_pdu, timeout)
+
+    async def replace_sm(
+        self,
+        message_id: str,
+        short_message: str,
+        source_addr: str = '',
+        source_addr_ton: int = TonType.UNKNOWN,
+        source_addr_npi: int = NpiType.UNKNOWN,
+        data_coding: int = DataCoding.DEFAULT,
+        schedule_delivery_time: str = '',
+        validity_period: str = '',
+        registered_delivery: int = RegisteredDelivery.NO_RECEIPT,
+        sm_default_msg_id: int = 0,
+        timeout: Optional[float] = None,
+    ) -> None:
+        """
+        Replace the text of a previously submitted message
+
+        replace_sm has no data_coding field of its own; the SMSC applies the
+        original message's, so data_coding must match what the message was
+        originally submitted with.
+
+        Args:
+            message_id: SMSC-assigned message ID to replace
+            short_message: New message text
+            source_addr: Source address used on the original submission
+            source_addr_ton: Source address Type of Number
+            source_addr_npi: Source address Numbering Plan Indicator
+            data_coding: Data coding used to encode short_message (must match
+                the original submission)
+            schedule_delivery_time: New scheduled delivery time
+            validity_period: New validity period
+            registered_delivery: New registered delivery flag
+            sm_default_msg_id: New default message ID
+            timeout: Response timeout
+
+        Raises:
+            SMPPInvalidStateException: If not bound as transmitter or transceiver
+            SMPPMessageException: If the message can't be encoded, is too
+                long, or the replace fails
+        """
+        self._require_tx_bind()
+
+        try:
+            encoded_message = encode_message_with_encoding(short_message, data_coding)
+        except SMPPPDUException as e:
+            raise SMPPMessageException(str(e)) from e
+        if len(encoded_message) > MAX_SHORT_MESSAGE_LENGTH:
+            raise SMPPMessageException(
+                f'Message too long: {len(encoded_message)} bytes'
+            )
+
+        replace_pdu = ReplaceSm(  # type: ignore[call-arg]
+            message_id=message_id,
+            source_addr_ton=source_addr_ton,
+            source_addr_npi=source_addr_npi,
+            source_addr=source_addr,
+            schedule_delivery_time=schedule_delivery_time,
+            validity_period=validity_period,
+            registered_delivery=registered_delivery,
+            sm_default_msg_id=sm_default_msg_id,
+            short_message=encoded_message,
+        )
+        await self._send_management(replace_pdu, timeout)
+
+    async def _send_management(self, pdu: PDU, timeout: Optional[float]) -> PDU:
+        """Send a query/cancel/replace_sm PDU and raise on a non-ESME_ROK response."""
+        try:
+            if self._connection is None:
+                raise SMPPMessageException('Not connected to SMSC')
+
+            response = await self._connection.send_pdu(
+                pdu, wait_response=True, timeout=timeout or self.response_timeout
+            )
+
+            if response is None:
+                raise SMPPMessageException('No response received from SMSC')
+
+            if response.command_status != CommandStatus.ESME_ROK:
+                error_msg = get_error_message(response.command_status)
+                exc_type = (
+                    SMPPThrottlingException
+                    if response.command_status in _THROTTLE_STATUSES
+                    else SMPPMessageException
+                )
+                raise exc_type(error_msg, command_status=response.command_status)
+
+            return response
+
+        except SMPPTimeoutException:
+            raise SMPPMessageException('Operation timed out')
+        except Exception as e:
+            if isinstance(e, SMPPMessageException):
+                raise
+            raise SMPPMessageException(f'Operation failed: {e}')
 
     async def enquire_link(self, timeout: Optional[float] = None) -> bool:
         """

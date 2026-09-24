@@ -13,12 +13,18 @@ from smpp.protocol import (
     BindTransceiver,
     BindTransmitter,
     BindTransmitterResp,
+    CancelSm,
+    CancelSmResp,
     CommandStatus,
     DataCoding,
     DeliverSm,
     EnquireLink,
     EnquireLinkResp,
     GenericNack,
+    QuerySm,
+    QuerySmResp,
+    ReplaceSm,
+    ReplaceSmResp,
     SubmitSm,
     SubmitSmResp,
     TonType,
@@ -432,6 +438,39 @@ class TestSMPPServerPDUHandling:
         )
 
         with patch.object(server, '_handle_submit_sm') as mock_handler:
+            with patch('asyncio.create_task'):
+                server._handle_client_pdu(session, pdu)
+                mock_handler.assert_called_once()
+
+    def test_handle_query_sm_pdu(self):
+        """Test handling of QuerySm PDU through PDU handler."""
+        server = SMPPServer()
+        session = ClientSession(connection=Mock())
+        pdu = QuerySm(message_id='MSG123')
+
+        with patch.object(server, '_handle_query_sm') as mock_handler:
+            with patch('asyncio.create_task'):
+                server._handle_client_pdu(session, pdu)
+                mock_handler.assert_called_once()
+
+    def test_handle_cancel_sm_pdu(self):
+        """Test handling of CancelSm PDU through PDU handler."""
+        server = SMPPServer()
+        session = ClientSession(connection=Mock())
+        pdu = CancelSm(message_id='MSG123')
+
+        with patch.object(server, '_handle_cancel_sm') as mock_handler:
+            with patch('asyncio.create_task'):
+                server._handle_client_pdu(session, pdu)
+                mock_handler.assert_called_once()
+
+    def test_handle_replace_sm_pdu(self):
+        """Test handling of ReplaceSm PDU through PDU handler."""
+        server = SMPPServer()
+        session = ClientSession(connection=Mock())
+        pdu = ReplaceSm(message_id='MSG123', short_message=b'hi')
+
+        with patch.object(server, '_handle_replace_sm') as mock_handler:
             with patch('asyncio.create_task'):
                 server._handle_client_pdu(session, pdu)
                 mock_handler.assert_called_once()
@@ -1186,6 +1225,199 @@ class TestSMPPServerSubmitSmHandling:
             # Should send error response
             sent_pdu = session.connection.send_pdu.call_args[0][0]
             assert sent_pdu.command_status == CommandStatus.ESME_RSUBMITFAIL
+
+
+class TestSMPPServerQuerySmHandling:
+    """Tests for query_sm request handling."""
+
+    @pytest.mark.asyncio
+    async def test_handle_query_sm_no_callback(self):
+        """Test query_sm with no callback answers ESME_RQUERYFAIL, not GENERIC_NACK."""
+        server = SMPPServer()
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transmitter'
+        )
+        pdu = QuerySm(sequence_number=1, message_id='MSG123', source_addr='12345')
+
+        await server._handle_query_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert isinstance(sent_pdu, QuerySmResp)
+        assert sent_pdu.command_status == CommandStatus.ESME_RQUERYFAIL
+
+    @pytest.mark.asyncio
+    async def test_handle_query_sm_with_callback(self):
+        """Test query_sm with a callback echoes message_id and the returned tuple."""
+        server = SMPPServer()
+        server.on_query_sm = Mock(return_value=(2, '210101120000000+', 0))
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transceiver'
+        )
+        pdu = QuerySm(sequence_number=1, message_id='MSG123', source_addr='12345')
+
+        await server._handle_query_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_ROK
+        assert sent_pdu.message_id == 'MSG123'
+        assert sent_pdu.message_state == 2
+        assert sent_pdu.final_date == '210101120000000+'
+        assert sent_pdu.error_code == 0
+
+    @pytest.mark.asyncio
+    async def test_handle_query_sm_callback_raises(self):
+        """Test a raising query_sm callback gives the failure status."""
+        server = SMPPServer()
+        server.on_query_sm = Mock(side_effect=Exception('boom'))
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transmitter'
+        )
+        pdu = QuerySm(sequence_number=1, message_id='MSG123')
+
+        await server._handle_query_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_RQUERYFAIL
+
+    @pytest.mark.asyncio
+    async def test_handle_query_sm_receiver_bound(self):
+        """Test query_sm from a receiver-bound session gets ESME_RINVBNDSTS."""
+        server = SMPPServer()
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='receiver'
+        )
+        pdu = QuerySm(sequence_number=1, message_id='MSG123')
+
+        await server._handle_query_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_RINVBNDSTS
+
+
+class TestSMPPServerCancelSmHandling:
+    """Tests for cancel_sm request handling."""
+
+    @pytest.mark.asyncio
+    async def test_handle_cancel_sm_no_callback(self):
+        """Test cancel_sm with no callback answers ESME_RCANCELFAIL, not GENERIC_NACK."""
+        server = SMPPServer()
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transmitter'
+        )
+        pdu = CancelSm(sequence_number=1, message_id='MSG123')
+
+        await server._handle_cancel_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert isinstance(sent_pdu, CancelSmResp)
+        assert sent_pdu.command_status == CommandStatus.ESME_RCANCELFAIL
+
+    @pytest.mark.asyncio
+    async def test_handle_cancel_sm_with_callback(self):
+        """Test cancel_sm with a callback returning True answers ESME_ROK."""
+        server = SMPPServer()
+        server.on_cancel_sm = Mock(return_value=True)
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transceiver'
+        )
+        pdu = CancelSm(sequence_number=1, message_id='MSG123')
+
+        await server._handle_cancel_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_ROK
+
+    @pytest.mark.asyncio
+    async def test_handle_cancel_sm_callback_raises(self):
+        """Test a raising cancel_sm callback gives the failure status."""
+        server = SMPPServer()
+        server.on_cancel_sm = Mock(side_effect=Exception('boom'))
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transmitter'
+        )
+        pdu = CancelSm(sequence_number=1, message_id='MSG123')
+
+        await server._handle_cancel_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_RCANCELFAIL
+
+    @pytest.mark.asyncio
+    async def test_handle_cancel_sm_receiver_bound(self):
+        """Test cancel_sm from a receiver-bound session gets ESME_RINVBNDSTS."""
+        server = SMPPServer()
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='receiver'
+        )
+        pdu = CancelSm(sequence_number=1, message_id='MSG123')
+
+        await server._handle_cancel_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_RINVBNDSTS
+
+
+class TestSMPPServerReplaceSmHandling:
+    """Tests for replace_sm request handling."""
+
+    @pytest.mark.asyncio
+    async def test_handle_replace_sm_no_callback(self):
+        """Test replace_sm with no callback answers ESME_RREPLACEFAIL, not GENERIC_NACK."""
+        server = SMPPServer()
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transmitter'
+        )
+        pdu = ReplaceSm(sequence_number=1, message_id='MSG123', short_message=b'hi')
+
+        await server._handle_replace_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert isinstance(sent_pdu, ReplaceSmResp)
+        assert sent_pdu.command_status == CommandStatus.ESME_RREPLACEFAIL
+
+    @pytest.mark.asyncio
+    async def test_handle_replace_sm_with_callback(self):
+        """Test replace_sm with a callback returning True answers ESME_ROK."""
+        server = SMPPServer()
+        server.on_replace_sm = Mock(return_value=True)
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transceiver'
+        )
+        pdu = ReplaceSm(sequence_number=1, message_id='MSG123', short_message=b'hi')
+
+        await server._handle_replace_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_ROK
+
+    @pytest.mark.asyncio
+    async def test_handle_replace_sm_callback_raises(self):
+        """Test a raising replace_sm callback gives the failure status."""
+        server = SMPPServer()
+        server.on_replace_sm = Mock(side_effect=Exception('boom'))
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transmitter'
+        )
+        pdu = ReplaceSm(sequence_number=1, message_id='MSG123', short_message=b'hi')
+
+        await server._handle_replace_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_RREPLACEFAIL
+
+    @pytest.mark.asyncio
+    async def test_handle_replace_sm_receiver_bound(self):
+        """Test replace_sm from a receiver-bound session gets ESME_RINVBNDSTS."""
+        server = SMPPServer()
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='receiver'
+        )
+        pdu = ReplaceSm(sequence_number=1, message_id='MSG123', short_message=b'hi')
+
+        await server._handle_replace_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_RINVBNDSTS
 
 
 class TestSMPPServerEnquireLinkHandling:

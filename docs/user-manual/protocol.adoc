@@ -17,6 +17,13 @@
 | Message operations
 | `SubmitSm`, `SubmitSmResp`, `DeliverSm`, `DeliverSmResp`
 
+| Message management
+| `QuerySm`, `QuerySmResp`, `CancelSm`, `CancelSmResp`, `ReplaceSm`,
+  `ReplaceSmResp` — sent/handled by `SMPPClient.query_sm()` /
+  `cancel_sm()` / `replace_sm()` and `SMPPServer`'s `on_query_sm` /
+  `on_cancel_sm` / `on_replace_sm` callbacks; see <<client,The client>> and
+  <<server,The server>>.
+
 | Auxiliary
 | `EnquireLink`, `EnquireLinkResp`, `GenericNack`
 |===
@@ -26,10 +33,9 @@ Factory helpers: `create_pdu(command_id, **kwargs)`,
 `decode_pdu(data: bytes) -> PDU` (equivalent to `PDU.decode(data)`).
 
 A wider set of command IDs is defined in `smpp.protocol.constants.CommandId`
-(`query_sm`, `replace_sm`, `cancel_sm`, `submit_multi`,
-`alert_notification`, `data_sm`) and a few of their PDU classes exist under
-`smpp.protocol.pdu` (`AlertNotification`, `DataSm`, `DataSmResp`, `QuerySm`,
-`QuerySmResp`) for anyone decoding raw traffic — but `SMPPClient` and
+(`submit_multi`, `alert_notification`, `data_sm`) and a few of their PDU
+classes exist under `smpp.protocol.pdu` (`AlertNotification`, `DataSm`,
+`DataSmResp`) for anyone decoding raw traffic — but `SMPPClient` and
 `SMPPServer` don't send or handle them, so they aren't re-exported from the
 top-level `smpp` package.
 

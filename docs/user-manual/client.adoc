@@ -115,11 +115,48 @@ per part as a UDH-concatenated SMS, and returns their `message_id`s in part
 order (a message that fits one segment returns a list of length 1). Parts
 are sent sequentially and stop at the first failure; the raised
 `SMPPMessageException` carries `.sent_message_ids`, the ids already
-accepted, so the caller can correlate or cancel them — there is no rollback
-or retry. `submit_sm` itself still raises `SMPPMessageException` above
-`MAX_SHORT_MESSAGE_LENGTH` (254 octets) and never splits on its own. See
-<<gsm,GSM encoding, segmentation and UDH>> for the encoding and budget
-details.
+accepted, so the caller can cancel them with `cancel_sm(message_id, ...)`
+(see <<managing-submitted-messages,Managing submitted messages>>) — there
+is no automatic rollback or retry. `submit_sm` itself still raises
+`SMPPMessageException` above `MAX_SHORT_MESSAGE_LENGTH` (254 octets) and
+never splits on its own. See <<gsm,GSM encoding, segmentation and UDH>> for
+the encoding and budget details.
+
+[#managing-submitted-messages]
+== Managing submitted messages
+
+Once a message is submitted, its SMSC-assigned `message_id` can be used to
+query its status, cancel it, or replace its text. All three require a
+transmitter or transceiver bind, like `submit_sm`, and raise
+`SMPPInvalidStateException` otherwise. A non-`ESME_ROK` response raises
+`SMPPMessageException` with `.command_status` set to the SMSC's status code.
+
+[source,python]
+----
+response = await client.query_sm(message_id, source_addr="1234")
+response.message_state  # a smpp.MessageState value
+response.final_date
+response.error_code
+
+await client.cancel_sm(message_id, source_addr="1234", destination_addr="5678")
+
+await client.replace_sm(
+    message_id,
+    "Updated text",
+    source_addr="1234",
+    data_coding=DataCoding.DEFAULT,
+)
+----
+
+`query_sm` returns the `QuerySmResp` PDU, with typed `message_state`,
+`final_date` and `error_code` fields. `cancel_sm` and `replace_sm` return
+`None` on success.
+
+`replace_sm` has no `data_coding` field of its own — the SMSC applies the
+original message's data_coding when redisplaying the replacement text, so
+pass the same `data_coding` the message was originally submitted with. The
+encoded replacement text is capped at `MAX_SHORT_MESSAGE_LENGTH` (254
+octets), like `submit_sm`.
 
 == Testing the link
 

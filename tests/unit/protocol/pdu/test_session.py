@@ -4,15 +4,20 @@ import pytest
 
 from smpp.exceptions import SMPPPDUException
 from smpp.protocol.constants import CommandId, CommandStatus
+from smpp.protocol.pdu.factory import decode_pdu, get_pdu_class
 from smpp.protocol.pdu.session import (
     EnquireLink,
     EnquireLinkResp,
     GenericNack,
     AlertNotification,
+    CancelSm,
+    CancelSmResp,
     DataSm,
     DataSmResp,
     QuerySm,
     QuerySmResp,
+    ReplaceSm,
+    ReplaceSmResp,
 )
 
 
@@ -446,3 +451,177 @@ class TestQuerySmResp:
 
         with pytest.raises(SMPPPDUException, match='Insufficient data'):
             pdu.decode_body(short_data)
+
+
+class TestCancelSm:
+    """Test CancelSm PDU."""
+
+    def test_init_default(self):
+        """Test CancelSm initialization."""
+        pdu = CancelSm()
+        assert pdu.command_id == CommandId.CANCEL_SM
+        assert pdu.service_type == ''
+        assert pdu.message_id == ''
+        assert pdu.source_addr_ton == 0
+        assert pdu.source_addr_npi == 0
+        assert pdu.source_addr == ''
+        assert pdu.dest_addr_ton == 0
+        assert pdu.dest_addr_npi == 0
+        assert pdu.destination_addr == ''
+
+    def test_encode_decode_round_trip(self):
+        """Test CancelSm body encode/decode round trip."""
+        pdu = CancelSm(
+            service_type='svc',
+            message_id='MSG123',
+            source_addr_ton=1,
+            source_addr_npi=2,
+            source_addr='src',
+            dest_addr_ton=3,
+            dest_addr_npi=4,
+            destination_addr='dst',
+            sequence_number=7,
+        )
+        body = pdu.encode_body()
+
+        decoded = CancelSm()
+        offset = decoded.decode_body(body)
+
+        assert offset == len(body)
+        assert decoded.service_type == 'svc'
+        assert decoded.message_id == 'MSG123'
+        assert decoded.source_addr_ton == 1
+        assert decoded.source_addr_npi == 2
+        assert decoded.source_addr == 'src'
+        assert decoded.dest_addr_ton == 3
+        assert decoded.dest_addr_npi == 4
+        assert decoded.destination_addr == 'dst'
+
+    def test_full_pdu_round_trip(self):
+        """Test CancelSm full PDU (header + body) round trip via decode_pdu."""
+        pdu = CancelSm(
+            message_id='MSG123',
+            source_addr='1',
+            destination_addr='2',
+            sequence_number=1,
+        )
+        decoded = decode_pdu(pdu.encode())
+        assert isinstance(decoded, CancelSm)
+        assert decoded.encode() == pdu.encode()
+
+    def test_validate_requires_message_id(self):
+        """Test CancelSm validate rejects an empty message_id."""
+        pdu = CancelSm(source_addr='1', destination_addr='2')
+        with pytest.raises(SMPPPDUException, match='message_id cannot be empty'):
+            pdu.validate()
+
+
+class TestCancelSmResp:
+    """Test CancelSmResp PDU."""
+
+    def test_init_default(self):
+        """Test CancelSmResp initialization."""
+        pdu = CancelSmResp()
+        assert pdu.command_id == CommandId.CANCEL_SM_RESP
+
+    def test_full_pdu_round_trip(self):
+        """Test CancelSmResp full PDU round trip via decode_pdu."""
+        pdu = CancelSmResp(sequence_number=9)
+        decoded = decode_pdu(pdu.encode())
+        assert isinstance(decoded, CancelSmResp)
+        assert decoded.sequence_number == 9
+        assert decoded.encode() == pdu.encode()
+
+
+class TestReplaceSm:
+    """Test ReplaceSm PDU."""
+
+    def test_init_default(self):
+        """Test ReplaceSm initialization."""
+        pdu = ReplaceSm()
+        assert pdu.command_id == CommandId.REPLACE_SM
+        assert pdu.message_id == ''
+        assert pdu.short_message == b''
+
+    def test_encode_decode_round_trip(self):
+        """Test ReplaceSm body encode/decode round trip."""
+        pdu = ReplaceSm(
+            message_id='MSG123',
+            source_addr_ton=1,
+            source_addr_npi=2,
+            source_addr='src',
+            schedule_delivery_time='',
+            validity_period='',
+            registered_delivery=1,
+            sm_default_msg_id=0,
+            short_message=b'hello',
+            sequence_number=5,
+        )
+        body = pdu.encode_body()
+
+        decoded = ReplaceSm()
+        offset = decoded.decode_body(body)
+
+        assert offset == len(body)
+        assert decoded.message_id == 'MSG123'
+        assert decoded.source_addr == 'src'
+        assert decoded.registered_delivery == 1
+        assert decoded.short_message == b'hello'
+
+    def test_short_message_zero_octets_round_trip(self):
+        """Test ReplaceSm with an empty short_message round-trips."""
+        pdu = ReplaceSm(
+            message_id='m', source_addr='s', short_message=b'', sequence_number=1
+        )
+        decoded = decode_pdu(pdu.encode())
+        assert isinstance(decoded, ReplaceSm)
+        assert decoded.short_message == b''
+
+    def test_short_message_254_octets_round_trip(self):
+        """Test ReplaceSm with the maximum 254-octet short_message round-trips."""
+        pdu = ReplaceSm(
+            message_id='m', source_addr='s', short_message=b'x' * 254, sequence_number=1
+        )
+        decoded = decode_pdu(pdu.encode())
+        assert isinstance(decoded, ReplaceSm)
+        assert decoded.short_message == b'x' * 254
+
+    def test_validate_rejects_255_octets(self):
+        """Test ReplaceSm validate rejects a 255-octet short_message."""
+        pdu = ReplaceSm(message_id='m', source_addr='s', short_message=b'x' * 255)
+        with pytest.raises(SMPPPDUException, match='short_message too long'):
+            pdu.validate()
+
+    def test_validate_requires_message_id(self):
+        """Test ReplaceSm validate rejects an empty message_id."""
+        pdu = ReplaceSm(source_addr='s', short_message=b'x')
+        with pytest.raises(SMPPPDUException, match='message_id cannot be empty'):
+            pdu.validate()
+
+
+class TestReplaceSmResp:
+    """Test ReplaceSmResp PDU."""
+
+    def test_init_default(self):
+        """Test ReplaceSmResp initialization."""
+        pdu = ReplaceSmResp()
+        assert pdu.command_id == CommandId.REPLACE_SM_RESP
+
+    def test_full_pdu_round_trip(self):
+        """Test ReplaceSmResp full PDU round trip via decode_pdu."""
+        pdu = ReplaceSmResp(sequence_number=11)
+        decoded = decode_pdu(pdu.encode())
+        assert isinstance(decoded, ReplaceSmResp)
+        assert decoded.sequence_number == 11
+        assert decoded.encode() == pdu.encode()
+
+
+class TestGetPduClassMessageManagement:
+    """get_pdu_class resolves the new message-management command IDs."""
+
+    def test_resolves_cancel_and_replace(self):
+        """Test get_pdu_class resolves CANCEL_SM and REPLACE_SM (+ _RESP)."""
+        assert get_pdu_class(CommandId.CANCEL_SM) is CancelSm
+        assert get_pdu_class(CommandId.CANCEL_SM_RESP) is CancelSmResp
+        assert get_pdu_class(CommandId.REPLACE_SM) is ReplaceSm
+        assert get_pdu_class(CommandId.REPLACE_SM_RESP) is ReplaceSmResp

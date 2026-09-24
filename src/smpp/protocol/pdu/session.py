@@ -452,3 +452,192 @@ class QuerySmResp(ResponsePDU):
             return state_names.get(message_state, f'UNKNOWN_{self.message_state}')
         except ValueError:
             return f'UNKNOWN_{self.message_state}'
+
+
+@dataclass
+class CancelSm(RequestPDU):
+    """CANCEL_SM PDU - Cancel a previously submitted message"""
+
+    service_type: str = ''
+    message_id: str = ''
+    source_addr_ton: int = 0
+    source_addr_npi: int = 0
+    source_addr: str = ''
+    dest_addr_ton: int = 0
+    dest_addr_npi: int = 0
+    destination_addr: str = ''
+
+    def __post_init__(self):
+        if self.command_id == 0:
+            self.command_id = CommandId.CANCEL_SM
+        super().__post_init__()
+
+    def encode_body(self) -> bytes:
+        """Encode cancel_sm body"""
+        from ..codec import encode_cstring
+
+        return (
+            encode_cstring(self.service_type, 6)
+            + encode_cstring(self.message_id, 65)
+            + struct.pack('BB', self.source_addr_ton, self.source_addr_npi)
+            + encode_cstring(self.source_addr, 21)
+            + struct.pack('BB', self.dest_addr_ton, self.dest_addr_npi)
+            + encode_cstring(self.destination_addr, 21)
+        )
+
+    def decode_body(self, data: bytes, offset: int = 0) -> int:
+        """Decode cancel_sm body"""
+        from ..codec import decode_cstring
+
+        self.service_type, offset = decode_cstring(data, offset, 6)
+        self.message_id, offset = decode_cstring(data, offset, 65)
+
+        if offset + 2 > len(data):
+            raise SMPPPDUException('Insufficient data for source address fields')
+        self.source_addr_ton, self.source_addr_npi = struct.unpack(
+            'BB', data[offset : offset + 2]
+        )
+        offset += 2
+        self.source_addr, offset = decode_cstring(data, offset, 21)
+
+        if offset + 2 > len(data):
+            raise SMPPPDUException('Insufficient data for destination address fields')
+        self.dest_addr_ton, self.dest_addr_npi = struct.unpack(
+            'BB', data[offset : offset + 2]
+        )
+        offset += 2
+        self.destination_addr, offset = decode_cstring(data, offset, 21)
+
+        return offset
+
+    def validate(self) -> None:
+        """Validate cancel_sm fields"""
+        super().validate()
+
+        if not self.message_id:
+            raise SMPPPDUException('message_id cannot be empty')
+        if len(self.message_id) >= 65:
+            raise SMPPPDUException('message_id too long')
+        if len(self.service_type) > 5:
+            raise SMPPPDUException('service_type too long')
+        if len(self.source_addr) > 20:
+            raise SMPPPDUException('source_addr too long')
+        if len(self.destination_addr) > 20:
+            raise SMPPPDUException('destination_addr too long')
+        if not (0 <= self.source_addr_ton <= 255):
+            raise SMPPPDUException('invalid source_addr_ton')
+        if not (0 <= self.source_addr_npi <= 255):
+            raise SMPPPDUException('invalid source_addr_npi')
+        if not (0 <= self.dest_addr_ton <= 255):
+            raise SMPPPDUException('invalid dest_addr_ton')
+        if not (0 <= self.dest_addr_npi <= 255):
+            raise SMPPPDUException('invalid dest_addr_npi')
+
+
+class CancelSmResp(EmptyBodyPDU, ResponsePDU):
+    """CANCEL_SM_RESP PDU - Response to cancel_sm"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.command_id == 0:
+            self.command_id = CommandId.CANCEL_SM_RESP
+
+
+@dataclass
+class ReplaceSm(RequestPDU):
+    """REPLACE_SM PDU - Replace a previously submitted message"""
+
+    message_id: str = ''
+    source_addr_ton: int = 0
+    source_addr_npi: int = 0
+    source_addr: str = ''
+    schedule_delivery_time: str = ''
+    validity_period: str = ''
+    registered_delivery: int = 0
+    sm_default_msg_id: int = 0
+    short_message: bytes = b''
+
+    def __post_init__(self):
+        if self.command_id == 0:
+            self.command_id = CommandId.REPLACE_SM
+        super().__post_init__()
+
+    def encode_body(self) -> bytes:
+        """Encode replace_sm body"""
+        from ..codec import encode_cstring
+
+        return (
+            encode_cstring(self.message_id, 65)
+            + struct.pack('BB', self.source_addr_ton, self.source_addr_npi)
+            + encode_cstring(self.source_addr, 21)
+            + encode_cstring(self.schedule_delivery_time, 17)
+            + encode_cstring(self.validity_period, 17)
+            + struct.pack(
+                'BBB',
+                self.registered_delivery,
+                self.sm_default_msg_id,
+                len(self.short_message),
+            )
+            + self.short_message
+        )
+
+    def decode_body(self, data: bytes, offset: int = 0) -> int:
+        """Decode replace_sm body"""
+        from ..codec import decode_cstring
+
+        self.message_id, offset = decode_cstring(data, offset, 65)
+
+        if offset + 2 > len(data):
+            raise SMPPPDUException('Insufficient data for source address fields')
+        self.source_addr_ton, self.source_addr_npi = struct.unpack(
+            'BB', data[offset : offset + 2]
+        )
+        offset += 2
+        self.source_addr, offset = decode_cstring(data, offset, 21)
+
+        self.schedule_delivery_time, offset = decode_cstring(data, offset, 17)
+        self.validity_period, offset = decode_cstring(data, offset, 17)
+
+        if offset + 3 > len(data):
+            raise SMPPPDUException('Insufficient data for replace_sm fields')
+        self.registered_delivery, self.sm_default_msg_id, sm_length = struct.unpack(
+            'BBB', data[offset : offset + 3]
+        )
+        offset += 3
+
+        if offset + sm_length > len(data):
+            raise SMPPPDUException('Insufficient data for short message')
+        self.short_message = data[offset : offset + sm_length]
+        offset += sm_length
+
+        return offset
+
+    def validate(self) -> None:
+        """Validate replace_sm fields"""
+        super().validate()
+
+        if not self.message_id:
+            raise SMPPPDUException('message_id cannot be empty')
+        if len(self.message_id) >= 65:
+            raise SMPPPDUException('message_id too long')
+        if len(self.source_addr) > 20:
+            raise SMPPPDUException('source_addr too long')
+        if not (0 <= self.source_addr_ton <= 255):
+            raise SMPPPDUException('invalid source_addr_ton')
+        if not (0 <= self.source_addr_npi <= 255):
+            raise SMPPPDUException('invalid source_addr_npi')
+        if not (0 <= self.registered_delivery <= 255):
+            raise SMPPPDUException('invalid registered_delivery')
+        if not (0 <= self.sm_default_msg_id <= 255):
+            raise SMPPPDUException('invalid sm_default_msg_id')
+        if len(self.short_message) > 254:
+            raise SMPPPDUException('short_message too long')
+
+
+class ReplaceSmResp(EmptyBodyPDU, ResponsePDU):
+    """REPLACE_SM_RESP PDU - Response to replace_sm"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.command_id == 0:
+            self.command_id = CommandId.REPLACE_SM_RESP

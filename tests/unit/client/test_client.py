@@ -20,6 +20,7 @@ from smpp.exceptions import (
 )
 from smpp.protocol import (
     BindTransmitter,
+    CancelSmResp,
     CommandId,
     CommandStatus,
     DataCoding,
@@ -27,7 +28,9 @@ from smpp.protocol import (
     DeliverSmResp,
     EnquireLinkResp,
     NpiType,
+    QuerySmResp,
     RegisteredDelivery,
+    ReplaceSmResp,
     SubmitSm,
     TonType,
     UnbindResp,
@@ -915,6 +918,163 @@ class TestSMPPClientSubmitSm:
         message_id = await client.submit_sm('12345', '67890', 'Test message')
 
         assert message_id == ''
+
+
+class TestSMPPClientQuerySm:
+    """Tests for SMPPClient query_sm operation."""
+
+    @pytest.mark.asyncio
+    async def test_query_sm_returns_response(self):
+        """Test query_sm returns the QuerySmResp and its fields."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = QuerySmResp(
+            message_id='MSG123',
+            final_date='210101120000000+',
+            message_state=2,
+            error_code=0,
+            command_status=CommandStatus.ESME_ROK,
+        )
+        client._connection.send_pdu.return_value = response
+
+        result = await client.query_sm('MSG123', source_addr='12345')
+
+        assert result is response
+        assert result.message_id == 'MSG123'
+        assert result.message_state == 2
+        assert result.final_date == '210101120000000+'
+
+    @pytest.mark.asyncio
+    async def test_query_sm_not_bound(self):
+        """Test query_sm when not bound."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._bound = False
+
+        with pytest.raises(SMPPInvalidStateException, match='Not bound to SMSC'):
+            await client.query_sm('MSG123')
+
+    @pytest.mark.asyncio
+    async def test_query_sm_error_response(self):
+        """Test query_sm raises SMPPMessageException on a non-ROK response."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = QuerySmResp(command_status=CommandStatus.ESME_RQUERYFAIL)
+        client._connection.send_pdu.return_value = response
+
+        with pytest.raises(SMPPMessageException) as exc_info:
+            await client.query_sm('MSG123')
+        assert exc_info.value.command_status == CommandStatus.ESME_RQUERYFAIL
+
+
+class TestSMPPClientCancelSm:
+    """Tests for SMPPClient cancel_sm operation."""
+
+    @pytest.mark.asyncio
+    async def test_cancel_sm_success(self):
+        """Test successful cancel_sm returns None."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = CancelSmResp(command_status=CommandStatus.ESME_ROK)
+        client._connection.send_pdu.return_value = response
+
+        result = await client.cancel_sm(
+            'MSG123', source_addr='12345', destination_addr='67890'
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_cancel_sm_not_bound(self):
+        """Test cancel_sm when not bound."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._bound = False
+
+        with pytest.raises(SMPPInvalidStateException, match='Not bound to SMSC'):
+            await client.cancel_sm('MSG123')
+
+    @pytest.mark.asyncio
+    async def test_cancel_sm_failure_raises_with_command_status(self):
+        """Test cancel_sm with ESME_RCANCELFAIL raises SMPPMessageException with that status."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = CancelSmResp(command_status=CommandStatus.ESME_RCANCELFAIL)
+        client._connection.send_pdu.return_value = response
+
+        with pytest.raises(SMPPMessageException) as exc_info:
+            await client.cancel_sm('MSG123')
+        assert exc_info.value.command_status == CommandStatus.ESME_RCANCELFAIL
+
+
+class TestSMPPClientReplaceSm:
+    """Tests for SMPPClient replace_sm operation."""
+
+    @pytest.mark.asyncio
+    async def test_replace_sm_success(self):
+        """Test successful replace_sm returns None."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = ReplaceSmResp(command_status=CommandStatus.ESME_ROK)
+        client._connection.send_pdu.return_value = response
+
+        result = await client.replace_sm('MSG123', 'new text', source_addr='12345')
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_replace_sm_not_bound(self):
+        """Test replace_sm when not bound."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._bound = False
+
+        with pytest.raises(SMPPInvalidStateException, match='Not bound to SMSC'):
+            await client.replace_sm('MSG123', 'new text')
+
+    @pytest.mark.asyncio
+    async def test_replace_sm_sends_codec_encoded_bytes(self):
+        """Test replace_sm encodes short_message per data_coding before sending."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = ReplaceSmResp(command_status=CommandStatus.ESME_ROK)
+        client._connection.send_pdu.return_value = response
+
+        await client.replace_sm(
+            'MSG123', 'café', source_addr='12345', data_coding=DataCoding.UCS2
+        )
+
+        call_args = client._connection.send_pdu.call_args[0]
+        pdu = call_args[0]
+        assert pdu.short_message == 'café'.encode('utf-16-be')
+
+    @pytest.mark.asyncio
+    async def test_replace_sm_message_too_long(self):
+        """Test replace_sm rejects an encoded message over the 254-octet cap."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        with pytest.raises(SMPPMessageException, match='Message too long'):
+            await client.replace_sm('MSG123', 'a' * (MAX_SHORT_MESSAGE_LENGTH + 1))
+
+        client._connection.send_pdu.assert_not_called()
 
 
 class TestSMPPClientSubmitMultipart:
