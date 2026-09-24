@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.3.3 (2026-09-24)
+
+### Chores
+
+- **examples**: Use opensmpp sim credentials and sync uv.lock
+  ([`6cc0944`](https://github.com/codcod/smppai/commit/6cc0944f17f92e2a5ec4f500652259e04fa0ce83))
+
+### Performance Improvements
+
+- **transport**: Cut per-PDU receive and validation overhead (SMP-012)
+  ([`0b49fce`](https://github.com/codcod/smppai/commit/0b49fceeb9c2448e407e4cef1a8d439d93dc6c90))
+
+
 ## v0.3.2 (2026-09-24)
 
 ### Bug Fixes
