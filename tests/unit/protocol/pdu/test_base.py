@@ -225,6 +225,38 @@ class TestPDU:
             TestPDU(sequence_number=seq).validate()
 
 
+class TestPDUDecodeHeaderOnlyErrorResponse:
+    """SMPP v3.4 allows a response PDU to omit its body on a non-OK status."""
+
+    HEADER_ONLY_RESPONSE_COMMAND_IDS = (
+        0x80000004,  # submit_sm_resp
+        0x80000003,  # query_sm_resp
+        0x80000103,  # data_sm_resp
+        0x80000005,  # deliver_sm_resp
+        0x80000001,  # bind_receiver_resp
+        0x80000002,  # bind_transmitter_resp
+        0x80000009,  # bind_transceiver_resp
+    )
+
+    @pytest.mark.parametrize('command_id', HEADER_ONLY_RESPONSE_COMMAND_IDS)
+    def test_decodes_header_only_non_ok_response(self, command_id):
+        from smpp.protocol.pdu.factory import decode_pdu
+
+        data = struct.pack('>IIII', 16, command_id, 0x58, 7)
+        pdu = decode_pdu(data)
+
+        assert pdu.command_id == command_id
+        assert pdu.command_status == 0x58
+        assert pdu.sequence_number == 7
+
+    def test_header_only_ok_status_response_still_fails(self):
+        from smpp.protocol.pdu.factory import decode_pdu
+
+        data = struct.pack('>IIII', 16, 0x80000004, CommandStatus.ESME_ROK, 7)
+        with pytest.raises(SMPPPDUException, match='Failed to decode PDU body'):
+            decode_pdu(data)
+
+
 class TestBindRequestPDU:
     """Test BindRequestPDU base class."""
 

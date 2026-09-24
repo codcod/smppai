@@ -587,6 +587,22 @@ class TestOptionalParameterValidation:
                 OptionalTag.RECEIPTED_MESSAGE_ID, b'\xff\xfe'
             )
 
+    def test_validate_optional_parameter_receipted_message_id_trailing_nul(self):
+        """A C-Octet String receipted_message_id ends in one NUL on the wire."""
+        # Should not raise any exception
+        validation.validate_optional_parameter(
+            OptionalTag.RECEIPTED_MESSAGE_ID, b'abc123\x00'
+        )
+
+    def test_validate_optional_parameter_receipted_message_id_embedded_non_printable(
+        self,
+    ):
+        """A non-printable character before the trailing NUL still raises."""
+        with pytest.raises(SMPPValidationException, match='non-printable characters'):
+            validation.validate_optional_parameter(
+                OptionalTag.RECEIPTED_MESSAGE_ID, b'ab\x01c'
+            )
+
     def test_validate_optional_parameter_message_payload_valid(self):
         """Test validating valid message payload."""
         # Should not raise any exception
@@ -594,13 +610,25 @@ class TestOptionalParameterValidation:
             OptionalTag.MESSAGE_PAYLOAD, b'Extended message content'
         )
 
-    def test_validate_optional_parameter_message_payload_too_large(self):
-        """Test validating message payload that's too large."""
-        large_payload = b'a' * 1025  # > 1024 bytes
-        with pytest.raises(SMPPValidationException, match='Message payload too large'):
-            validation.validate_optional_parameter(
-                OptionalTag.MESSAGE_PAYLOAD, large_payload
-            )
+    def test_validate_optional_parameter_message_payload_over_1024_bytes(self):
+        """The old 1024-byte cap is gone; only the TLV length max applies."""
+        # Should not raise any exception
+        validation.validate_optional_parameter(OptionalTag.MESSAGE_PAYLOAD, b'a' * 2000)
+
+    def test_receipted_message_id_trailing_nul_survives_pdu_roundtrip(self):
+        """A DeliverSm carrying a NUL-terminated receipted_message_id decodes back."""
+        from smpp.protocol.pdu.factory import decode_pdu
+        from smpp.protocol.pdu.message import DeliverSm
+
+        pdu = DeliverSm(sequence_number=1)
+        pdu.add_optional_parameter(OptionalTag.RECEIPTED_MESSAGE_ID, b'abc\x00')
+
+        decoded = decode_pdu(pdu.encode())
+
+        assert (
+            decoded.get_optional_parameter_value(OptionalTag.RECEIPTED_MESSAGE_ID)
+            == b'abc\x00'
+        )
 
     def test_validate_optional_parameter_boundary_values(self):
         """Test validating optional parameters with boundary values."""

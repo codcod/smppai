@@ -63,7 +63,9 @@ All of these are importable from the top-level `smpp` package, except
 | `submit_sm` got `ESME_RTHROTTLED` or `ESME_RMSGQFUL`: the SMSC wants you
   to slow down. A subclass of `SMPPMessageException`, so existing message
   handlers still catch it; `command_status` holds the code. The library
-  doesn't retry — backing off is the caller's job.
+  doesn't retry — backing off is the caller's job. Raised whether or not the
+  SMSC's rejection carries a response body: SMPP v3.4 allows omitting it on
+  a non-OK status, and the connection stays up either way.
 
 | `SMPPMessageException`
 | `submit_sm`/`deliver_sm` failed — SMSC error response, encoding failure,

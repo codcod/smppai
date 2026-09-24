@@ -266,10 +266,22 @@ class PDU(ABC):
             raise SMPPPDUException(f'Failed to create PDU instance: {e}') from e
 
         # Decode body
-        try:
-            offset = pdu.decode_body(data, PDU_HEADER_SIZE)
-        except Exception as e:
-            raise SMPPPDUException(f'Failed to decode PDU body: {e}') from e
+        # SMPP v3.4 allows a response PDU to omit its body when command_status
+        # is non-OK (§4.4.2, §4.1); real SMSCs do this. Skip decode_body for
+        # those so callers get the typed status exception instead of a torn-down
+        # connection. A header-only *success* response is still malformed.
+        header_only_error_response = (
+            length == PDU_HEADER_SIZE
+            and command_status != CommandStatus.ESME_ROK
+            and isinstance(pdu, ResponsePDU)
+        )
+        if not header_only_error_response:
+            try:
+                offset = pdu.decode_body(data, PDU_HEADER_SIZE)
+            except Exception as e:
+                raise SMPPPDUException(f'Failed to decode PDU body: {e}') from e
+        else:
+            offset = PDU_HEADER_SIZE
 
         # Decode optional parameters
         while offset < length:
