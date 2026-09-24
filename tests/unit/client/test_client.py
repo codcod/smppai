@@ -28,6 +28,7 @@ from smpp.protocol import (
     DeliverSmResp,
     EnquireLinkResp,
     NpiType,
+    QuerySm,
     QuerySmResp,
     RegisteredDelivery,
     ReplaceSmResp,
@@ -1075,6 +1076,52 @@ class TestSMPPClientReplaceSm:
             await client.replace_sm('MSG123', 'a' * (MAX_SHORT_MESSAGE_LENGTH + 1))
 
         client._connection.send_pdu.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_replace_sm_encoding_error(self):
+        """Test replace_sm wraps an encoding failure in SMPPMessageException."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        with pytest.raises(SMPPMessageException, match='encoding error'):
+            await client.replace_sm('MSG123', '中', data_coding=DataCoding.DEFAULT)
+
+        client._connection.send_pdu.assert_not_called()
+
+
+class TestSMPPClientSendManagement:
+    """Tests for the error paths of SMPPClient._send_management."""
+
+    @pytest.mark.asyncio
+    async def test_not_connected(self):
+        """No connection raises before anything is sent."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = None
+
+        with pytest.raises(SMPPMessageException, match='Not connected to SMSC'):
+            await client._send_management(QuerySm(message_id='MSG123'), None)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'send_result, match',
+        [
+            ({'return_value': None}, 'No response received from SMSC'),
+            ({'side_effect': SMPPTimeoutException('Timeout')}, 'Operation timed out'),
+            ({'side_effect': RuntimeError('boom')}, 'Operation failed: boom'),
+        ],
+    )
+    async def test_send_errors(self, send_result, match):
+        """A missing response, a timeout or an unexpected error raise SMPPMessageException."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._connection.send_pdu.configure_mock(**send_result)
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        with pytest.raises(SMPPMessageException, match=match):
+            await client.cancel_sm('MSG123')
 
 
 class TestSMPPClientSubmitMultipart:
