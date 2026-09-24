@@ -505,10 +505,6 @@ class SMPPClient:
 
         try:
             parts = make_parts(message, data_coding)
-        except UnicodeEncodeError as e:
-            raise SMPPMessageException(
-                f'Message not encodable with data_coding {data_coding:#x}; use DataCoding.UCS2'
-            ) from e
         except SMPPPDUException as e:
             raise SMPPMessageException(str(e)) from e
 
