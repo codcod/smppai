@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.3.2 (2026-09-24)
+
+### Bug Fixes
+
+- **protocol**: Order submit_sm/deliver_sm fields per SMPP 3.4 (SMP-013)
+  ([`462437e`](https://github.com/codcod/smppai/commit/462437e761782486ff4fcd7361b7d7badce2078e))
+
+### Testing
+
+- **tests**: Make opensmpp sim test skip and wait robustly (SMP-013)
+  ([`f692046`](https://github.com/codcod/smppai/commit/f692046cedd830ea77837e0d46ce7313124fb060))
+
+
 ## v0.3.1 (2026-09-24)
 
 ### Bug Fixes
