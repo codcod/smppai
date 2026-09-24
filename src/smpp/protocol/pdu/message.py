@@ -58,18 +58,17 @@ class StandardMessagePDU(MessagePDU):
             + encode_cstring(self.source_addr, 21)
             + struct.pack('BB', self.dest_addr_ton, self.dest_addr_npi)
             + encode_cstring(self.destination_addr, 21)
+            + struct.pack('BBB', self.esm_class, self.protocol_id, self.priority_flag)
+            + encode_cstring(self.schedule_delivery_time, 17)
+            + encode_cstring(self.validity_period, 17)
             + struct.pack(
-                'BBBBBB',
-                self.esm_class,
-                self.protocol_id,
-                self.priority_flag,
+                'BBBBB',
                 self.registered_delivery,
                 self.replace_if_present_flag,
                 self.data_coding,
+                self.sm_default_msg_id,
+                len(self.short_message),
             )
-            + encode_cstring(self.schedule_delivery_time, 17)
-            + encode_cstring(self.validity_period, 17)
-            + struct.pack('BB', self.sm_default_msg_id, len(self.short_message))
             + self.short_message
         )
 
@@ -108,29 +107,30 @@ class StandardMessagePDU(MessagePDU):
 
         self.destination_addr, offset = decode_cstring(data, offset, 21)
 
-        if offset + 6 > len(data):
+        # SMPP 3.4 §4.4.1/§4.6.1: the time C-strings sit between priority_flag
+        # and registered_delivery.
+        if offset + 3 > len(data):
             raise SMPPPDUException('Insufficient data for message fields')
 
-        (
-            self.esm_class,
-            self.protocol_id,
-            self.priority_flag,
-            self.registered_delivery,
-            self.replace_if_present_flag,
-            self.data_coding,
-        ) = struct.unpack('BBBBBB', data[offset : offset + 6])
-        offset += 6
+        self.esm_class, self.protocol_id, self.priority_flag = struct.unpack(
+            'BBB', data[offset : offset + 3]
+        )
+        offset += 3
 
         self.schedule_delivery_time, offset = decode_cstring(data, offset, 17)
         self.validity_period, offset = decode_cstring(data, offset, 17)
 
-        if offset + 2 > len(data):
+        if offset + 5 > len(data):
             raise SMPPPDUException('Insufficient data for message fields')
 
-        self.sm_default_msg_id, sm_length = struct.unpack(
-            'BB', data[offset : offset + 2]
-        )
-        offset += 2
+        (
+            self.registered_delivery,
+            self.replace_if_present_flag,
+            self.data_coding,
+            self.sm_default_msg_id,
+            sm_length,
+        ) = struct.unpack('BBBBB', data[offset : offset + 5])
+        offset += 5
 
         if offset + sm_length > len(data):
             raise SMPPPDUException('Insufficient data for short message')

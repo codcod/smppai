@@ -46,16 +46,17 @@ class TestStandardMessagePDU:
         body = pdu.encode_body()
 
         # Expected encoding: SMS\x00 + \x01\x01 + 12345\x00 + \x01\x01 + 67890\x00 +
-        # 6-byte flags + \x00 + \x00 + \x00\x05 + Hello
+        # 3-byte flags + \x00 + \x00 + 5-byte flags/length + Hello (SMPP 3.4 order)
         expected = (
             b'SMS\x00'  # service_type
             b'\x01\x01'  # source_addr_ton, source_addr_npi
             b'12345\x00'  # source_addr
             b'\x01\x01'  # dest_addr_ton, dest_addr_npi
             b'67890\x00'  # destination_addr
-            b'\x00\x00\x00\x01\x00\x00'  # esm_class, protocol_id, priority_flag, registered_delivery, replace_if_present_flag, data_coding
+            b'\x00\x00\x00'  # esm_class, protocol_id, priority_flag
             b'\x00'  # schedule_delivery_time (empty)
             b'\x00'  # validity_period (empty)
+            b'\x01\x00\x00'  # registered_delivery, replace_if_present_flag, data_coding
             b'\x00\x05'  # sm_default_msg_id, sm_length
             b'Hello'  # short_message
         )
@@ -81,8 +82,8 @@ class TestStandardMessagePDU:
             def __init__(self, **kwargs):
                 super().__init__(**kwargs)
 
-        # Create test data using the actual encoding format
-        data = b'SMS\x00\x01\x0112345\x00\x01\x0167890\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x05Hello'
+        # SMPP 3.4 order: esm/pid/priority, schedule, validity, rd/replace/dcs/default_msg_id/len
+        data = b'SMS\x00\x01\x0112345\x00\x01\x0167890\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x05Hello'
 
         pdu = TestMessage()
         offset = pdu.decode_body(data)
@@ -143,7 +144,7 @@ class TestStandardMessagePDU:
             def __init__(self, **kwargs):
                 super().__init__(**kwargs)
 
-        data = b'SMS\x00\x01\x0112345\x00\x01\x0167890\x00\x00\x00\x00'  # Missing message flags
+        data = b'SMS\x00\x01\x0112345\x00\x01\x0167890\x00\x00\x00'  # Missing priority_flag
         pdu = TestMessage()
 
         with pytest.raises(
@@ -288,6 +289,90 @@ class TestStandardMessagePDU:
     def test_get_message_text_default_bad_byte_replaced(self):
         pdu = DeliverSm(data_coding=0, short_message=b'A\x80')
         assert pdu.get_message_text() == 'A\ufffd'
+
+    # Hand-assembled in SMPP 3.4 §4.4.1/§4.6.1 order, not produced by our encoder:
+    # a round trip cannot catch a symmetric field-order bug.
+    SPEC_ORDER_TEXT = 'Hi €'
+    SPEC_ORDER_BODY = (
+        b'\x00'  # service_type
+        b'\x01\x01'  # source_addr_ton, source_addr_npi
+        b'12345\x00'  # source_addr
+        b'\x01\x01'  # dest_addr_ton, dest_addr_npi
+        b'67890\x00'  # destination_addr
+        b'\x00\x00\x01'  # esm_class, protocol_id, priority_flag
+        b'260925120000000+\x00'  # schedule_delivery_time
+        b'000001000000000R\x00'  # validity_period
+        b'\x01\x01\x08\x00'  # registered_delivery, replace_if_present_flag, data_coding, sm_default_msg_id
+        b'\x08'  # sm_length
+        + SPEC_ORDER_TEXT.encode('utf-16-be')  # short_message (UCS2)
+    )
+
+    @pytest.mark.parametrize('pdu_class', [SubmitSm, DeliverSm])
+    def test_decode_spec_order_body(self, pdu_class):
+        """A spec-order body decodes every field into place."""
+        pdu = pdu_class()
+        offset = pdu.decode_body(self.SPEC_ORDER_BODY)
+
+        assert offset == len(self.SPEC_ORDER_BODY)
+        assert pdu.source_addr == '12345'
+        assert pdu.destination_addr == '67890'
+        assert pdu.esm_class == 0
+        assert pdu.protocol_id == 0
+        assert pdu.priority_flag == 1
+        assert pdu.schedule_delivery_time == '260925120000000+'
+        assert pdu.validity_period == '000001000000000R'
+        assert pdu.registered_delivery == 1
+        assert pdu.replace_if_present_flag == 1
+        assert pdu.data_coding == 8
+        assert pdu.sm_default_msg_id == 0
+        assert pdu.get_message_text() == self.SPEC_ORDER_TEXT
+
+    def test_encode_spec_order_body(self):
+        """Encoding emits fields in SMPP 3.4 order."""
+        pdu = SubmitSm(
+            source_addr_ton=1,
+            source_addr_npi=1,
+            source_addr='12345',
+            dest_addr_ton=1,
+            dest_addr_npi=1,
+            destination_addr='67890',
+            priority_flag=1,
+            schedule_delivery_time='260925120000000+',
+            validity_period='000001000000000R',
+            registered_delivery=1,
+            replace_if_present_flag=1,
+            data_coding=8,
+            short_message=self.SPEC_ORDER_TEXT.encode('utf-16-be'),
+        )
+        assert pdu.encode_body() == self.SPEC_ORDER_BODY
+
+    def test_decode_opensmpp_delivery_receipt(self):
+        """A receipt shaped like the opensmpp simulator's decodes unshifted."""
+        text = (
+            b'id:Smsc2001 sub:001 dlvrd:001 submit date:2609241200 '
+            b'done date:2609241200 stat:DELIVRD err:0 text:Hi'
+        )
+        data = (
+            b'\x00'  # service_type
+            b'\x01\x01'
+            b'67890\x00'  # source (the original destination)
+            b'\x01\x01'
+            b'12345\x00'  # destination (the original source)
+            b'\x04\x00\x00'  # esm_class (SMSC delivery receipt), protocol_id, priority_flag
+            b'\x00\x00'  # schedule_delivery_time, validity_period (empty)
+            b'\x00\x00\x03\x00'  # registered_delivery, replace_if_present_flag, data_coding, sm_default_msg_id
+            + bytes([len(text)])
+            + text
+        )
+
+        pdu = DeliverSm()
+        pdu.decode_body(data)
+
+        assert pdu.is_delivery_receipt()
+        assert pdu.data_coding == 3
+        assert pdu.sm_default_msg_id == 0
+        assert pdu.short_message == text
+        assert pdu.get_message_text().startswith('id:Smsc2001 ')
 
 
 class TestSubmitSm:
