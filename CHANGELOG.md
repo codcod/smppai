@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.6.2 (2026-09-25)
+
+### Bug Fixes
+
+- **client**: Bound inbound queue, expire stale parts (SMP-018)
+  ([`fd62c06`](https://github.com/codcod/smppai/commit/fd62c063223990b1f9c50c180685044bfc2a7a92))
+
+
 ## v0.6.1 (2026-09-25)
 
 ### Bug Fixes
