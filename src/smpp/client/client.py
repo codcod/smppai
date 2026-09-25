@@ -32,6 +32,8 @@ from ..protocol import (
     CommandId,
     CommandStatus,
     DataCoding,
+    DataSm,
+    DataSmResp,
     DeliverSm,
     DeliverSmResp,
     EnquireLink,
@@ -125,6 +127,7 @@ class SMPPClient:
 
         # Event handlers
         self.on_deliver_sm: Optional[Callable[['SMPPClient', DeliverSm], None]] = None
+        self.on_data_sm: Optional[Callable[['SMPPClient', DataSm], None]] = None
         self.on_connection_lost: Optional[Callable[['SMPPClient', Exception], None]] = (
             None
         )
@@ -435,8 +438,10 @@ class SMPPClient:
                 expected_state='transmitter or transceiver',
             )
 
-    async def _send_submit(self, pdu: SubmitSm, timeout: Optional[float]) -> str:
-        """Send a built submit_sm PDU and wait for its response message_id."""
+    async def _send_submit(
+        self, pdu: SubmitSm | DataSm, timeout: Optional[float]
+    ) -> str:
+        """Send a built submit_sm/data_sm PDU and wait for its response message_id."""
         try:
             if self._connection is None:
                 raise SMPPMessageException('Not connected to SMSC')
@@ -543,6 +548,75 @@ class SMPPClient:
                 raise
 
         return message_ids
+
+    async def data_sm(
+        self,
+        source_addr: str,
+        destination_addr: str,
+        message: str | bytes,
+        source_addr_ton: int = TonType.UNKNOWN,
+        source_addr_npi: int = NpiType.UNKNOWN,
+        dest_addr_ton: int = TonType.UNKNOWN,
+        dest_addr_npi: int = NpiType.UNKNOWN,
+        service_type: str = '',
+        esm_class: int = 0,
+        registered_delivery: int = RegisteredDelivery.NO_RECEIPT,
+        data_coding: int = DataCoding.DEFAULT,
+        timeout: Optional[float] = None,
+    ) -> str:
+        """
+        Send a message as data_sm, carried in the message_payload TLV
+
+        Unlike submit_sm there is no 254-octet limit and no splitting.
+
+        Args:
+            source_addr: Source address (sender)
+            destination_addr: Destination address (recipient)
+            message: Text (encoded per data_coding) or raw payload bytes
+            source_addr_ton: Source address Type of Number
+            source_addr_npi: Source address Numbering Plan Indicator
+            dest_addr_ton: Destination address Type of Number
+            dest_addr_npi: Destination address Numbering Plan Indicator
+            service_type: Service type
+            esm_class: ESM class
+            registered_delivery: Registered delivery flag
+            data_coding: Data coding scheme
+            timeout: Response timeout
+
+        Returns:
+            Message ID assigned by SMSC
+
+        Raises:
+            SMPPInvalidStateException: If not bound as transmitter or transceiver
+            SMPPMessageException: If the text can't be encoded or submission fails
+        """
+        self._require_tx_bind()
+
+        pdu = DataSm(  # type: ignore[call-arg]
+            service_type=service_type,
+            source_addr_ton=source_addr_ton,
+            source_addr_npi=source_addr_npi,
+            source_addr=source_addr,
+            dest_addr_ton=dest_addr_ton,
+            dest_addr_npi=dest_addr_npi,
+            destination_addr=destination_addr,
+            esm_class=esm_class,
+            registered_delivery=registered_delivery,
+            data_coding=data_coding,
+        )
+        try:
+            if isinstance(message, bytes):
+                pdu.set_message_payload(message)
+            else:
+                pdu.set_message_text(message)
+        except UnicodeEncodeError as e:
+            raise SMPPMessageException(
+                f'Message not encodable with data_coding {data_coding:#x}; use DataCoding.UCS2'
+            ) from e
+        except SMPPPDUException as e:
+            raise SMPPMessageException(str(e)) from e
+
+        return await self._send_submit(pdu, timeout)
 
     async def query_sm(
         self,
@@ -760,6 +834,8 @@ class SMPPClient:
         try:
             if isinstance(pdu, DeliverSm):
                 self._handle_deliver_sm(pdu)
+            elif isinstance(pdu, DataSm):
+                self._handle_data_sm(pdu)
             elif pdu.command_id == CommandId.ENQUIRE_LINK:
                 # Respond to enquire_link automatically
                 asyncio.create_task(self._send_enquire_link_resp(pdu.sequence_number))
@@ -787,6 +863,29 @@ class SMPPClient:
                 self.on_deliver_sm(self, pdu)
             except Exception as e:
                 logger.exception(f'Error in deliver_sm handler: {e}')
+
+    def _handle_data_sm(self, pdu: DataSm) -> None:
+        """Handle an SMSC-initiated data_sm: acknowledge, then notify"""
+        logger.debug(
+            'Received data_sm from %s to %s', pdu.source_addr, pdu.destination_addr
+        )
+
+        asyncio.create_task(self._send_data_sm_resp(pdu.sequence_number))
+
+        if self.on_data_sm:
+            try:
+                self.on_data_sm(self, pdu)
+            except Exception as e:
+                logger.exception(f'Error in data_sm handler: {e}')
+
+    async def _send_data_sm_resp(self, sequence_number: int) -> None:
+        """Send data_sm_resp"""
+        try:
+            resp_pdu = DataSmResp(sequence_number=sequence_number)
+            if self._connection is not None:
+                await self._connection.send_pdu(resp_pdu, wait_response=False)
+        except Exception as e:
+            logger.error(f'Failed to send data_sm_resp: {e}')
 
     async def _send_deliver_sm_resp(self, sequence_number: int) -> None:
         """Send deliver_sm_resp"""

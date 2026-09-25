@@ -24,6 +24,8 @@ from ..protocol import (
     CancelSmResp,
     CommandStatus,
     DataCoding,
+    DataSm,
+    DataSmResp,
     DeliverSm,
     DeliverSmResp,
     EnquireLink,
@@ -172,6 +174,9 @@ class SMPPServer:
         ] = None
         self.on_message_received: Optional[
             Callable[['SMPPServer', ClientSession, SubmitSm], Optional[str]]
+        ] = None
+        self.on_data_sm: Optional[
+            Callable[['SMPPServer', ClientSession, DataSm], Optional[str]]
         ] = None
         self.on_query_sm: Optional[
             Callable[
@@ -651,7 +656,7 @@ class SMPPServer:
                 asyncio.create_task(self._handle_bind_request(session, pdu))
             elif isinstance(pdu, Unbind):
                 asyncio.create_task(self._handle_unbind_request(session, pdu))
-            elif isinstance(pdu, SubmitSm):
+            elif isinstance(pdu, (SubmitSm, DataSm)):
                 asyncio.create_task(self._handle_submit_sm(session, pdu))
             elif isinstance(pdu, QuerySm):
                 asyncio.create_task(self._handle_query_sm(session, pdu))
@@ -823,8 +828,10 @@ class SMPPServer:
         except Exception as e:
             logger.error(f'Error handling unbind request: {e}')
 
-    async def _handle_submit_sm(self, session: ClientSession, pdu: SubmitSm) -> None:
-        """Handle submit_sm request from client"""
+    async def _handle_submit_sm(
+        self, session: ClientSession, pdu: SubmitSm | DataSm
+    ) -> None:
+        """Handle submit_sm or data_sm request from client"""
         try:
             # Check if we're accepting new messages
             if not self._accept_new_messages:
@@ -854,9 +861,12 @@ class SMPPServer:
 
             # Call message received handler if set
             custom_message_id = None
-            if self.on_message_received:
+            handler = (
+                self.on_data_sm if isinstance(pdu, DataSm) else self.on_message_received
+            )
+            if handler:
                 try:
-                    custom_message_id = self.on_message_received(self, session, pdu)
+                    custom_message_id = handler(self, session, pdu)  # type: ignore[arg-type]
                 except Exception as e:
                     logger.exception(f'Error in message received handler: {e}')
 
@@ -881,13 +891,14 @@ class SMPPServer:
     async def _send_submit_sm_response(
         self,
         session: ClientSession,
-        submit_pdu: SubmitSm,
+        submit_pdu: SubmitSm | DataSm,
         status: CommandStatus,
         message_id: str = '',
     ) -> None:
-        """Send submit_sm response to client"""
+        """Send submit_sm_resp or data_sm_resp to client"""
         try:
-            resp_pdu = SubmitSmResp(
+            resp_cls = DataSmResp if isinstance(submit_pdu, DataSm) else SubmitSmResp
+            resp_pdu = resp_cls(
                 sequence_number=submit_pdu.sequence_number,
                 command_status=status,
                 message_id=message_id,
