@@ -873,7 +873,7 @@ class SMPPClient:
         )
 
         status = (
-            CommandStatus.ESME_ROK if self.on_data_sm else CommandStatus.ESME_RINVCMDID
+            CommandStatus.ESME_ROK if self.on_data_sm else CommandStatus.ESME_RX_R_APPN
         )
         asyncio.create_task(self._send_data_sm_resp(pdu.sequence_number, status))
 

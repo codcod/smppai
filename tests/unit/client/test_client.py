@@ -2217,4 +2217,4 @@ class TestDataSmLoopback:
         finally:
             await client.disconnect()
         assert isinstance(resp, DataSmResp)
-        assert resp.command_status == CommandStatus.ESME_RINVCMDID
+        assert resp.command_status == CommandStatus.ESME_RX_R_APPN
