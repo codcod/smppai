@@ -6,10 +6,11 @@ for testing SMPP clients or as a foundation for building custom SMSC solutions.
 """
 
 import asyncio
+import inspect
 import logging
 import signal
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, Union
 
 from ..exceptions import SMPPException
 from ..protocol import (
@@ -47,6 +48,14 @@ from ..protocol import (
 from ..transport import SMPPConnection
 
 logger = logging.getLogger(__name__)
+
+
+async def _call(fn: Callable[..., Any], *args: Any) -> Any:
+    """Call a user callback, awaiting its result if it is awaitable."""
+    result = fn(*args)
+    if inspect.isawaitable(result):
+        result = await result
+    return result
 
 
 @dataclass
@@ -160,35 +169,50 @@ class SMPPServer:
         self._accept_new_messages = True  # Flag to control new message acceptance
 
         # Authentication callback - should return True if credentials are valid
-        self.authenticate: Optional[Callable[[str, str, str], bool]] = None
+        self.authenticate: Optional[
+            Callable[[str, str, str], Union[bool, Awaitable[bool]]]
+        ] = None
 
         # Event handlers
         self.on_client_connected: Optional[
-            Callable[['SMPPServer', ClientSession], None]
+            Callable[['SMPPServer', ClientSession], Optional[Awaitable[None]]]
         ] = None
         self.on_client_disconnected: Optional[
-            Callable[['SMPPServer', ClientSession], None]
+            Callable[['SMPPServer', ClientSession], Optional[Awaitable[None]]]
         ] = None
         self.on_client_bound: Optional[
-            Callable[['SMPPServer', ClientSession], None]
+            Callable[['SMPPServer', ClientSession], Optional[Awaitable[None]]]
         ] = None
         self.on_message_received: Optional[
-            Callable[['SMPPServer', ClientSession, SubmitSm], Optional[str]]
+            Callable[
+                ['SMPPServer', ClientSession, SubmitSm],
+                Union[Optional[str], Awaitable[Optional[str]]],
+            ]
         ] = None
         self.on_data_sm: Optional[
-            Callable[['SMPPServer', ClientSession, DataSm], Optional[str]]
+            Callable[
+                ['SMPPServer', ClientSession, DataSm],
+                Union[Optional[str], Awaitable[Optional[str]]],
+            ]
         ] = None
         self.on_query_sm: Optional[
             Callable[
                 ['SMPPServer', ClientSession, QuerySm],
-                Optional[Tuple[int, str, int]],
+                Union[
+                    Optional[Tuple[int, str, int]],
+                    Awaitable[Optional[Tuple[int, str, int]]],
+                ],
             ]
         ] = None
         self.on_cancel_sm: Optional[
-            Callable[['SMPPServer', ClientSession, CancelSm], bool]
+            Callable[
+                ['SMPPServer', ClientSession, CancelSm], Union[bool, Awaitable[bool]]
+            ]
         ] = None
         self.on_replace_sm: Optional[
-            Callable[['SMPPServer', ClientSession, ReplaceSm], bool]
+            Callable[
+                ['SMPPServer', ClientSession, ReplaceSm], Union[bool, Awaitable[bool]]
+            ]
         ] = None
 
         # Default authentication (allows all)
@@ -611,15 +635,28 @@ class SMPPServer:
 
         connection.on_connection_lost = handle_connection_lost
 
-        # Mark connection as established and start its background tasks
-        connection.accept()
-
-        # Trigger client connected event
+        # Trigger client connected event before reading any PDU, so an async
+        # handler completes before bind handling can start
         if self.on_client_connected:
             try:
-                self.on_client_connected(self, session)
+                await _call(self.on_client_connected, self, session)
             except Exception as e:
                 logger.exception(f'Error in client connected handler: {e}')
+
+            # A stop() during the await may have dropped this session; don't
+            # activate a connection the server no longer tracks
+            if not (
+                self._accept_new_connections and self._clients.get(client_id) is session
+            ):
+                if self._clients.get(client_id) is session:
+                    del self._clients[client_id]
+                logger.info(f'Server stopping, closing {client_id} before accept')
+                writer.close()
+                await writer.wait_closed()
+                return
+
+        # Mark connection as established and start its background tasks
+        connection.accept()
 
         logger.info(f'Client {client_id} connected')
 
@@ -641,7 +678,7 @@ class SMPPServer:
         # Trigger client disconnected event
         if self.on_client_disconnected:
             try:
-                self.on_client_disconnected(self, session)
+                await _call(self.on_client_disconnected, self, session)
             except Exception as e:
                 logger.exception(f'Error in client disconnected handler: {e}')
 
@@ -711,13 +748,18 @@ class SMPPServer:
                 return
 
             # Authenticate client
-            if self.authenticate and not self.authenticate(
-                system_id, password, system_type
+            if self.authenticate and not await _call(
+                self.authenticate, system_id, password, system_type
             ):
                 logger.warning(f'Authentication failed for {system_id}')
                 await self._send_bind_response(
                     session, pdu, CommandStatus.ESME_RBINDFAIL
                 )
+                return
+
+            # A concurrent bind may have won while an async authenticate ran
+            if session.bound:
+                await self._send_bind_response(session, pdu, CommandStatus.ESME_RALYBND)
                 return
 
             # Update session
@@ -744,7 +786,7 @@ class SMPPServer:
             # Trigger client bound event
             if self.on_client_bound:
                 try:
-                    self.on_client_bound(self, session)
+                    await _call(self.on_client_bound, self, session)
                 except Exception as e:
                     logger.exception(f'Error in client bound handler: {e}')
 
@@ -875,7 +917,7 @@ class SMPPServer:
             )
             if handler:
                 try:
-                    custom_message_id = handler(self, session, pdu)  # type: ignore[arg-type]
+                    custom_message_id = await _call(handler, self, session, pdu)
                 except Exception as e:
                     logger.exception(f'Error in message received handler: {e}')
 
@@ -945,7 +987,7 @@ class SMPPServer:
         result = None
         if self.on_query_sm:
             try:
-                result = self.on_query_sm(self, session, pdu)
+                result = await _call(self.on_query_sm, self, session, pdu)
             except Exception as e:
                 logger.exception(f'Error in query_sm handler: {e}')
 
@@ -986,7 +1028,7 @@ class SMPPServer:
         success = False
         if self.on_cancel_sm:
             try:
-                success = self.on_cancel_sm(self, session, pdu)
+                success = await _call(self.on_cancel_sm, self, session, pdu)
             except Exception as e:
                 logger.exception(f'Error in cancel_sm handler: {e}')
                 success = False
@@ -1017,7 +1059,7 @@ class SMPPServer:
         success = False
         if self.on_replace_sm:
             try:
-                success = self.on_replace_sm(self, session, pdu)
+                success = await _call(self.on_replace_sm, self, session, pdu)
             except Exception as e:
                 logger.exception(f'Error in replace_sm handler: {e}')
                 success = False

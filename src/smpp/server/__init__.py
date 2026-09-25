@@ -13,10 +13,14 @@ The module includes:
 - Configurable for testing and production use
 """
 
+from .highlevel import Server, Shutdown
 from .server import ClientSession, SMPPServer
 
 __all__ = [
     # Main server class
     'SMPPServer',
     'ClientSession',
+    # High-level API
+    'Server',
+    'Shutdown',
 ]

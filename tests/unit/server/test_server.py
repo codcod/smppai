@@ -4,6 +4,8 @@ Unit tests for SMPP Server implementation
 This module contains tests for the SMPPServer class and ClientSession dataclass.
 """
 
+import asyncio
+
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -1981,3 +1983,78 @@ class TestSMPPServerEdgeCases:
 
             # Should still create connection with 'unknown' identifier
             assert 'unknown' in server._clients
+
+
+class TestAsyncCallbacks:
+    """Callbacks may be async; their result is awaited."""
+
+    @pytest.mark.asyncio
+    async def test_async_on_message_received_sets_message_id(self):
+        server = SMPPServer()
+
+        async def handler(srv, session, pdu):
+            return 'X1'
+
+        server.on_message_received = handler
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transmitter'
+        )
+        pdu = SubmitSm(
+            sequence_number=1,
+            source_addr='1',
+            destination_addr='2',
+            short_message=b'hi',
+        )
+
+        await server._handle_submit_sm(session, pdu)
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_ROK
+        assert sent_pdu.message_id == 'X1'
+
+    @pytest.mark.asyncio
+    async def test_async_authenticate_false_rejects_bind(self):
+        server = SMPPServer()
+
+        async def authenticate(system_id, password, system_type):
+            return False
+
+        server.authenticate = authenticate
+        session = ClientSession(connection=AsyncMock())
+        pdu = BindTransmitter(
+            sequence_number=1, system_id='u', password='p', interface_version=0x34
+        )
+
+        await server._handle_bind_request(session, pdu)
+
+        assert session.bound is False
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_RBINDFAIL
+
+    @pytest.mark.asyncio
+    async def test_concurrent_binds_under_async_authenticate(self):
+        server = SMPPServer()
+
+        async def authenticate(system_id, password, system_type):
+            await asyncio.sleep(0.01)
+            return True
+
+        server.authenticate = authenticate
+        session = ClientSession(connection=Mock(send_pdu=AsyncMock()))
+        first = BindTransmitter(
+            sequence_number=1, system_id='A', password='p', interface_version=0x34
+        )
+        second = BindReceiver(
+            sequence_number=2, system_id='B', password='p', interface_version=0x34
+        )
+
+        await asyncio.gather(
+            server._handle_bind_request(session, first),
+            server._handle_bind_request(session, second),
+        )
+
+        statuses = sorted(
+            c[0][0].command_status for c in session.connection.send_pdu.call_args_list
+        )
+        assert statuses == [CommandStatus.ESME_ROK, CommandStatus.ESME_RALYBND]
+        assert (session.system_id, session.bind_type) == ('A', 'transmitter')
