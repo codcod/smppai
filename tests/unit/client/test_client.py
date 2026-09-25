@@ -1954,6 +1954,60 @@ class TestHeaderOnlyErrorResponses:
             await server.wait_closed()
 
     @pytest.mark.asyncio
+    async def test_submit_sm_error_with_tlvs_and_no_body_keeps_connection(self):
+        """SMP-016: a body-less error response carrying TLVs decodes, and the
+        raised exception carries the response PDU."""
+        tlv = struct.pack('>HH', 0x001D, 5) + b'busy\x00'
+
+        async def handle(reader, writer):
+            _length, _command_id, seq = await self._serve_one(reader, writer)
+            writer.write(
+                BindTransceiverResp(system_id='smsc', sequence_number=seq).encode()
+            )
+            await writer.drain()
+
+            _length, _command_id, seq = await self._serve_one(reader, writer)
+            writer.write(
+                struct.pack(
+                    '>LLLL',
+                    16 + len(tlv),
+                    CommandId.SUBMIT_SM_RESP,
+                    CommandStatus.ESME_RTHROTTLED,
+                    seq,
+                )
+                + tlv
+            )
+            await writer.drain()
+            await self._hold_open(reader, writer)
+
+        server = await asyncio.start_server(handle, '127.0.0.1', 0)
+        port = server.sockets[0].getsockname()[1]
+        client = SMPPClient(
+            '127.0.0.1',
+            port,
+            'test_client',
+            'password',
+            bind_timeout=2.0,
+            response_timeout=2.0,
+        )
+        try:
+            await client.connect()
+            await client.bind_transceiver()
+
+            with pytest.raises(SMPPThrottlingException) as exc_info:
+                await client.submit_sm('12345', '67890', 'hi')
+            value = exc_info.value.pdu.get_optional_parameter_value(0x001D)
+            assert value.startswith(b'busy')
+
+            assert client.is_bound is True
+        finally:
+            client._bound = False
+            if client._connection:
+                await client._connection.disconnect()
+            server.close()
+            await server.wait_closed()
+
+    @pytest.mark.asyncio
     async def test_bind_header_only_error_raises_bind_exception(self):
         async def handle(reader, writer):
             _length, _command_id, seq = await self._serve_one(reader, writer)
