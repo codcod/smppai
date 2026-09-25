@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.8.1 (2026-09-25)
+
+### Bug Fixes
+
+- Refuse unhandled data_sm and harden data_sm payloads (SMP-021)
+  ([`4878f5f`](https://github.com/codcod/smppai/commit/4878f5ff9a0d9dd03117f269302805a9d510f8c4))
+
+
 ## v0.8.0 (2026-09-25)
 
 ### Features
