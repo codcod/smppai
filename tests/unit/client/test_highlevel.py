@@ -11,6 +11,7 @@ import smpp
 from smpp import (
     Address,
     DataCoding,
+    DataSm,
     DeliverSm,
     MessageState,
     NpiType,
@@ -300,3 +301,33 @@ async def test_messages_ends_when_disconnect_fails(server):
 async def _consume(c):
     async for _ in c.messages():
         pass
+
+
+def test_client_sets_data_sm_handler():
+    c = _client()
+    assert c.raw.on_data_sm == c._on_data_sm
+
+
+@pytest.mark.asyncio
+async def test_data_sm_yields_message():
+    c = _client()
+    pdu = DataSm(source_addr='1', destination_addr='2')  # type: ignore[call-arg]
+    pdu.set_message_text('hello')
+    c._on_data_sm(c.raw, pdu)
+    (msg,) = await _drain(c)
+    assert msg.text == 'hello'
+    assert msg.receipt is None
+    assert msg.pdu is pdu
+
+
+@pytest.mark.asyncio
+async def test_data_sm_receipt_from_tlvs():
+    c = _client()
+    pdu = DataSm(source_addr='1', destination_addr='2', esm_class=0x04)  # type: ignore[call-arg]
+    pdu.set_tlv(OptionalTag.RECEIPTED_MESSAGE_ID, 'tlv-id')
+    pdu.set_tlv(OptionalTag.MESSAGE_STATE, MessageState.DELIVERED)
+    c._on_data_sm(c.raw, pdu)
+    (msg,) = await _drain(c)
+    assert msg.is_receipt
+    assert msg.receipt.id == 'tlv-id'
+    assert msg.receipt.state == MessageState.DELIVERED

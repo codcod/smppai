@@ -1023,6 +1023,33 @@ class TestSMPPServerSubmitSmHandling:
         assert isinstance(sent_pdu, DataSmResp)
         assert sent_pdu.command_status == CommandStatus.ESME_RINVBNDSTS
 
+    @pytest.mark.asyncio
+    async def test_handle_data_sm_without_handler_refused(self):
+        """data_sm with no on_data_sm gets data_sm_resp ESME_RINVCMDID, no message_id."""
+        server = SMPPServer()
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transmitter'
+        )
+
+        await server._handle_submit_sm(session, DataSm(sequence_number=3))
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert isinstance(sent_pdu, DataSmResp)
+        assert sent_pdu.command_status == CommandStatus.ESME_RINVCMDID
+        assert sent_pdu.message_id == ''
+        assert session.message_counter == 0
+
+    def test_client_pdu_accepts_data_sm_resp(self):
+        """A data_sm_resp from the client is not answered with generic_nack."""
+        server = SMPPServer()
+        session = ClientSession(connection=AsyncMock())
+        with (
+            patch.object(server, '_send_generic_nack', new=Mock()) as nack,
+            patch('asyncio.create_task'),
+        ):
+            server._handle_client_pdu(session, DataSmResp(sequence_number=1))
+        nack.assert_not_called()
+
     def test_client_pdu_routes_data_sm(self):
         """_handle_client_pdu routes data_sm to _handle_submit_sm, not generic_nack."""
         server = SMPPServer()

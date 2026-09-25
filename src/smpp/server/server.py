@@ -666,9 +666,11 @@ class SMPPServer:
                 asyncio.create_task(self._handle_replace_sm(session, pdu))
             elif isinstance(pdu, EnquireLink):
                 asyncio.create_task(self._handle_enquire_link(session, pdu))
-            elif isinstance(pdu, DeliverSmResp):
-                # Acknowledge delivery receipt
-                logger.debug('Received deliver_sm_resp from %s', session.system_id)
+            elif isinstance(pdu, (DeliverSmResp, DataSmResp)):
+                # Acknowledgement of a server-initiated deliver_sm/data_sm
+                logger.debug(
+                    'Received %s from %s', pdu.__class__.__name__, session.system_id
+                )
             else:
                 logger.warning('Unhandled PDU type: %s', pdu.__class__.__name__)
                 asyncio.create_task(
@@ -846,6 +848,13 @@ class SMPPServer:
             ):
                 await self._send_submit_sm_response(
                     session, pdu, CommandStatus.ESME_RINVBNDSTS
+                )
+                return
+
+            if isinstance(pdu, DataSm) and self.on_data_sm is None:
+                # Refuse rather than ack: nobody would receive it
+                await self._send_submit_sm_response(
+                    session, pdu, CommandStatus.ESME_RINVCMDID
                 )
                 return
 

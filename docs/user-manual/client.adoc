@@ -54,12 +54,15 @@ the first loop in `contextlib.aclosing(c.messages())` so it is closed at once.
 when it cannot be decoded, e.g. binary data), `receipt` (`DeliveryReceipt` or
 `None`), `is_receipt`, and the raw `pdu`. Concatenated parts are reassembled
 into one `Message` before it is yielded; its `pdu` is the last part received.
+An inbound `data_sm` is yielded too: its `text` comes from `message_payload`,
+it is never reassembled, and its `pdu` is the `DataSm`.
 
 `DeliveryReceipt`::
 `id`, `state` (`MessageState`), `stat`, `err`, `submit_date`, `done_date` and
 `text`, parsed from the SMPP Appendix B receipt text. The
 `receipted_message_id` and `message_state` TLVs take precedence over the text
-when present and well-formed.
+when present and well-formed. A `data_sm` receipt has no receipt text, so
+only `id` and `state` (from those TLVs) are set.
 
 `Address.parse(s)`::
 `"+306900000000"` becomes international/ISDN (the `+` is dropped), plain
@@ -71,9 +74,9 @@ number. `send` accepts a `str` or an `Address` for `to` and
 
 `client.raw`::
 The underlying `SMPPClient`, for anything the high-level API does not cover
-(`query_sm`, `cancel_sm`, raw `submit_sm` fields, ...). Its `on_deliver_sm`
-and `on_connection_lost` handlers belong to `messages()`; replacing either one
-stops `messages()` from receiving.
+(`query_sm`, `cancel_sm`, raw `submit_sm` fields, ...). Its `on_deliver_sm`,
+`on_data_sm` and `on_connection_lost` handlers belong to `messages()`;
+replacing any of them stops `messages()` from receiving.
 
 The rest of this chapter documents that low-level `SMPPClient`.
 
@@ -202,8 +205,11 @@ the encoding and budget details.
 To send as `data_sm` instead, use `client.data_sm(...)`. It takes the same
 address, `esm_class`, `registered_delivery` and `data_coding` arguments as
 `submit_sm`, and `message` may be a `str` (encoded per `data_coding`) or
-`bytes` (sent as-is). The content travels in the `message_payload` TLV, so
-there is no 254-octet limit and no splitting:
+`bytes`, `bytearray` or `memoryview` (sent as-is). The content travels in the
+`message_payload` TLV, so there is no 254-octet limit and no splitting. The
+whole PDU must still fit in 65,536 bytes, so the payload can be at most about
+65,500 octets (less the lengths of the addresses and `service_type`); anything
+larger raises `SMPPMessageException` before it is sent:
 
 [source,python]
 ----
@@ -277,8 +283,10 @@ required, and unset ones are simply skipped:
   `deliver_sm_resp` before this handler runs.
 
 | `on_data_sm`
-| `(client, pdu: DataSm) -> None` — SMSC-initiated `data_sm`. The client
-  auto-acknowledges with `data_sm_resp` before this handler runs. Read the
+| `(client, pdu: DataSm) -> None` — SMSC-initiated `data_sm`. When this
+  handler is set, the client auto-acknowledges with `data_sm_resp` before it
+  runs. Without a handler, the client refuses the `data_sm` with
+  `data_sm_resp` `ESME_RINVCMDID`, so the SMSC knows it was not delivered. Read the
   content with `pdu.get_message_text()` or `pdu.get_message_payload()`.
 
 | `on_connection_lost`

@@ -553,7 +553,7 @@ class SMPPClient:
         self,
         source_addr: str,
         destination_addr: str,
-        message: str | bytes,
+        message: str | bytes | bytearray | memoryview,
         source_addr_ton: int = TonType.UNKNOWN,
         source_addr_npi: int = NpiType.UNKNOWN,
         dest_addr_ton: int = TonType.UNKNOWN,
@@ -567,7 +567,8 @@ class SMPPClient:
         """
         Send a message as data_sm, carried in the message_payload TLV
 
-        Unlike submit_sm there is no 254-octet limit and no splitting.
+        Unlike submit_sm there is no 254-octet limit and no splitting; the whole
+        PDU must fit in 65,536 bytes (a payload of about 65,500 octets).
 
         Args:
             source_addr: Source address (sender)
@@ -605,10 +606,11 @@ class SMPPClient:
             data_coding=data_coding,
         )
         try:
-            if isinstance(message, bytes):
-                pdu.set_message_payload(message)
+            if isinstance(message, (bytes, bytearray, memoryview)):
+                pdu.set_message_payload(bytes(message))
             else:
                 pdu.set_message_text(message)
+            pdu.encode()  # over-size PDU fails here, before a sequence number is used
         except UnicodeEncodeError as e:
             raise SMPPMessageException(
                 f'Message not encodable with data_coding {data_coding:#x}; use DataCoding.UCS2'
@@ -865,12 +867,15 @@ class SMPPClient:
                 logger.exception(f'Error in deliver_sm handler: {e}')
 
     def _handle_data_sm(self, pdu: DataSm) -> None:
-        """Handle an SMSC-initiated data_sm: acknowledge, then notify"""
+        """Handle an SMSC-initiated data_sm: acknowledge (or refuse if unhandled), then notify"""
         logger.debug(
             'Received data_sm from %s to %s', pdu.source_addr, pdu.destination_addr
         )
 
-        asyncio.create_task(self._send_data_sm_resp(pdu.sequence_number))
+        status = (
+            CommandStatus.ESME_ROK if self.on_data_sm else CommandStatus.ESME_RINVCMDID
+        )
+        asyncio.create_task(self._send_data_sm_resp(pdu.sequence_number, status))
 
         if self.on_data_sm:
             try:
@@ -878,10 +883,14 @@ class SMPPClient:
             except Exception as e:
                 logger.exception(f'Error in data_sm handler: {e}')
 
-    async def _send_data_sm_resp(self, sequence_number: int) -> None:
+    async def _send_data_sm_resp(
+        self, sequence_number: int, status: int = CommandStatus.ESME_ROK
+    ) -> None:
         """Send data_sm_resp"""
         try:
-            resp_pdu = DataSmResp(sequence_number=sequence_number)
+            resp_pdu = DataSmResp(
+                sequence_number=sequence_number, command_status=status
+            )
             if self._connection is not None:
                 await self._connection.send_pdu(resp_pdu, wait_response=False)
         except Exception as e:
