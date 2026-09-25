@@ -17,6 +17,8 @@ from smpp.protocol import (
     CancelSmResp,
     CommandStatus,
     DataCoding,
+    DataSm,
+    DataSmResp,
     DeliverSm,
     EnquireLink,
     EnquireLinkResp,
@@ -983,6 +985,55 @@ class TestSMPPServerUnbindHandling:
 
 class TestSMPPServerSubmitSmHandling:
     """Tests for submit_sm request handling."""
+
+    @pytest.mark.asyncio
+    async def test_handle_data_sm_replies_data_sm_resp(self):
+        """data_sm gets a data_sm_resp with on_data_sm's id; on_message_received is not called."""
+        server = SMPPServer()
+        server.on_data_sm = Mock(return_value='DS1')
+        server.on_message_received = Mock()
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='transmitter'
+        )
+        pdu = DataSm(sequence_number=7, source_addr='1', destination_addr='2')
+        pdu.set_message_text('hi')
+
+        await server._handle_submit_sm(session, pdu)
+
+        server.on_data_sm.assert_called_once_with(server, session, pdu)
+        server.on_message_received.assert_not_called()
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert isinstance(sent_pdu, DataSmResp)
+        assert sent_pdu.sequence_number == 7
+        assert sent_pdu.command_status == CommandStatus.ESME_ROK
+        assert sent_pdu.message_id == 'DS1'
+        assert session.message_counter == 1
+
+    @pytest.mark.asyncio
+    async def test_handle_data_sm_receiver_bind_rejected(self):
+        """data_sm from a receiver-bound session gets data_sm_resp ESME_RINVBNDSTS."""
+        server = SMPPServer()
+        session = ClientSession(
+            connection=AsyncMock(), bound=True, bind_type='receiver'
+        )
+
+        await server._handle_submit_sm(session, DataSm(sequence_number=1))
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert isinstance(sent_pdu, DataSmResp)
+        assert sent_pdu.command_status == CommandStatus.ESME_RINVBNDSTS
+
+    def test_client_pdu_routes_data_sm(self):
+        """_handle_client_pdu routes data_sm to _handle_submit_sm, not generic_nack."""
+        server = SMPPServer()
+        session = ClientSession(connection=AsyncMock())
+        pdu = DataSm(sequence_number=1)
+        with (
+            patch.object(server, '_handle_submit_sm', new=Mock()) as handler,
+            patch('asyncio.create_task'),
+        ):
+            server._handle_client_pdu(session, pdu)
+        handler.assert_called_once_with(session, pdu)
 
     @pytest.mark.asyncio
     async def test_handle_submit_sm_success_transmitter(self):

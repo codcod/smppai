@@ -199,6 +199,21 @@ is no automatic rollback or retry. `submit_sm` itself still raises
 never splits on its own. See <<gsm,GSM encoding, segmentation and UDH>> for
 the encoding and budget details.
 
+To send as `data_sm` instead, use `client.data_sm(...)`. It takes the same
+address, `esm_class`, `registered_delivery` and `data_coding` arguments as
+`submit_sm`, and `message` may be a `str` (encoded per `data_coding`) or
+`bytes` (sent as-is). The content travels in the `message_payload` TLV, so
+there is no 254-octet limit and no splitting:
+
+[source,python]
+----
+message_id = await client.data_sm("1234", "5678", long_text)
+message_id = await client.data_sm("1234", "5678", b"\x00\x01...", data_coding=DataCoding.OCTET_UNSPECIFIED_2)
+----
+
+It needs a transmitter or transceiver bind, and it raises the same
+exceptions as `submit_sm`.
+
 [#managing-submitted-messages]
 == Managing submitted messages
 
@@ -260,6 +275,11 @@ required, and unset ones are simply skipped:
   Check `pdu.esm_class & 0x04` to tell a delivery receipt from a
   mobile-originated message. The client auto-acknowledges with
   `deliver_sm_resp` before this handler runs.
+
+| `on_data_sm`
+| `(client, pdu: DataSm) -> None` — SMSC-initiated `data_sm`. The client
+  auto-acknowledges with `data_sm_resp` before this handler runs. Read the
+  content with `pdu.get_message_text()` or `pdu.get_message_payload()`.
 
 | `on_connection_lost`
 | `(client, error: Exception) -> None` — the socket dropped, expectedly or not.

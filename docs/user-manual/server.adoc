@@ -70,6 +70,11 @@ auto-incrementing message ID in the `submit_sm_resp`; returning `None`
 keeps the default. `submit_sm` is rejected with `ESME_RINVBNDSTS` unless the
 sending session is bound as transmitter or transceiver.
 
+`data_sm` goes to `on_data_sm` instead, which works the same way: return a
+message ID string or `None`, and the server replies with `data_sm_resp`.
+Read the content with `pdu.get_message_text()` or
+`pdu.get_message_payload()`. `on_message_received` never sees a `data_sm`.
+
 == Event handlers
 
 [cols="1,3"]
@@ -87,6 +92,10 @@ sending session is bound as transmitter or transceiver.
 
 | `on_message_received`
 | `(server, session: ClientSession, pdu: SubmitSm) -> Optional[str]` — see above.
+
+| `on_data_sm`
+| `(server, session: ClientSession, pdu: DataSm) -> Optional[str]` — like
+  `on_message_received`, for `data_sm`; see above.
 
 | `on_query_sm`
 | `(server, session: ClientSession, pdu: QuerySm) -> Optional[tuple[int, str, int]]` —

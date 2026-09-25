@@ -15,7 +15,9 @@
   `Unbind`, `UnbindResp`, `Outbind`
 
 | Message operations
-| `SubmitSm`, `SubmitSmResp`, `DeliverSm`, `DeliverSmResp`
+| `SubmitSm`, `SubmitSmResp`, `DeliverSm`, `DeliverSmResp`, `DataSm`,
+  `DataSmResp` — `data_sm` is sent by `SMPPClient.data_sm()` and handled by
+  the client's and server's `on_data_sm` callbacks.
 
 | Message management
 | `QuerySm`, `QuerySmResp`, `CancelSm`, `CancelSmResp`, `ReplaceSm`,
@@ -33,11 +35,10 @@ Factory helpers: `create_pdu(command_id, **kwargs)`,
 `decode_pdu(data: bytes) -> PDU` (equivalent to `PDU.decode(data)`).
 
 A wider set of command IDs is defined in `smpp.protocol.constants.CommandId`
-(`submit_multi`, `alert_notification`, `data_sm`) and a few of their PDU
-classes exist under `smpp.protocol.pdu` (`AlertNotification`, `DataSm`,
-`DataSmResp`) for anyone decoding raw traffic — but `SMPPClient` and
-`SMPPServer` don't send or handle them, so they aren't re-exported from the
-top-level `smpp` package.
+(`submit_multi`, `alert_notification`), and `AlertNotification` exists
+under `smpp.protocol.pdu` for anyone decoding raw traffic — but
+`SMPPClient` and `SMPPServer` don't send or handle them, so they aren't
+re-exported from the top-level `smpp` package.
 
 == Optional parameters (TLV)
 

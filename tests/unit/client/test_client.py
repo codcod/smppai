@@ -8,6 +8,7 @@ binding operations, message sending, event handling, and error scenarios.
 import asyncio
 import struct
 import pytest
+import pytest_asyncio
 from unittest.mock import AsyncMock, Mock, patch, PropertyMock
 
 from smpp.client.client import SMPPClient, BindType
@@ -27,6 +28,8 @@ from smpp.protocol import (
     CommandId,
     CommandStatus,
     DataCoding,
+    DataSm,
+    DataSmResp,
     DeliverSm,
     DeliverSmResp,
     EnquireLinkResp,
@@ -2085,3 +2088,99 @@ class TestScInterfaceVersion:
         finally:
             await client.disconnect()
             await srv.stop()
+
+
+@pytest_asyncio.fixture
+async def data_sm_server():
+    from smpp.server.server import SMPPServer
+
+    srv = SMPPServer(host='127.0.0.1', port=0, setup_signal_handlers=False)
+    srv.configure_shutdown(grace_period=0.1, reminder_delay=0.1, shutdown_timeout=0.5)
+    srv.received = []
+    srv.on_data_sm = lambda s, session, pdu: srv.received.append(pdu) or 'DS1'
+    await srv.start()
+    srv.test_port = srv._server.sockets[0].getsockname()[1]
+    yield srv
+    await srv.stop()
+
+
+@pytest.mark.asyncio
+class TestDataSmLoopback:
+    """data_sm end to end against a real SMPPServer."""
+
+    async def _client(self, server, bind='transceiver'):
+        client = SMPPClient('127.0.0.1', server.test_port, 'u', 'p')
+        await client.connect()
+        await getattr(client, f'bind_{bind}')()
+        return client
+
+    async def test_text_round_trip(self, data_sm_server):
+        client = await self._client(data_sm_server)
+        try:
+            assert await client.data_sm('111', '222', 'hello') == 'DS1'
+        finally:
+            await client.disconnect()
+        assert data_sm_server.received[0].get_message_text() == 'hello'
+
+    async def test_long_bytes_payload_round_trip(self, data_sm_server):
+        payload = b'\x00\x01' * 600
+        client = await self._client(data_sm_server)
+        try:
+            await client.data_sm('111', '222', payload)
+        finally:
+            await client.disconnect()
+        assert data_sm_server.received[0].get_message_payload() == payload
+
+    async def test_no_server_handler_uses_default_id(self, data_sm_server):
+        data_sm_server.on_data_sm = None
+        client = await self._client(data_sm_server)
+        try:
+            assert await client.data_sm('111', '222', 'hello')
+        finally:
+            await client.disconnect()
+
+    async def test_receiver_bind_cannot_send(self, data_sm_server):
+        client = await self._client(data_sm_server, 'receiver')
+        try:
+            with pytest.raises(SMPPInvalidStateException):
+                await client.data_sm('111', '222', 'hello')
+        finally:
+            await client.disconnect()
+
+    async def test_unencodable_text_raises_message_exception(self, data_sm_server):
+        client = await self._client(data_sm_server)
+        try:
+            with pytest.raises(SMPPMessageException):
+                await client.data_sm(
+                    '111', '222', '\u4e2d', data_coding=DataCoding.LATIN_1
+                )
+        finally:
+            await client.disconnect()
+
+    @pytest.mark.parametrize(
+        'message', [b'x' * 70000, 'x' * 70000], ids=['bytes', 'str']
+    )
+    async def test_oversized_payload_raises_message_exception(
+        self, data_sm_server, message
+    ):
+        client = await self._client(data_sm_server)
+        try:
+            with pytest.raises(SMPPMessageException):
+                await client.data_sm('111', '222', message)
+        finally:
+            await client.disconnect()
+
+    async def test_inbound_data_sm_acknowledged_and_dispatched(self, data_sm_server):
+        client = await self._client(data_sm_server)
+        seen = []
+        client.on_data_sm = lambda c, pdu: seen.append(pdu)
+        try:
+            session = next(s for s in data_sm_server._clients.values() if s.bound)
+            pdu = DataSm(source_addr='222', destination_addr='111')
+            pdu.set_message_text('inbound')
+            resp = await session.connection.send_pdu(pdu, wait_response=True, timeout=2)
+        finally:
+            await client.disconnect()
+        assert isinstance(resp, DataSmResp)
+        assert resp.command_status == CommandStatus.ESME_ROK
+        assert [p.get_message_text() for p in seen] == ['inbound']
