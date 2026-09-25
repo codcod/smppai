@@ -34,6 +34,12 @@ in between rather than `serve_forever()`. Or skip both and call
 `await server.start()` / `await server.stop()` directly. `client_count` and
 `is_running` report live state regardless of which pattern you use.
 
+`interface_version` (an int, `0x00`-`0xFF`, checked at construction) is
+reported to v3.4 ESMEs as the `sc_interface_version` TLV on a successful
+`bind_*_resp`. v3.3 ESMEs never get it, since they can't parse TLVs, and
+neither does anyone when the server itself is set below `0x34`. Each `ClientSession` records the version its peer bound
+with in `session.interface_version` — `0x33` means send it no TLVs.
+
 == Authentication
 
 [source,python]

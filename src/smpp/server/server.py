@@ -30,6 +30,7 @@ from ..protocol import (
     EnquireLinkResp,
     GenericNack,
     NpiType,
+    OptionalTag,
     QuerySm,
     QuerySmResp,
     ReplaceSm,
@@ -55,6 +56,7 @@ class ClientSession:
     bind_type: str = ''
     bound: bool = False
     address_range: str = ''
+    interface_version: int = 0x34
     message_counter: int = 0
 
 
@@ -119,6 +121,14 @@ class SMPPServer:
         self.host = host
         self.port = port
         self.system_id = system_id
+        if (
+            not isinstance(interface_version, int)
+            or isinstance(interface_version, bool)
+            or not 0 <= interface_version <= 0xFF
+        ):
+            raise ValueError(
+                f'interface_version must be an int 0x00-0xFF, got {interface_version!r}'
+            )
         self.interface_version = interface_version
         self.max_connections = max_connections
         self._setup_signals = setup_signal_handlers
@@ -706,6 +716,7 @@ class SMPPServer:
             # Update session
             session.system_id = system_id
             session.address_range = pdu.address_range
+            session.interface_version = pdu.interface_version
             session.bound = True
 
             if isinstance(pdu, BindTransmitter):
@@ -773,6 +784,16 @@ class SMPPServer:
                 )
             else:
                 return
+
+            # TLVs need v3.4 on both ends (SMPP v3.4 §5.3.2.25)
+            if (
+                status == CommandStatus.ESME_ROK
+                and session.interface_version >= 0x34
+                and self.interface_version >= 0x34
+            ):
+                resp_pdu.set_tlv(
+                    OptionalTag.SC_INTERFACE_VERSION, self.interface_version
+                )
 
             if resp_pdu:
                 await session.connection.send_pdu(resp_pdu, wait_response=False)

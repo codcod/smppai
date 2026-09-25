@@ -103,6 +103,10 @@ client = SMPPClient(
 against SMPP v3.4's field limits (16/9/13/41 bytes respectively, each
 including the C-string terminator) when you bind.
 
+After a successful bind, `client.sc_interface_version` holds the version the
+SMSC reported (`sc_interface_version` TLV), or `None` if it reported none;
+it resets to `None` on unbind or disconnect. It is informational only.
+
 == Connecting and binding
 
 [source,python]
