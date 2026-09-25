@@ -12,6 +12,8 @@ messages with parsed delivery receipts.
 """
 
 import asyncio
+import logging
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import AsyncIterator, Dict, Literal, Optional, Tuple, Union
@@ -32,6 +34,8 @@ from .client import SMPPClient
 
 __all__ = ['connect', 'Client', 'Address', 'SendResult', 'Message', 'DeliveryReceipt']
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class Address:
@@ -46,16 +50,22 @@ class Address:
         """
         Parse an address string.
 
-        '+<digits>' is international ISDN, plain digits are unknown/unknown,
-        anything else is an alphanumeric sender.
+        Spaces and '-' are ignored in numbers. '+<digits>' is international
+        ISDN, plain digits are unknown/unknown, anything else (including
+        non-ASCII digits) is an alphanumeric sender, kept as given.
         """
         if isinstance(s, Address):
             return s
-        if s.startswith('+') and s[1:].isdigit():
-            return cls(s[1:], TonType.INTERNATIONAL, NpiType.ISDN)
-        if s == '' or s.isdigit():
-            return cls(s, TonType.UNKNOWN, NpiType.UNKNOWN)
+        n = s.replace(' ', '').replace('-', '')
+        if n.startswith('+') and _ascii_digits(n[1:]):
+            return cls(n[1:], TonType.INTERNATIONAL, NpiType.ISDN)
+        if n == '' or _ascii_digits(n):
+            return cls(n, TonType.UNKNOWN, NpiType.UNKNOWN)
         return cls(s, TonType.ALPHANUMERIC, NpiType.UNKNOWN)
+
+
+def _ascii_digits(s: str) -> bool:
+    return s.isascii() and s.isdigit()
 
 
 @dataclass(frozen=True)
@@ -131,8 +141,11 @@ def _parse_receipt(pdu: DeliverSm) -> DeliveryReceipt:
     if isinstance(tlv_id, str):
         receipt_id = tlv_id
     tlv_state = _tlv(pdu, OptionalTag.MESSAGE_STATE)
-    if isinstance(tlv_state, int) and tlv_state in MessageState._value2member_map_:
-        state = MessageState(tlv_state)
+    if isinstance(tlv_state, int):
+        try:
+            state = MessageState(tlv_state)
+        except ValueError:
+            pass
 
     return DeliveryReceipt(
         id=receipt_id,
@@ -171,6 +184,9 @@ def _to_message(pdu: DeliverSm, text: Optional[str]) -> Message:
 
 _CLOSED = object()
 _PartKey = Tuple[str, str, int, int]
+# ponytail: fixed cap, expose it on connect() if someone needs to tune it
+_MAX_PENDING = 1000
+_PART_TTL = 300.0  # seconds an incomplete part set may wait
 
 
 class Client:
@@ -178,11 +194,12 @@ class Client:
 
     def __init__(self, raw: SMPPClient):
         self.raw = raw
-        # ponytail: unbounded queue, add maxsize/backpressure if a consumer can stall
+        # Unbounded so terminal items always fit; _put caps the Messages.
         self._queue: asyncio.Queue = asyncio.Queue()
-        # ponytail: no eviction of incomplete part sets, add a TTL if SMSCs drop parts
-        self._parts: Dict[_PartKey, Dict[int, DeliverSm]] = {}
+        # key -> (first-arrival monotonic time, part_number -> pdu)
+        self._parts: Dict[_PartKey, Tuple[float, Dict[int, DeliverSm]]] = {}
         self._consuming = False
+        self._closing = False
         raw.on_deliver_sm = self._on_deliver_sm
         raw.on_connection_lost = self._on_connection_lost
 
@@ -254,14 +271,22 @@ class Client:
             info = pdu.get_concatenated_info()
         except (ValueError, SMPPPDUException):
             info = None
-        if info is None or _is_receipt(pdu):
-            self._queue.put_nowait(
-                _to_message(pdu, _decode(_content(pdu), pdu.data_coding))
-            )
+        if (
+            info is None
+            or _is_receipt(pdu)
+            or not 1 <= info.part_number <= info.total_parts
+        ):
+            self._put(_to_message(pdu, _decode(_content(pdu), pdu.data_coding)))
             return
 
+        now = time.monotonic()
+        for k in [k for k, (t, _) in self._parts.items() if now - t > _PART_TTL]:
+            logger.warning('Discarding incomplete concatenated message %s', k)
+            del self._parts[k]
+        # ponytail: two sets sharing the 8-bit reference within the TTL still
+        # collide; inherent to the reference size, 16-bit refs make it rarer
         key = (pdu.source_addr, pdu.destination_addr, info.reference, info.total_parts)
-        received = self._parts.setdefault(key, {})
+        received = self._parts.setdefault(key, (now, {}))[1]
         received[info.part_number] = pdu
         if len(received) < info.total_parts:
             return
@@ -279,10 +304,19 @@ class Client:
             text: Optional[str] = reassemble_parts(parts, pdu.data_coding)
         except (ValueError, SMPPPDUException):
             text = None
-        self._queue.put_nowait(_to_message(pdu, text))
+        self._put(_to_message(pdu, text))
+
+    def _put(self, msg: Message) -> None:
+        # Only Messages are queued before a terminal item, so the oldest
+        # item is always a Message while the cap is reached.
+        if self._queue.qsize() >= _MAX_PENDING:
+            self._queue.get_nowait()
+            logger.warning('Dropped oldest inbound message: %d unread', _MAX_PENDING)
+        self._queue.put_nowait(msg)
 
     def _on_connection_lost(self, raw: SMPPClient, error: Exception) -> None:
-        self._queue.put_nowait(error)
+        if not self._closing:
+            self._queue.put_nowait(error)
 
     def _close(self) -> None:
         self._queue.put_nowait(_CLOSED)
@@ -321,5 +355,8 @@ async def connect(
         await getattr(raw, _BIND_METHODS[bind])()
         yield client
     finally:
-        await raw.disconnect()
-        client._close()
+        client._closing = True
+        try:
+            await raw.disconnect()
+        finally:
+            client._close()
