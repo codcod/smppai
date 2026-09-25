@@ -129,6 +129,9 @@ uv run pytest
 
 # Security check
 uv run bandit -r src/
+
+# Model check the session state machine (Java 11+; see specs/README.md)
+specs/check.sh
 ```
 
 ### 4. Commit Changes
