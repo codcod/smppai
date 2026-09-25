@@ -615,6 +615,7 @@ class SMPPServer:
                 # Update client state
                 client.bound = False
                 client.bind_type = ''
+                client.connection.clear_bound_state()
 
         except Exception as e:
             logger.warning(f'Error sending unbind to client {client.system_id}: {e}')

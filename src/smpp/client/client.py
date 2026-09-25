@@ -324,6 +324,8 @@ class SMPPClient:
             self._bound = False
             self._bind_type = None
             self.sc_interface_version = None
+            if self._connection is not None:
+                self._connection.clear_bound_state()
             logger.info('Unbound from SMSC')
 
             # Trigger unbind event
@@ -925,6 +927,8 @@ class SMPPClient:
             self._bound = False
             self._bind_type = None
             self.sc_interface_version = None
+            if self._connection is not None:
+                self._connection.clear_bound_state()
 
             logger.info('Received unbind request from SMSC')
 

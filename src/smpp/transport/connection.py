@@ -590,6 +590,11 @@ class SMPPConnection:
         else:
             logger.warning(f'Unknown bind type: {bind_type}')
 
+    def clear_bound_state(self) -> None:
+        """Return a bound connection to OPEN, as after an unbind"""
+        if self.is_bound:
+            self._set_state(ConnectionState.OPEN)
+
     def __repr__(self) -> str:
         return f'SMPPConnection(host={self.host}, port={self.port}, state={self._state.value})'
 

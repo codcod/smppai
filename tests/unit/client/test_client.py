@@ -2073,6 +2073,7 @@ class TestScInterfaceVersion:
             assert client.sc_interface_version == 0x34
             await client.unbind()
             assert client.sc_interface_version is None
+            assert client.connection_state == ConnectionState.OPEN
         finally:
             await client.disconnect()
             await srv.stop()
