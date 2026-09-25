@@ -689,6 +689,32 @@ class TestSMPPServerClientConnection:
         # Client should still be removed
         assert '127.0.0.1:12345' not in server._clients
 
+    @pytest.mark.asyncio
+    async def test_handle_client_disconnected_reports_once(self):
+        """Unbind and a lost connection may both report one session"""
+        server = SMPPServer()
+        session = ClientSession(connection=Mock())
+        server._clients = {'127.0.0.1:12345': session}
+        mock_handler = Mock()
+        server.on_client_disconnected = mock_handler
+
+        await server._handle_client_disconnected(session, None)
+        await server._handle_client_disconnected(session, Exception('lost'))
+
+        mock_handler.assert_called_once_with(server, session)
+
+    @pytest.mark.asyncio
+    async def test_handle_client_disconnected_untracked_still_reported(self):
+        """A session stop() already dropped from _clients is still reported"""
+        server = SMPPServer()
+        session = ClientSession(connection=Mock())
+        mock_handler = Mock()
+        server.on_client_disconnected = mock_handler
+
+        await server._handle_client_disconnected(session, Exception('lost'))
+
+        mock_handler.assert_called_once_with(server, session)
+
 
 class TestSMPPServerBindHandling:
     """Tests for bind request handling."""
@@ -980,6 +1006,32 @@ class TestSMPPServerUnbindHandling:
 
         # Verify connection was closed
         session.connection.disconnect.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_unbind_request_stops_tracking_session(self):
+        """disconnect() reports no lost connection, so unbind drops the session"""
+        server = SMPPServer()
+        session = _track(server, ClientSession(connection=AsyncMock(), bound=True))
+
+        await server._handle_unbind_request(session, Unbind(sequence_number=1))
+
+        assert server.client_count == 0
+
+    @pytest.mark.asyncio
+    async def test_repeated_unbind_does_not_wait_on_itself(self):
+        """Each unbind drains only earlier requests, so two can't deadlock"""
+        server = SMPPServer()
+        session = _track(server, ClientSession(connection=AsyncMock(), bound=True))
+
+        unbinds = [
+            server._spawn(
+                server._handle_unbind_request(session, Unbind(sequence_number=n)),
+                session,
+            )
+            for n in (1, 2)
+        ]
+
+        await asyncio.wait_for(asyncio.gather(*unbinds), timeout=1.0)
 
     @pytest.mark.asyncio
     async def test_handle_unbind_request_exception(self):

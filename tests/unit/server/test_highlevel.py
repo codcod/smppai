@@ -7,6 +7,7 @@ import pytest_asyncio
 
 import smpp
 from smpp import Address
+from smpp.client import SMPPClient
 
 
 def test_shutdown_lands_on_raw():
@@ -173,3 +174,50 @@ async def test_stop_waits_for_in_flight_on_submit():
             await started.wait()
             await srv.stop()
             assert (await send).message_ids == ('LATE',)
+
+
+@pytest.mark.asyncio
+async def test_unbind_waits_for_in_flight_on_submit():
+    # Unbinding mid-submit must not lose the answer to a message on_submit took
+    srv = smpp.Server('127.0.0.1', 0, setup_signal_handlers=False)
+    started = asyncio.Event()
+    taken = []
+
+    @srv.on_submit
+    async def on_submit(session, msg):
+        started.set()
+        await asyncio.sleep(0.3)
+        taken.append(msg)
+        return 'LATE'
+
+    async with srv:
+        port = srv.raw._server.sockets[0].getsockname()[1]
+        client = SMPPClient('127.0.0.1', port, 'u', 'p')
+        await client.connect()
+        await client.bind_transceiver()
+        submit = asyncio.create_task(client.submit_sm('111', '222', 'hi'))
+        await started.wait()
+        await client.unbind()
+        assert await submit == 'LATE'
+        assert len(taken) == 1
+        await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_unbind_releases_server_session():
+    # A cleanly unbound client must not keep counting against max_connections
+    srv = smpp.Server('127.0.0.1', 0, setup_signal_handlers=False, max_connections=1)
+    gone = []
+    srv.raw.on_client_disconnected = lambda server, session: gone.append(session)
+
+    async with srv:
+        port = srv.raw._server.sockets[0].getsockname()[1]
+        for _ in range(3):
+            async with smpp.connect('127.0.0.1', port, 'u', 'p') as c:
+                await c.send('306900000000', 'hi')
+            for _ in range(50):
+                if srv.raw.client_count == 0:
+                    break
+                await asyncio.sleep(0.01)
+            assert srv.raw.client_count == 0
+    assert len(gone) == 3
