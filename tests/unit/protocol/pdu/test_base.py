@@ -297,6 +297,24 @@ class TestPDUDecodeHeaderOnlyErrorResponse:
         with pytest.raises(SMPPPDUException):
             decode_pdu(data)
 
+    def test_zero_filled_body_is_not_taken_for_tlvs(self):
+        from smpp.protocol.pdu.factory import decode_pdu
+
+        # query_sm_resp: message_id '', final_date '', message_state 0, error_code 0
+        data = struct.pack('>IIII', 20, 0x80000003, 0x67, 7) + b'\x00' * 4
+        pdu = decode_pdu(data)
+        assert pdu.message_id == ''
+        assert pdu.optional_parameters == []
+        assert pdu.encode() == data
+
+    def test_vendor_tlv_tail_raises_pdu_exception(self):
+        from smpp.protocol.pdu.factory import decode_pdu
+
+        tlv = struct.pack('>HH', 0x1400, 1) + b'x'
+        data = struct.pack('>IIII', 16 + 5, 0x80000004, 0x58, 7) + tlv
+        with pytest.raises(SMPPPDUException):
+            decode_pdu(data)
+
     def test_header_only_ok_status_response_still_fails(self):
         from smpp.protocol.pdu.factory import decode_pdu
 

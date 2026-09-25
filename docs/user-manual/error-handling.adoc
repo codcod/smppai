@@ -47,7 +47,8 @@ All of these are importable from the top-level `smpp` package, except
 | A request didn't get a response within its timeout.
 
 | `SMPPBindException`
-| A bind attempt failed or timed out.
+| A bind attempt failed or timed out. When the SMSC rejected the bind,
+  `exc.pdu` holds its response, TLVs included.
 
 | `SMPPProtocolException`
 | A protocol-level violation outside normal PDU validation.
@@ -72,8 +73,9 @@ All of these are importable from the top-level `smpp` package, except
   if the text may not be printable ASCII).
 
 | `SMPPMessageException`
-| `submit_sm`/`deliver_sm` failed — SMSC error response, encoding failure,
-  message too long, no response.
+| `submit_sm`, `query_sm`, `cancel_sm` or `replace_sm` failed — SMSC error
+  response, encoding failure, message too long, no response. When the SMSC returned an error response,
+  `exc.pdu` holds it, TLVs included.
 
 | `SMPPValidationException`
 | Generic field validation failure.

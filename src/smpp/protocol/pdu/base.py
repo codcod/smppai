@@ -133,8 +133,11 @@ class TLVParameter:
         return hash((self.tag, self.value))
 
 
+_STANDARD_TAGS = frozenset(OptionalTag)
+
+
 def _bare_tlvs(data: bytes, start: int, end: int) -> Optional[List[TLVParameter]]:
-    """Parse data[start:end] as a TLV sequence ending exactly at end, else None."""
+    """Parse data[start:end] as standard TLVs ending exactly at end, else None."""
     params = []
     offset = start
     try:
@@ -143,7 +146,9 @@ def _bare_tlvs(data: bytes, start: int, end: int) -> Optional[List[TLVParameter]
             params.append(param)
     except Exception:  # any failure means "not a bare TLV tail"
         return None
-    return params if offset == end else None
+    if offset != end or any(p.tag not in _STANDARD_TAGS for p in params):
+        return None
+    return params
 
 
 @dataclass
@@ -307,8 +312,9 @@ class PDU(ABC):
         # TLVs. Skip decode_body when the PDU is header-only, or when the bytes
         # after the header form an exact TLV sequence: an empty C-string body
         # field and a standard TLV tag both start with 0x00, so probe the tail
-        # rather than trust a body decode. A body-less *success* response is
-        # still malformed.
+        # rather than trust a body decode. Only standard tags count, so a real
+        # body of empty/zero fields (tag 0x0000) still decodes as a body. A
+        # body-less *success* response is still malformed.
         bare_tlvs = None
         if command_status != CommandStatus.ESME_ROK and isinstance(pdu, ResponsePDU):
             bare_tlvs = _bare_tlvs(data, PDU_HEADER_SIZE, length)
