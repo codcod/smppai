@@ -103,6 +103,11 @@ class SMPPConnection:
         return self._connected and self._writer is not None
 
     @property
+    def is_closed(self) -> bool:
+        """Check if the stream is gone or closing"""
+        return self._writer is None or self._writer.is_closing()
+
+    @property
     def is_bound(self) -> bool:
         """Check if connection is bound"""
         return self._state in (
@@ -173,7 +178,8 @@ class SMPPConnection:
 
     async def disconnect(self) -> None:
         """Close TCP connection"""
-        if not self.is_connected:
+        # Not is_connected: a server may close a connection it never accept()ed
+        if self._writer is None:
             return
 
         logger.info('Disconnecting...')

@@ -53,8 +53,9 @@ the bind with `ESME_RBINDFAIL`. Registering again replaces the handler.
 (the `SubmitSm`); `receipt` is always `None`. A concatenated message
 arrives as one call per part, since each part's `submit_sm_resp` must carry
 its own message ID before the next part is sent. Returning a string sets
-that part's message ID; `None` keeps the generated one. Registering again
-replaces the handler.
+that part's message ID; `None` keeps the generated one. Raising answers
+`ESME_RSUBMITFAIL`, so the client can retry. Registering again replaces the
+handler.
 
 `server.raw`::
 The underlying `SMPPServer`, for every other callback (`on_client_bound`,
@@ -125,7 +126,11 @@ server.on_message_received = handle_message
 
 Returning a string from `on_message_received` overrides the server's
 auto-incrementing message ID in the `submit_sm_resp`; returning `None`
-keeps the default. `submit_sm` is rejected with `ESME_RINVBNDSTS` unless the
+keeps the default. A non-string ID, such as a database row id, is converted
+with `str()`. If the handler raises, the exception is logged with
+`logger.exception` and the server answers `ESME_RSUBMITFAIL` with no message
+ID. It doesn't acknowledge a message that may have been lost, so the client
+can retry. `submit_sm` is rejected with `ESME_RINVBNDSTS` unless the
 sending session is bound as transmitter or transceiver.
 
 `data_sm` goes to `on_data_sm` instead, which works the same way: return a
@@ -148,6 +153,9 @@ replies with its result.
 
 | `on_client_connected`
 | `(server, session: ClientSession) -> None` — TCP accepted, before any bind.
+  To reject the client, `await session.connection.disconnect()`. The server
+  then closes the socket without reading any PDU; `on_client_disconnected`
+  is not called for a rejected client.
 
 | `on_client_disconnected`
 | `(server, session: ClientSession) -> None` — socket closed, bound or not.
@@ -216,6 +224,9 @@ matching session exists or the send fails.
 runs a staged sequence rather than dropping connections immediately:
 
 . Stop accepting new connections and new messages.
+. Wait up to `shutdown_timeout` seconds for in-flight handlers (a slow
+  `on_message_received`, say) to finish and send their responses. Any handler
+  still running after that is cancelled.
 . Broadcast a shutdown notification (a `deliver_sm`) to every bound
   receiver/transceiver client.
 . Wait up to `grace_period` seconds for clients to unbind and disconnect on

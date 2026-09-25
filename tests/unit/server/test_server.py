@@ -41,6 +41,13 @@ from smpp.server.server import ClientSession, SMPPServer
 from smpp.transport import SMPPConnection
 
 
+def _track(server, session):
+    """Register session as a live client, as _handle_client_connection would."""
+    session.connection.is_closed = False
+    server._clients[f'client{len(server._clients)}'] = session
+    return session
+
+
 class TestClientSession:
     """Tests for ClientSession dataclass."""
 
@@ -634,6 +641,7 @@ class TestSMPPServerClientConnection:
         mock_writer.get_extra_info = Mock(return_value=('127.0.0.1', 12345))
 
         mock_connection = AsyncMock(spec=SMPPConnection)
+        mock_connection.is_closed = False
 
         with (
             patch('smpp.server.server.SMPPConnection', return_value=mock_connection),
@@ -697,7 +705,7 @@ class TestSMPPServerBindHandling:
     @pytest.mark.asyncio
     async def test_bind_v34_reports_sc_interface_version(self):
         server = SMPPServer()
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         await server._handle_bind_request(session, self._bind_pdu(0x34))
         sent_pdu = session.connection.send_pdu.call_args[0][0]
         assert session.interface_version == 0x34
@@ -706,7 +714,7 @@ class TestSMPPServerBindHandling:
     @pytest.mark.asyncio
     async def test_bind_v33_gets_no_tlv(self):
         server = SMPPServer()
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         await server._handle_bind_request(session, self._bind_pdu(0x33))
         sent_pdu = session.connection.send_pdu.call_args[0][0]
         assert sent_pdu.command_status == CommandStatus.ESME_ROK
@@ -716,7 +724,7 @@ class TestSMPPServerBindHandling:
     @pytest.mark.asyncio
     async def test_v33_server_sends_no_tlv(self):
         server = SMPPServer(interface_version=0x33)
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         await server._handle_bind_request(session, self._bind_pdu(0x34))
         sent_pdu = session.connection.send_pdu.call_args[0][0]
         assert sent_pdu.command_status == CommandStatus.ESME_ROK
@@ -731,7 +739,7 @@ class TestSMPPServerBindHandling:
     async def test_failed_bind_gets_no_tlv(self):
         server = SMPPServer()
         server.authenticate = Mock(return_value=False)
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         await server._handle_bind_request(session, self._bind_pdu(0x34))
         sent_pdu = session.connection.send_pdu.call_args[0][0]
         assert sent_pdu.command_status == CommandStatus.ESME_RBINDFAIL
@@ -741,7 +749,7 @@ class TestSMPPServerBindHandling:
     async def test_handle_bind_request_transmitter_success(self):
         """Test successful bind transmitter request."""
         server = SMPPServer()
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         pdu = BindTransmitter(
             sequence_number=1,
             system_id='test_client',
@@ -773,7 +781,7 @@ class TestSMPPServerBindHandling:
     async def test_handle_bind_request_receiver_success(self):
         """Test successful bind receiver request."""
         server = SMPPServer()
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         pdu = BindReceiver(
             sequence_number=1,
             system_id='test_client',
@@ -794,7 +802,7 @@ class TestSMPPServerBindHandling:
     async def test_handle_bind_request_transceiver_success(self):
         """Test successful bind transceiver request."""
         server = SMPPServer()
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         pdu = BindTransceiver(
             sequence_number=1,
             system_id='test_client',
@@ -815,7 +823,7 @@ class TestSMPPServerBindHandling:
     async def test_handle_bind_request_already_bound(self):
         """Test bind request when already bound."""
         server = SMPPServer()
-        session = ClientSession(connection=AsyncMock(), bound=True)
+        session = _track(server, ClientSession(connection=AsyncMock(), bound=True))
         pdu = BindTransmitter(
             sequence_number=1,
             system_id='test_client',
@@ -839,7 +847,7 @@ class TestSMPPServerBindHandling:
         """Test bind request with authentication failure."""
         server = SMPPServer()
         server.authenticate = Mock(return_value=False)
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         pdu = BindTransmitter(
             sequence_number=1,
             system_id='test_client',
@@ -868,7 +876,7 @@ class TestSMPPServerBindHandling:
         server = SMPPServer()
         mock_handler = Mock()
         server.on_client_bound = mock_handler
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         pdu = BindTransmitter(
             sequence_number=1,
             system_id='test_client',
@@ -891,7 +899,7 @@ class TestSMPPServerBindHandling:
         server = SMPPServer()
         mock_handler = Mock(side_effect=Exception('Handler error'))
         server.on_client_bound = mock_handler
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         pdu = BindTransmitter(
             sequence_number=1,
             system_id='test_client',
@@ -913,7 +921,7 @@ class TestSMPPServerBindHandling:
     async def test_handle_bind_request_send_response_exception(self):
         """Test bind request when send response fails."""
         server = SMPPServer()
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         session.connection.send_pdu.side_effect = Exception('Send failed')
         pdu = BindTransmitter(
             sequence_number=1,
@@ -933,7 +941,7 @@ class TestSMPPServerBindHandling:
     async def test_handle_bind_request_invalid_pdu_type(self):
         """Test bind request with invalid PDU type."""
         server = SMPPServer()
-        session = ClientSession(connection=AsyncMock())
+        session = _track(server, ClientSession(connection=AsyncMock()))
         pdu = Mock()  # Not a bind PDU
 
         # Should return early without error
@@ -1281,10 +1289,10 @@ class TestSMPPServerSubmitSmHandling:
         # Should not raise exception
         await server._handle_submit_sm(session, pdu)
 
-        # Should still send successful response with default message ID
+        # A lost message must not be acked: the client should retry
         sent_pdu = session.connection.send_pdu.call_args[0][0]
-        assert sent_pdu.command_status == CommandStatus.ESME_ROK
-        assert sent_pdu.message_id == '1'
+        assert sent_pdu.command_status == CommandStatus.ESME_RSUBMITFAIL
+        assert sent_pdu.message_id == ''
 
     @pytest.mark.asyncio
     async def test_handle_submit_sm_send_response_exception(self):
@@ -2040,7 +2048,7 @@ class TestAsyncCallbacks:
             return True
 
         server.authenticate = authenticate
-        session = ClientSession(connection=Mock(send_pdu=AsyncMock()))
+        session = _track(server, ClientSession(connection=Mock(send_pdu=AsyncMock())))
         first = BindTransmitter(
             sequence_number=1, system_id='A', password='p', interface_version=0x34
         )

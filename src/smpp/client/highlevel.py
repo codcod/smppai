@@ -26,7 +26,6 @@ from ..message import (
     Message,
     _decode,
     _is_receipt,
-    _parse_receipt,  # noqa: F401  (re-exported)
     _split,
     _to_message,
 )

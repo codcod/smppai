@@ -99,3 +99,77 @@ class TestLoopback:
         await asyncio.wait_for(server.stop(), 2)
         assert await asyncio.wait_for(reader.read(), 2) == b''
         writer.close()
+
+    async def test_on_client_connected_can_reject_via_disconnect(self, server):
+        async def connected(srv, session):
+            await session.connection.disconnect()
+
+        server.raw.on_client_connected = connected
+        reader, writer = await asyncio.open_connection('127.0.0.1', server.test_port)
+        assert await asyncio.wait_for(reader.read(), 1) == b''
+        await asyncio.sleep(0.05)
+        assert not server.raw._clients
+        writer.close()
+
+    async def test_client_gone_during_authenticate_is_not_bound(self, server):
+        bound = []
+
+        async def slow_auth(system_id, password, system_type):
+            await asyncio.sleep(0.05)
+            return True
+
+        server.raw.authenticate = slow_auth
+        server.raw.on_client_bound = lambda srv, session: bound.append(session)
+        _, writer = await asyncio.open_connection('127.0.0.1', server.test_port)
+        bind = smpp.BindTransmitter(
+            sequence_number=1, system_id='u', password='ok', interface_version=0x34
+        )
+        writer.write(bind.encode())
+        await writer.drain()
+        writer.close()
+        await asyncio.sleep(0.2)
+        assert bound == []
+
+    async def test_on_submit_error_is_not_acked(self, server):
+        @server.on_submit
+        async def on_submit(session, msg):
+            raise RuntimeError('store down')
+
+        async with smpp.connect('127.0.0.1', server.test_port, 'u', 'ok') as c:
+            with pytest.raises(smpp.SMPPMessageException):
+                await c.send('306900000000', 'hi')
+
+    async def test_non_str_message_id_is_stringified(self, server):
+        @server.on_submit
+        async def on_submit(session, msg):
+            return 42
+
+        async with smpp.connect('127.0.0.1', server.test_port, 'u', 'ok') as c:
+            result = await c.send('306900000000', 'hi')
+        assert result.message_ids == ('42',)
+
+
+@pytest.mark.asyncio
+async def test_stop_waits_for_in_flight_on_submit():
+    # 1.5 s outlasts the ~1.1 s the old shutdown kept the connection open
+    srv = smpp.Server(
+        '127.0.0.1',
+        0,
+        shutdown=smpp.Shutdown(grace=0.1, reminder=0.1, timeout=3),
+        setup_signal_handlers=False,
+    )
+    started = asyncio.Event()
+
+    @srv.on_submit
+    async def on_submit(session, msg):
+        started.set()
+        await asyncio.sleep(1.5)
+        return 'LATE'
+
+    async with srv:
+        port = srv.raw._server.sockets[0].getsockname()[1]
+        async with smpp.connect('127.0.0.1', port, 'u', 'p') as c:
+            send = asyncio.create_task(c.send('306900000000', 'hi'))
+            await started.wait()
+            await srv.stop()
+            assert (await send).message_ids == ('LATE',)
