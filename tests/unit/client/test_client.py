@@ -2131,11 +2131,33 @@ class TestDataSmLoopback:
             await client.disconnect()
         assert data_sm_server.received[0].get_message_payload() == payload
 
-    async def test_no_server_handler_uses_default_id(self, data_sm_server):
+    async def test_no_server_handler_refuses(self, data_sm_server):
         data_sm_server.on_data_sm = None
         client = await self._client(data_sm_server)
         try:
-            assert await client.data_sm('111', '222', 'hello')
+            with pytest.raises(SMPPMessageException) as exc:
+                await client.data_sm('111', '222', 'hello')
+        finally:
+            await client.disconnect()
+        assert exc.value.command_status == CommandStatus.ESME_RINVCMDID
+
+    @pytest.mark.parametrize('wrap', [bytearray, memoryview])
+    async def test_bytes_like_payload_round_trip(self, data_sm_server, wrap):
+        client = await self._client(data_sm_server)
+        try:
+            await client.data_sm('111', '222', wrap(b'\x00\x01abc'))
+        finally:
+            await client.disconnect()
+        assert data_sm_server.received[0].get_message_payload() == b'\x00\x01abc'
+
+    async def test_payload_over_pdu_limit_fails_before_sending(self, data_sm_server):
+        # Fits the 65535-octet TLV but not the 65536-byte PDU
+        client = await self._client(data_sm_server)
+        try:
+            before = client._connection._sequence_counter
+            with pytest.raises(SMPPMessageException):
+                await client.data_sm('111', '222', b'x' * 65510)
+            assert client._connection._sequence_counter == before
         finally:
             await client.disconnect()
 
@@ -2184,3 +2206,15 @@ class TestDataSmLoopback:
         assert isinstance(resp, DataSmResp)
         assert resp.command_status == CommandStatus.ESME_ROK
         assert [p.get_message_text() for p in seen] == ['inbound']
+
+    async def test_inbound_data_sm_without_handler_refused(self, data_sm_server):
+        client = await self._client(data_sm_server)
+        try:
+            session = next(s for s in data_sm_server._clients.values() if s.bound)
+            pdu = DataSm(source_addr='222', destination_addr='111')
+            pdu.set_message_text('inbound')
+            resp = await session.connection.send_pdu(pdu, wait_response=True, timeout=2)
+        finally:
+            await client.disconnect()
+        assert isinstance(resp, DataSmResp)
+        assert resp.command_status == CommandStatus.ESME_RINVCMDID

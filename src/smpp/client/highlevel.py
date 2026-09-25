@@ -22,6 +22,7 @@ from ..exceptions import SMPPPDUException, SMPPValidationException
 from ..gsm import MessagePart, reassemble_parts
 from ..protocol import (
     DataCoding,
+    DataSm,
     DeliverSm,
     MessageState,
     NpiType,
@@ -98,7 +99,7 @@ class Message:
     to: Address
     text: Optional[str]
     receipt: Optional[DeliveryReceipt]
-    pdu: DeliverSm
+    pdu: Union[DeliverSm, DataSm]
 
     @property
     def is_receipt(self) -> bool:
@@ -117,12 +118,12 @@ _STAT_TO_STATE = {
 }
 
 
-def _is_receipt(pdu: DeliverSm) -> bool:
+def _is_receipt(pdu: Union[DeliverSm, DataSm]) -> bool:
     # SMSC delivery receipt message type (SMPP v3.4 §5.2.12)
     return (pdu.esm_class & 0x3C) == 0x04
 
 
-def _tlv(pdu: DeliverSm, tag: int) -> Union[int, str, bytes, None]:
+def _tlv(pdu: Union[DeliverSm, DataSm], tag: int) -> Union[int, str, bytes, None]:
     """get_tlv, treating a malformed TLV as absent."""
     try:
         return pdu.get_tlv(tag)
@@ -130,9 +131,10 @@ def _tlv(pdu: DeliverSm, tag: int) -> Union[int, str, bytes, None]:
         return None
 
 
-def _parse_receipt(pdu: DeliverSm) -> DeliveryReceipt:
+def _parse_receipt(pdu: Union[DeliverSm, DataSm]) -> DeliveryReceipt:
     """Parse a receipt from its Appendix B text, overridden by receipt TLVs."""
-    fields = pdu.parse_delivery_receipt()
+    # data_sm has no Appendix B text; its receipt is TLVs only
+    fields = pdu.parse_delivery_receipt() if isinstance(pdu, DeliverSm) else {}
     stat = fields.get('stat')
     state = _STAT_TO_STATE.get(stat.upper()) if stat else None
     receipt_id = fields.get('id')
@@ -172,7 +174,7 @@ def _content(pdu: DeliverSm) -> bytes:
     return pdu.get_optional_parameter_value(OptionalTag.MESSAGE_PAYLOAD) or b''
 
 
-def _to_message(pdu: DeliverSm, text: Optional[str]) -> Message:
+def _to_message(pdu: Union[DeliverSm, DataSm], text: Optional[str]) -> Message:
     return Message(
         sender=Address(pdu.source_addr, pdu.source_addr_ton, pdu.source_addr_npi),
         to=Address(pdu.destination_addr, pdu.dest_addr_ton, pdu.dest_addr_npi),
@@ -201,6 +203,7 @@ class Client:
         self._consuming = False
         self._closing = False
         raw.on_deliver_sm = self._on_deliver_sm
+        raw.on_data_sm = self._on_data_sm
         raw.on_connection_lost = self._on_connection_lost
 
     async def send(
@@ -305,6 +308,10 @@ class Client:
         except (ValueError, SMPPPDUException):
             text = None
         self._put(_to_message(pdu, text))
+
+    def _on_data_sm(self, raw: SMPPClient, pdu: DataSm) -> None:
+        # message_payload carries the whole message: no reassembly
+        self._put(_to_message(pdu, _decode(pdu.get_message_payload(), pdu.data_coding)))
 
     def _put(self, msg: Message) -> None:
         # Only Messages are queued before a terminal item, so the oldest
