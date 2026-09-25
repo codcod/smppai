@@ -21,7 +21,8 @@ Quick Start:
         result = await client.send("+306900000000", "Hello World!", sender="ACME")
         print(result.message_ids)
 
-The low-level SMPPClient stays available (and as `client.raw`).
+The low-level SMPPClient stays available (and as `client.raw`); smpp.Server
+wraps SMPPServer the same way (as `server.raw`).
 """
 
 # Main client and server classes
@@ -104,7 +105,7 @@ from .protocol.pdu import (  # Bind PDUs; Message PDUs; Session PDUs; Factory fu
     create_submit_sm_pdu,
     decode_pdu,
 )
-from .server import SMPPServer
+from .server import Server, Shutdown, SMPPServer
 
 # Transport layer
 from .transport import ConnectionState, SMPPConnection
@@ -125,6 +126,9 @@ __all__ = [
     'SendResult',
     'Message',
     'DeliveryReceipt',
+    # High-level server API
+    'Server',
+    'Shutdown',
     # Protocol constants
     'CommandId',
     'CommandStatus',

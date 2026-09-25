@@ -19,7 +19,7 @@ from smpp import (
     OptionalTag,
     TonType,
 )
-from smpp.client.highlevel import _parse_receipt, _to_message
+from smpp.message import _parse_receipt, _to_message
 from smpp.gsm import make_parts
 from smpp.server import SMPPServer
 

@@ -6,10 +6,22 @@ for testing SMPP clients or as a foundation for building custom SMSC solutions.
 """
 
 import asyncio
+import inspect
 import logging
 import signal
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 
 from ..exceptions import SMPPException
 from ..protocol import (
@@ -49,6 +61,14 @@ from ..transport import SMPPConnection
 logger = logging.getLogger(__name__)
 
 
+async def _call(fn: Callable[..., Any], *args: Any) -> Any:
+    """Call a user callback, awaiting its result if it is awaitable."""
+    result = fn(*args)
+    if inspect.isawaitable(result):
+        result = await result
+    return result
+
+
 @dataclass
 class ClientSession:
     """Represents a connected SMPP client session"""
@@ -79,7 +99,8 @@ class SMPPServer:
     Configuration:
         grace_period: Time to wait after initial notification (default: 30s)
         reminder_delay: Additional time after reminder (default: 10s)
-        shutdown_timeout: Maximum time for force disconnect (default: 30s)
+        shutdown_timeout: Maximum wait for in-flight handlers, then again for
+            force disconnect (default: 30s)
 
     Features:
     - Thread-safe shutdown operations
@@ -138,6 +159,7 @@ class SMPPServer:
         self._server: Optional[asyncio.Server] = None
         self._running = False
         self._clients: Dict[str, ClientSession] = {}
+        self._tasks: Set[asyncio.Task] = set()  # In-flight PDU handler tasks
         self._message_id_counter = 1
         self._shutdown_event = asyncio.Event()  # Always create for clarity
         self._shutdown_timeout = 30.0  # seconds to wait for graceful shutdown
@@ -160,35 +182,50 @@ class SMPPServer:
         self._accept_new_messages = True  # Flag to control new message acceptance
 
         # Authentication callback - should return True if credentials are valid
-        self.authenticate: Optional[Callable[[str, str, str], bool]] = None
+        self.authenticate: Optional[
+            Callable[[str, str, str], Union[bool, Awaitable[bool]]]
+        ] = None
 
         # Event handlers
         self.on_client_connected: Optional[
-            Callable[['SMPPServer', ClientSession], None]
+            Callable[['SMPPServer', ClientSession], Optional[Awaitable[None]]]
         ] = None
         self.on_client_disconnected: Optional[
-            Callable[['SMPPServer', ClientSession], None]
+            Callable[['SMPPServer', ClientSession], Optional[Awaitable[None]]]
         ] = None
         self.on_client_bound: Optional[
-            Callable[['SMPPServer', ClientSession], None]
+            Callable[['SMPPServer', ClientSession], Optional[Awaitable[None]]]
         ] = None
         self.on_message_received: Optional[
-            Callable[['SMPPServer', ClientSession, SubmitSm], Optional[str]]
+            Callable[
+                ['SMPPServer', ClientSession, SubmitSm],
+                Union[Optional[str], Awaitable[Optional[str]]],
+            ]
         ] = None
         self.on_data_sm: Optional[
-            Callable[['SMPPServer', ClientSession, DataSm], Optional[str]]
+            Callable[
+                ['SMPPServer', ClientSession, DataSm],
+                Union[Optional[str], Awaitable[Optional[str]]],
+            ]
         ] = None
         self.on_query_sm: Optional[
             Callable[
                 ['SMPPServer', ClientSession, QuerySm],
-                Optional[Tuple[int, str, int]],
+                Union[
+                    Optional[Tuple[int, str, int]],
+                    Awaitable[Optional[Tuple[int, str, int]]],
+                ],
             ]
         ] = None
         self.on_cancel_sm: Optional[
-            Callable[['SMPPServer', ClientSession, CancelSm], bool]
+            Callable[
+                ['SMPPServer', ClientSession, CancelSm], Union[bool, Awaitable[bool]]
+            ]
         ] = None
         self.on_replace_sm: Optional[
-            Callable[['SMPPServer', ClientSession, ReplaceSm], bool]
+            Callable[
+                ['SMPPServer', ClientSession, ReplaceSm], Union[bool, Awaitable[bool]]
+            ]
         ] = None
 
         # Default authentication (allows all)
@@ -199,7 +236,8 @@ class SMPPServer:
         Set the timeout for graceful shutdown.
 
         Args:
-            timeout: Maximum time in seconds to wait for clients to disconnect
+            timeout: Maximum seconds to wait for in-flight handlers, then
+                again for clients to disconnect
         """
         if timeout < 0:
             raise ValueError('Shutdown timeout must be non-negative')
@@ -449,6 +487,16 @@ class SMPPServer:
         self._accept_new_connections = False
         self._accept_new_messages = False
 
+        # Let in-flight handlers answer first. Skip the task running this:
+        # stop() may be awaited from inside a handler
+        pending = self._tasks - {asyncio.current_task()}
+        if pending:
+            _, still_pending = await asyncio.wait(
+                pending, timeout=self._shutdown_timeout
+            )
+            for task in still_pending:
+                task.cancel()
+
         if not self._clients:
             logger.info('No clients connected - shutdown sequence complete')
             return
@@ -571,6 +619,21 @@ class SMPPServer:
         except Exception as e:
             logger.warning(f'Error sending unbind to client {client.system_id}: {e}')
 
+    def _spawn(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task:
+        """Start a task, holding it until done so stop() can drain it"""
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return task
+
+    def _session_live(self, session: ClientSession) -> bool:
+        """True while the server still tracks session and its stream is open"""
+        return (
+            self._accept_new_connections
+            and any(s is session for s in self._clients.values())
+            and not session.connection.is_closed
+        )
+
     async def _handle_client_connection(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
@@ -607,19 +670,30 @@ class SMPPServer:
         connection.on_pdu_received = lambda pdu: self._handle_client_pdu(session, pdu)
 
         def handle_connection_lost(error):
-            asyncio.create_task(self._handle_client_disconnected(session, error))
+            self._spawn(self._handle_client_disconnected(session, error))
 
         connection.on_connection_lost = handle_connection_lost
 
-        # Mark connection as established and start its background tasks
-        connection.accept()
-
-        # Trigger client connected event
+        # Trigger client connected event before reading any PDU, so an async
+        # handler completes before bind handling can start
         if self.on_client_connected:
             try:
-                self.on_client_connected(self, session)
+                await _call(self.on_client_connected, self, session)
             except Exception as e:
                 logger.exception(f'Error in client connected handler: {e}')
+
+            # The handler may have rejected the client via disconnect(), or a
+            # stop() during the await dropped it; don't activate it either way
+            if not self._session_live(session):
+                if self._clients.get(client_id) is session:
+                    del self._clients[client_id]
+                logger.info(f'Closing {client_id} before accept')
+                writer.close()
+                await writer.wait_closed()
+                return
+
+        # Mark connection as established and start its background tasks
+        connection.accept()
 
         logger.info(f'Client {client_id} connected')
 
@@ -641,7 +715,7 @@ class SMPPServer:
         # Trigger client disconnected event
         if self.on_client_disconnected:
             try:
-                self.on_client_disconnected(self, session)
+                await _call(self.on_client_disconnected, self, session)
             except Exception as e:
                 logger.exception(f'Error in client disconnected handler: {e}')
 
@@ -653,19 +727,19 @@ class SMPPServer:
             )
 
             if isinstance(pdu, (BindTransmitter, BindReceiver, BindTransceiver)):
-                asyncio.create_task(self._handle_bind_request(session, pdu))
+                self._spawn(self._handle_bind_request(session, pdu))
             elif isinstance(pdu, Unbind):
-                asyncio.create_task(self._handle_unbind_request(session, pdu))
+                self._spawn(self._handle_unbind_request(session, pdu))
             elif isinstance(pdu, (SubmitSm, DataSm)):
-                asyncio.create_task(self._handle_submit_sm(session, pdu))
+                self._spawn(self._handle_submit_sm(session, pdu))
             elif isinstance(pdu, QuerySm):
-                asyncio.create_task(self._handle_query_sm(session, pdu))
+                self._spawn(self._handle_query_sm(session, pdu))
             elif isinstance(pdu, CancelSm):
-                asyncio.create_task(self._handle_cancel_sm(session, pdu))
+                self._spawn(self._handle_cancel_sm(session, pdu))
             elif isinstance(pdu, ReplaceSm):
-                asyncio.create_task(self._handle_replace_sm(session, pdu))
+                self._spawn(self._handle_replace_sm(session, pdu))
             elif isinstance(pdu, EnquireLink):
-                asyncio.create_task(self._handle_enquire_link(session, pdu))
+                self._spawn(self._handle_enquire_link(session, pdu))
             elif isinstance(pdu, (DeliverSmResp, DataSmResp)):
                 # Acknowledgement of a server-initiated deliver_sm/data_sm
                 logger.debug(
@@ -673,7 +747,7 @@ class SMPPServer:
                 )
             else:
                 logger.warning('Unhandled PDU type: %s', pdu.__class__.__name__)
-                asyncio.create_task(
+                self._spawn(
                     self._send_generic_nack(
                         session, pdu.sequence_number, CommandStatus.ESME_RINVCMDID
                     )
@@ -681,7 +755,7 @@ class SMPPServer:
 
         except Exception as e:
             logger.exception(f'Error handling PDU from {session.system_id}: {e}')
-            asyncio.create_task(
+            self._spawn(
                 self._send_generic_nack(
                     session, pdu.sequence_number, CommandStatus.ESME_RUNKNOWNERR
                 )
@@ -711,13 +785,25 @@ class SMPPServer:
                 return
 
             # Authenticate client
-            if self.authenticate and not self.authenticate(
-                system_id, password, system_type
+            if self.authenticate and not await _call(
+                self.authenticate, system_id, password, system_type
             ):
                 logger.warning(f'Authentication failed for {system_id}')
                 await self._send_bind_response(
                     session, pdu, CommandStatus.ESME_RBINDFAIL
                 )
+                return
+
+            # The client may have gone, or stop() begun, while authenticate ran
+            if not self._session_live(session):
+                await self._send_bind_response(
+                    session, pdu, CommandStatus.ESME_RBINDFAIL
+                )
+                return
+
+            # A concurrent bind may have won while an async authenticate ran
+            if session.bound:
+                await self._send_bind_response(session, pdu, CommandStatus.ESME_RALYBND)
                 return
 
             # Update session
@@ -744,7 +830,7 @@ class SMPPServer:
             # Trigger client bound event
             if self.on_client_bound:
                 try:
-                    self.on_client_bound(self, session)
+                    await _call(self.on_client_bound, self, session)
                 except Exception as e:
                     logger.exception(f'Error in client bound handler: {e}')
 
@@ -868,20 +954,19 @@ class SMPPServer:
             # Generate message ID
             message_id = self._get_next_message_id()
 
-            # Call message received handler if set
+            # Call message received handler if set. If it raises, the except
+            # below answers ESME_RSUBMITFAIL: acking a lost message is worse
             custom_message_id = None
             handler = (
                 self.on_data_sm if isinstance(pdu, DataSm) else self.on_message_received
             )
             if handler:
-                try:
-                    custom_message_id = handler(self, session, pdu)  # type: ignore[arg-type]
-                except Exception as e:
-                    logger.exception(f'Error in message received handler: {e}')
+                custom_message_id = await _call(handler, self, session, pdu)
 
-            # Use custom message ID if provided
+            # Use custom message ID if provided; str() it so a non-str ID (a DB
+            # row id, say) still encodes instead of leaving the client unanswered
             if custom_message_id:
-                message_id = custom_message_id
+                message_id = str(custom_message_id)
 
             # Send success response
             await self._send_submit_sm_response(
@@ -945,7 +1030,7 @@ class SMPPServer:
         result = None
         if self.on_query_sm:
             try:
-                result = self.on_query_sm(self, session, pdu)
+                result = await _call(self.on_query_sm, self, session, pdu)
             except Exception as e:
                 logger.exception(f'Error in query_sm handler: {e}')
 
@@ -986,7 +1071,7 @@ class SMPPServer:
         success = False
         if self.on_cancel_sm:
             try:
-                success = self.on_cancel_sm(self, session, pdu)
+                success = await _call(self.on_cancel_sm, self, session, pdu)
             except Exception as e:
                 logger.exception(f'Error in cancel_sm handler: {e}')
                 success = False
@@ -1017,7 +1102,7 @@ class SMPPServer:
         success = False
         if self.on_replace_sm:
             try:
-                success = self.on_replace_sm(self, session, pdu)
+                success = await _call(self.on_replace_sm, self, session, pdu)
             except Exception as e:
                 logger.exception(f'Error in replace_sm handler: {e}')
                 success = False
@@ -1221,7 +1306,8 @@ class SMPPServer:
         Args:
             grace_period: Seconds to wait after shutdown notification
             reminder_delay: Seconds to wait after reminder before force disconnect
-            shutdown_timeout: Maximum seconds to wait for client disconnections
+            shutdown_timeout: Maximum seconds to wait for in-flight handlers,
+                then again for client disconnections
 
         Raises:
             TypeError: If parameters are not numeric

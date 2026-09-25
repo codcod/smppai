@@ -6,6 +6,66 @@ binds, authentication, `submit_sm` and `enquire_link`, and lets you push
 `deliver_sm` to bound clients. It ships with a multi-stage graceful
 shutdown sequence.
 
+[#server-high-level-api]
+== High-level API
+
+For most servers, `smpp.Server` is all you need. It takes the shutdown
+settings in its constructor and registers handlers with decorators; each
+handler may be a plain function or `async def`:
+
+[source,python]
+----
+import smpp
+
+server = smpp.Server(port=2775, shutdown=smpp.Shutdown(grace=10, reminder=5))
+
+@server.authenticate
+async def authenticate(system_id, password, system_type):
+    return await accounts.check(system_id, password)
+
+@server.on_submit
+async def on_submit(session, msg):
+    print(session.system_id, msg.sender.addr, "->", msg.to.addr, msg.text)
+    return await store.save(msg)  # a message ID string, or None
+
+await server.serve_forever()
+----
+
+`Server(host="localhost", port=2775, *, shutdown=None, **server_kwargs)`::
+Wraps an `SMPPServer`; extra keyword arguments (`system_id`,
+`interface_version`, `max_connections`, `setup_signal_handlers`) go to its
+constructor. `start()`, `stop()`, `serve_forever()` and `async with` work as
+described below for `SMPPServer`.
+
+`Shutdown(grace=30.0, reminder=10.0, timeout=30.0)`::
+The graceful shutdown settings, applied through `configure_shutdown()`, so
+an invalid value raises the same `ValueError` or `TypeError` at
+construction. Leaving `shutdown` out keeps these same defaults.
+
+`@server.authenticate`::
+`fn(system_id, password, system_type) -> bool`. Returning `False` refuses
+the bind with `ESME_RBINDFAIL`. Registering again replaces the handler.
+
+`@server.on_submit`::
+`fn(session, msg: Message) -> str | None`, called once per `submit_sm`.
+`msg` is the same `smpp.Message` the client yields: `sender`, `to`, `text`
+(decoded, without any UDH, or `None` when it can't be decoded), and `pdu`
+(the `SubmitSm`); `receipt` is always `None`. A concatenated message
+arrives as one call per part, since each part's `submit_sm_resp` must carry
+its own message ID before the next part is sent. Returning a string sets
+that part's message ID; `None` keeps the generated one. Raising answers
+`ESME_RSUBMITFAIL`, so the client can retry. Registering again replaces the
+handler.
+
+`server.raw`::
+The underlying `SMPPServer`, for every other callback (`on_client_bound`,
+`on_query_sm`, `on_data_sm`, ...) and for `deliver_sm`. Its `authenticate`
+and `on_message_received` belong to the decorators. `on_submit` does not
+cover `data_sm`: set `server.raw.on_data_sm` to accept it, otherwise every
+`data_sm` is refused with `ESME_RINVCMDID`.
+
+The rest of this chapter documents that low-level `SMPPServer`.
+
 == Constructing and running
 
 [source,python]
@@ -51,8 +111,7 @@ server.authenticate = authenticate
 ----
 
 The default `authenticate` accepts every bind. Only one callback is
-supported at a time (assigning replaces it); it's called synchronously from
-inside bind handling.
+supported at a time (assigning replaces it); it may be sync or async.
 
 == Handling messages from clients
 
@@ -67,7 +126,11 @@ server.on_message_received = handle_message
 
 Returning a string from `on_message_received` overrides the server's
 auto-incrementing message ID in the `submit_sm_resp`; returning `None`
-keeps the default. `submit_sm` is rejected with `ESME_RINVBNDSTS` unless the
+keeps the default. A non-string ID, such as a database row id, is converted
+with `str()`. If the handler raises, the exception is logged with
+`logger.exception` and the server answers `ESME_RSUBMITFAIL` with no message
+ID. It doesn't acknowledge a message that may have been lost, so the client
+can retry. `submit_sm` is rejected with `ESME_RINVBNDSTS` unless the
 sending session is bound as transmitter or transceiver.
 
 `data_sm` goes to `on_data_sm` instead, which works the same way: return a
@@ -80,12 +143,19 @@ receive it.
 
 == Event handlers
 
+Every callback may be a plain function or `async def`; an async one is
+awaited at the point the sync one would be called, so the server still
+replies with its result.
+
 [cols="1,3"]
 |===
 | Handler | Signature
 
 | `on_client_connected`
 | `(server, session: ClientSession) -> None` — TCP accepted, before any bind.
+  To reject the client, `await session.connection.disconnect()`. The server
+  then closes the socket without reading any PDU; `on_client_disconnected`
+  is not called for a rejected client.
 
 | `on_client_disconnected`
 | `(server, session: ClientSession) -> None` — socket closed, bound or not.
@@ -154,6 +224,9 @@ matching session exists or the send fails.
 runs a staged sequence rather than dropping connections immediately:
 
 . Stop accepting new connections and new messages.
+. Wait up to `shutdown_timeout` seconds for in-flight handlers (a slow
+  `on_message_received`, say) to finish and send their responses. Any handler
+  still running after that is cancelled.
 . Broadcast a shutdown notification (a `deliver_sm`) to every bound
   receiver/transceiver client.
 . Wait up to `grace_period` seconds for clients to unbind and disconnect on
