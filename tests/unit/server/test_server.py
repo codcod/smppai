@@ -710,6 +710,20 @@ class TestSMPPServerBindHandling:
         assert not sent_pdu.optional_parameters
 
     @pytest.mark.asyncio
+    async def test_v33_server_sends_no_tlv(self):
+        server = SMPPServer(interface_version=0x33)
+        session = ClientSession(connection=AsyncMock())
+        await server._handle_bind_request(session, self._bind_pdu(0x34))
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_ROK
+        assert not sent_pdu.optional_parameters
+
+    @pytest.mark.parametrize('bad', [0x100, -1, True, '0x34'])
+    def test_invalid_interface_version_rejected(self, bad):
+        with pytest.raises(ValueError, match='interface_version'):
+            SMPPServer(interface_version=bad)
+
+    @pytest.mark.asyncio
     async def test_failed_bind_gets_no_tlv(self):
         server = SMPPServer()
         server.authenticate = Mock(return_value=False)

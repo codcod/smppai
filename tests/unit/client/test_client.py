@@ -2063,25 +2063,25 @@ class TestScInterfaceVersion:
 
     async def test_v34_bind_reads_version_and_unbind_resets(self):
         srv, port = await self._server()
+        client = SMPPClient('127.0.0.1', port, 'u', 'p')
         try:
-            client = SMPPClient('127.0.0.1', port, 'u', 'p')
             await client.connect()
             await client.bind_transceiver()
             assert client.sc_interface_version == 0x34
             await client.unbind()
             assert client.sc_interface_version is None
-            await client.disconnect()
         finally:
+            await client.disconnect()
             await srv.stop()
 
     async def test_v33_bind_sees_none(self):
         srv, port = await self._server()
+        client = SMPPClient('127.0.0.1', port, 'u', 'p', interface_version=0x33)
         try:
-            client = SMPPClient('127.0.0.1', port, 'u', 'p', interface_version=0x33)
             await client.connect()
             await client.bind_transceiver()
             assert client.is_bound
             assert client.sc_interface_version is None
-            await client.disconnect()
         finally:
+            await client.disconnect()
             await srv.stop()

@@ -121,6 +121,14 @@ class SMPPServer:
         self.host = host
         self.port = port
         self.system_id = system_id
+        if (
+            not isinstance(interface_version, int)
+            or isinstance(interface_version, bool)
+            or not 0 <= interface_version <= 0xFF
+        ):
+            raise ValueError(
+                f'interface_version must be an int 0x00-0xFF, got {interface_version!r}'
+            )
         self.interface_version = interface_version
         self.max_connections = max_connections
         self._setup_signals = setup_signal_handlers
@@ -777,8 +785,12 @@ class SMPPServer:
             else:
                 return
 
-            # v3.3 peers can't parse TLVs (SMPP v3.4 §5.3.2.25)
-            if status == CommandStatus.ESME_ROK and session.interface_version >= 0x34:
+            # TLVs need v3.4 on both ends (SMPP v3.4 §5.3.2.25)
+            if (
+                status == CommandStatus.ESME_ROK
+                and session.interface_version >= 0x34
+                and self.interface_version >= 0x34
+            ):
                 resp_pdu.set_tlv(
                     OptionalTag.SC_INTERFACE_VERSION, self.interface_version
                 )
