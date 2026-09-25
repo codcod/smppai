@@ -32,9 +32,12 @@ GSM 03.38 and `data_coding=8` carries UCS2 — there is no separate
 encoding-name argument. A segment holds 160 octets (153 with a UDH) for GSM
 03.38, or 140 octets (134 with a UDH) for every other coding, including
 UCS2. Text is never split inside a character, so a GSM escape pair or a
-UCS2 surrogate pair always stays in one part; pre-encoded `bytes` are
+UCS2 surrogate pair always stays in one part. Text in a stateful coding
+(ISO-2022-JP, `data_coding=0x0A`) is packed by run, so each part carries
+its own escape sequences and decodes on its own. Pre-encoded `bytes` are
 sliced at the octet budget as-is, on any `data_coding` (raw-only codings
-included), so keeping characters whole is then the caller's job.
+included), so keeping characters whole, and each ISO-2022-JP part
+self-contained, is then the caller's job.
 `reference` must be 0-255
 (random if omitted); more than 255 parts raises `ValueError`.
 

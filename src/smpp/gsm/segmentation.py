@@ -125,11 +125,12 @@ def make_parts(
         raise ValueError(f'reference must be 0-255, got {reference}')
 
     try:
-        is_gsm = codec_for_data_coding(data_coding) == 'gsm0338'
+        codec = codec_for_data_coding(data_coding)
     except SMPPPDUException:
         # Raw-only coding (JIS, pictogram, ...): bytes still slice; text
         # fails in encode_message_with_encoding below.
-        is_gsm = False
+        codec = None
+    is_gsm = codec == 'gsm0338'
     single_budget = SEVENBIT_LENGTH if is_gsm else EIGHTBIT_LENGTH
     part_budget = SEVENBIT_PART_SIZE if is_gsm else EIGHTBIT_PART_SIZE
 
@@ -147,7 +148,9 @@ def make_parts(
         chunks = (
             [encoded]
             if len(encoded) <= single_budget
-            else _split_by_character(message, data_coding, part_budget)
+            else _split_by_character(
+                message, data_coding, part_budget, codec in _STATEFUL_CODECS
+            )
         )
 
     if len(chunks) > 255:
@@ -182,9 +185,40 @@ def make_parts(
     return parts
 
 
-def _split_by_character(text: str, data_coding: int, part_budget: int) -> List[bytes]:
-    """Greedily pack encoded characters into parts, never splitting one."""
+# Codecs whose per-character encodes don't concatenate to the whole-string
+# encode (escape-sequence state), so parts must be encoded as runs.
+_STATEFUL_CODECS = frozenset({'iso2022_jp'})
+
+
+def _split_by_character(
+    text: str, data_coding: int, part_budget: int, stateful: bool = False
+) -> List[bytes]:
+    """
+    Greedily pack encoded characters into parts, never splitting one.
+
+    Stateful codecs are packed by run: each part is the whole-string encode
+    of its characters, so it carries its own escape sequences and decodes
+    on its own.
+    """
     from ..protocol.codec import encode_message_with_encoding
+
+    if stateful:
+        # ponytail: O(n·part) re-encode, only for stateful codecs; incremental
+        # encoder if a large stateful coding is ever added
+        runs: List[bytes] = []
+        run = ''
+        for ch in text:
+            if (
+                run
+                and len(encode_message_with_encoding(run + ch, data_coding))
+                > part_budget
+            ):
+                runs.append(encode_message_with_encoding(run, data_coding))
+                run = ''
+            run += ch
+        if run:
+            runs.append(encode_message_with_encoding(run, data_coding))
+        return runs
 
     chunks: List[bytes] = []
     current = bytearray()
