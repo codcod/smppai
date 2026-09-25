@@ -2157,7 +2157,9 @@ class TestDataSmLoopback:
         finally:
             await client.disconnect()
 
-    @pytest.mark.parametrize('message', [b'x' * 70000, 'x' * 70000])
+    @pytest.mark.parametrize(
+        'message', [b'x' * 70000, 'x' * 70000], ids=['bytes', 'str']
+    )
     async def test_oversized_payload_raises_message_exception(
         self, data_sm_server, message
     ):
