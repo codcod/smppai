@@ -213,6 +213,20 @@ class TestMessageSegmentation:
         parts = make_parts('é' * 71, DataCoding.UCS2, reference=1)
         assert [len(p.content) for p in parts] == [134, 8]
 
+    def test_iso2022_jp_packed_by_run(self):
+        """A stateful codec splits by encoded run, not per character."""
+        parts = make_parts('日' * 71, DataCoding.ISO_2022_JP, reference=1)
+        assert len(parts) == 2
+        assert all(len(p.content) <= 134 for p in parts)
+        assert reassemble_parts(parts, DataCoding.ISO_2022_JP) == '日' * 71
+
+        text = 'ab日本cd' * 40
+        parts = make_parts(text, DataCoding.ISO_2022_JP, reference=2)
+        assert [len(p.content) for p in parts] == [128, 134, 134, 130, 40]
+        assert reassemble_parts(parts, DataCoding.ISO_2022_JP) == text
+        for part in parts:
+            part.content.decode('iso2022_jp')  # each part decodes on its own
+
     def test_ucs2_surrogate_pair_never_split(self):
         """A non-BMP char (4-octet UTF-16 surrogate pair) stays in one part."""
         parts = make_parts('😀' * 36, DataCoding.UCS2)
