@@ -3,6 +3,7 @@ Tests for the high-level client API (smpp.connect / Client).
 """
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
@@ -258,6 +259,116 @@ async def test_stale_part_set_is_evicted(monkeypatch):
     monkeypatch.setattr(highlevel, '_PART_TTL', 300.0)
     c._on_message(c.raw, b1)
     assert [m.text for m in await _drain(c)] == ['b' * 200]
+
+
+def _text_pdu(text: str) -> DeliverSm:
+    pdu = DeliverSm(source_addr='306900000000', destination_addr='ACME')  # type: ignore[call-arg]
+    pdu.set_message_text(text)
+    return pdu
+
+
+@pytest.mark.asyncio
+async def test_queue_never_evicts_terminal(monkeypatch):
+    from smpp.client import highlevel
+
+    monkeypatch.setattr(highlevel, '_MAX_PENDING', 2)
+    c = _client()
+    c._on_message(c.raw, _text_pdu('m0'))
+    c.raw.on_connection_lost(c.raw, ConnectionError())
+    for i in range(1, 4):
+        c._on_message(c.raw, _text_pdu(f'm{i}'))
+    for expected in (['m0'], ['m1', 'm2', 'm3']):
+        got = []
+
+        async def consume():
+            async for m in c.messages():
+                got.append(m.text)
+
+        with pytest.raises(ConnectionError):
+            await asyncio.wait_for(consume(), 1)  # an evicted error would hang
+        assert got == expected
+
+
+@pytest.mark.asyncio
+async def test_part_set_cap_evicts_oldest(monkeypatch):
+    from smpp.client import highlevel
+
+    monkeypatch.setattr(highlevel, '_MAX_PART_SETS', 2)
+    c = _client()
+    sets = {ref: _part_pdus(f'{ref}' * 200, reference=ref) for ref in (1, 2, 3)}
+    for ref in (1, 2, 3):
+        c._on_message(c.raw, sets[ref][0])
+    assert not any(k[2] == 1 for k in c._parts)
+    c._on_message(c.raw, sets[3][1])
+    assert [m.text for m in await _drain(c)] == ['3' * 200]
+
+
+@pytest.mark.asyncio
+async def test_part_set_cap_spares_own_key(monkeypatch):
+    from smpp.client import highlevel
+
+    monkeypatch.setattr(highlevel, '_MAX_PART_SETS', 1)
+    c = _client()
+    for p in _part_pdus('a' * 200, reference=1):
+        c._on_message(c.raw, p)
+    assert [m.text for m in await _drain(c)] == ['a' * 200]
+
+
+def _clock(monkeypatch, highlevel):
+    # Patch the module's view of time only; asyncio reads time.monotonic too.
+    now = [0.0]
+    monkeypatch.setattr(highlevel, 'time', SimpleNamespace(monotonic=lambda: now[0]))
+    return now
+
+
+@pytest.mark.asyncio
+async def test_sweep_keeps_young_sets(monkeypatch):
+    from smpp.client import highlevel
+
+    now = _clock(monkeypatch, highlevel)
+    c = _client()
+    a1, _ = _part_pdus('a' * 200, reference=1)
+    b1, b2 = _part_pdus('b' * 200, reference=2)
+    c._on_message(c.raw, a1)
+    now[0] = 200.0
+    c._on_message(c.raw, b1)
+    now[0] = 350.0
+    c._on_message(c.raw, b2)
+    assert c._parts == {}
+    assert [m.text for m in await _drain(c)] == ['b' * 200]
+
+
+@pytest.mark.asyncio
+async def test_overflow_logs_once_per_episode(monkeypatch, caplog):
+    from smpp.client import highlevel
+
+    monkeypatch.setattr(highlevel, '_MAX_PENDING', 3)
+    c = _client()
+    for i in range(6):
+        c._on_message(c.raw, _text_pdu(f'm{i}'))
+    assert caplog.text.count('dropping oldest') == 1
+    for _ in range(3):
+        c._queue.get_nowait()
+    c._on_message(c.raw, _text_pdu('m6'))
+    (room,) = [r for r in caplog.records if 'room again' in r.message]
+    assert room.levelname == 'WARNING' and '3' in room.message
+
+
+@pytest.mark.asyncio
+async def test_part_logs_carry_no_msisdn(monkeypatch, caplog):
+    from smpp.client import highlevel
+
+    now = _clock(monkeypatch, highlevel)
+    monkeypatch.setattr(highlevel, '_MAX_PART_SETS', 1)
+    c = _client()
+    c._on_message(c.raw, _part_pdus('a' * 200, reference=1)[0])
+    now[0] = 400.0
+    c._on_message(c.raw, _part_pdus('b' * 200, reference=2)[0])  # a expires
+    c._on_message(c.raw, _part_pdus('c' * 200, reference=3)[0])  # b evicted
+    warnings = [r for r in caplog.records if r.levelname == 'WARNING']
+    assert len(warnings) == 2
+    assert 'after' in warnings[0].message and 'discarding oldest' in warnings[1].message
+    assert '306900000000' not in caplog.text
 
 
 @pytest.mark.asyncio
