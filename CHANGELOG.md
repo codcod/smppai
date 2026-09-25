@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.8.2 (2026-09-25)
+
+### Bug Fixes
+
+- **client**: Reassemble split data_sm, refuse with RX_R_APPN (SMP-022)
+  ([`19e4fb1`](https://github.com/codcod/smppai/commit/19e4fb1674a35038e567215409e618677a47705b))
+
+
 ## v0.8.1 (2026-09-25)
 
 ### Bug Fixes
