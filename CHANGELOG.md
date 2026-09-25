@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.6.1 (2026-09-25)
+
+### Bug Fixes
+
+- **protocol**: Decode bodyless error responses with TLVs (SMP-016)
+  ([`9d62a3d`](https://github.com/codcod/smppai/commit/9d62a3d731f8b2e388a9061a26ffc5aaa879209e))
+
+- **protocol**: Only accept known TLV tags as a bodyless tail (SMP-019)
+  ([`d1cf908`](https://github.com/codcod/smppai/commit/d1cf908397cff63f7adf4592bde9277b08ef640b))
+
+### Chores
+
+- **deps**: Sync uv.lock with released version 0.6.0
+  ([`b0d5e07`](https://github.com/codcod/smppai/commit/b0d5e0790cada575996161650477a9003c7698c8))
+
+
 ## v0.6.0 (2026-09-24)
 
 ### Chores
