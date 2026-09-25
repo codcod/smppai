@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.9.0 (2026-09-25)
+
+### Bug Fixes
+
+- **server**: Harden async handler failure and shutdown paths (SMP-023)
+  ([`7dfea08`](https://github.com/codcod/smppai/commit/7dfea0889915750c96948385f92eb8e03c387ebd))
+
+### Features
+
+- **server**: Add high-level Server API with async handlers (SMP-015)
+  ([`b412d52`](https://github.com/codcod/smppai/commit/b412d520f0a19aff8136a637e66dc2008f7de9f2))
+
+
 ## v0.8.3 (2026-09-25)
 
 ### Bug Fixes
