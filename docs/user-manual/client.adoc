@@ -54,8 +54,10 @@ the first loop in `contextlib.aclosing(c.messages())` so it is closed at once.
 when it cannot be decoded, e.g. binary data), `receipt` (`DeliveryReceipt` or
 `None`), `is_receipt`, and the raw `pdu`. Concatenated parts are reassembled
 into one `Message` before it is yielded; its `pdu` is the last part received.
-An inbound `data_sm` is yielded too: its `text` comes from `message_payload`,
-it is never reassembled, and its `pdu` is the `DataSm`.
+This holds whether the parts arrive as `deliver_sm` or `data_sm`, and whether
+they are split by a UDH (in `short_message` or `message_payload`) or by SAR
+TLVs; `text` never includes the UDH. An inbound `data_sm` is yielded too: its
+`text` comes from `message_payload` and its `pdu` is the `DataSm`.
 
 `DeliveryReceipt`::
 `id`, `state` (`MessageState`), `stat`, `err`, `submit_date`, `done_date` and
@@ -286,7 +288,8 @@ required, and unset ones are simply skipped:
 | `(client, pdu: DataSm) -> None` — SMSC-initiated `data_sm`. When this
   handler is set, the client auto-acknowledges with `data_sm_resp` before it
   runs. Without a handler, the client refuses the `data_sm` with
-  `data_sm_resp` `ESME_RINVCMDID`, so the SMSC knows it was not delivered. Read the
+  `data_sm_resp` `ESME_RX_R_APPN` ("receiver reject message"), so the SMSC knows
+  it was not delivered. Read the
   content with `pdu.get_message_text()` or `pdu.get_message_payload()`.
 
 | `on_connection_lost`

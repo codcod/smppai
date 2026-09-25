@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import AsyncIterator, Dict, Literal, Optional, Tuple, Union
 
 from ..exceptions import SMPPPDUException, SMPPValidationException
-from ..gsm import MessagePart, reassemble_parts
+from ..gsm import UDH, ConcatenatedSMSHeader, MessagePart, reassemble_parts
 from ..protocol import (
     DataCoding,
     DataSm,
@@ -167,11 +167,33 @@ def _decode(content: bytes, data_coding: int) -> Optional[str]:
         return None
 
 
-def _content(pdu: DeliverSm) -> bytes:
-    """Message bytes without UDH, from short_message or message_payload."""
-    if pdu.short_message:
-        return pdu.get_message_content()
-    return pdu.get_optional_parameter_value(OptionalTag.MESSAGE_PAYLOAD) or b''
+def _split(
+    pdu: Union[DeliverSm, DataSm],
+) -> Tuple[Optional[ConcatenatedSMSHeader], bytes]:
+    """Concat info (from UDH, else SAR TLVs) and the message bytes without UDH."""
+    if isinstance(pdu, DeliverSm) and pdu.short_message:
+        raw = pdu.short_message
+    else:
+        raw = pdu.get_optional_parameter_value(OptionalTag.MESSAGE_PAYLOAD) or b''
+    if pdu.esm_class & 0x40:  # UDHI
+        try:
+            udh, offset = UDH.decode(raw)
+            raw = raw[offset:]
+            element = udh.get_element(UDH.IEI_CONCATENATED_SMS_8BIT) or udh.get_element(
+                UDH.IEI_CONCATENATED_SMS_16BIT
+            )
+            if element:
+                return ConcatenatedSMSHeader.from_udh_element(element), raw
+        except ValueError:
+            pass  # malformed UDH: keep the bytes as they are
+    ref = _tlv(pdu, OptionalTag.SAR_MSG_REF_NUM)
+    total = _tlv(pdu, OptionalTag.SAR_TOTAL_SEGMENTS)
+    seq = _tlv(pdu, OptionalTag.SAR_SEGMENT_SEQNUM)
+    if isinstance(ref, int) and isinstance(total, int) and isinstance(seq, int):
+        return ConcatenatedSMSHeader(
+            reference=ref, total_parts=total, part_number=seq
+        ), raw
+    return None, raw
 
 
 def _to_message(pdu: Union[DeliverSm, DataSm], text: Optional[str]) -> Message:
@@ -199,11 +221,13 @@ class Client:
         # Unbounded so terminal items always fit; _put caps the Messages.
         self._queue: asyncio.Queue = asyncio.Queue()
         # key -> (first-arrival monotonic time, part_number -> pdu)
-        self._parts: Dict[_PartKey, Tuple[float, Dict[int, DeliverSm]]] = {}
+        self._parts: Dict[
+            _PartKey, Tuple[float, Dict[int, Union[DeliverSm, DataSm]]]
+        ] = {}
         self._consuming = False
         self._closing = False
-        raw.on_deliver_sm = self._on_deliver_sm
-        raw.on_data_sm = self._on_data_sm
+        raw.on_deliver_sm = self._on_message
+        raw.on_data_sm = self._on_message
         raw.on_connection_lost = self._on_connection_lost
 
     async def send(
@@ -269,17 +293,14 @@ class Client:
         finally:
             self._consuming = False
 
-    def _on_deliver_sm(self, raw: SMPPClient, pdu: DeliverSm) -> None:
-        try:
-            info = pdu.get_concatenated_info()
-        except (ValueError, SMPPPDUException):
-            info = None
+    def _on_message(self, raw: SMPPClient, pdu: Union[DeliverSm, DataSm]) -> None:
+        info, content = _split(pdu)
         if (
             info is None
             or _is_receipt(pdu)
             or not 1 <= info.part_number <= info.total_parts
         ):
-            self._put(_to_message(pdu, _decode(_content(pdu), pdu.data_coding)))
+            self._put(_to_message(pdu, _decode(content, pdu.data_coding)))
             return
 
         now = time.monotonic()
@@ -296,7 +317,7 @@ class Client:
         del self._parts[key]
         parts = [
             MessagePart(
-                content=_content(p),
+                content=_split(p)[1],
                 part_number=n,
                 total_parts=info.total_parts,
                 reference=info.reference,
@@ -308,10 +329,6 @@ class Client:
         except (ValueError, SMPPPDUException):
             text = None
         self._put(_to_message(pdu, text))
-
-    def _on_data_sm(self, raw: SMPPClient, pdu: DataSm) -> None:
-        # message_payload carries the whole message: no reassembly
-        self._put(_to_message(pdu, _decode(pdu.get_message_payload(), pdu.data_coding)))
 
     def _put(self, msg: Message) -> None:
         # Only Messages are queued before a terminal item, so the oldest

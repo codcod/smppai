@@ -241,7 +241,7 @@ async def test_queue_drops_oldest_beyond_cap(monkeypatch):
     for i in range(5):
         pdu = DeliverSm(source_addr='1', destination_addr='2')  # type: ignore[call-arg]
         pdu.set_message_text(f'm{i}')
-        c._on_deliver_sm(c.raw, pdu)
+        c._on_message(c.raw, pdu)
     assert [m.text for m in await _drain(c)] == ['m2', 'm3', 'm4']
 
 
@@ -252,11 +252,11 @@ async def test_stale_part_set_is_evicted(monkeypatch):
     c = _client()
     a1, _ = _part_pdus('a' * 200, reference=5)
     b1, b2 = _part_pdus('b' * 200, reference=5)
-    c._on_deliver_sm(c.raw, a1)
+    c._on_message(c.raw, a1)
     monkeypatch.setattr(highlevel, '_PART_TTL', -1)
-    c._on_deliver_sm(c.raw, b2)  # without eviction, a1 + b2 would complete
+    c._on_message(c.raw, b2)  # without eviction, a1 + b2 would complete
     monkeypatch.setattr(highlevel, '_PART_TTL', 300.0)
-    c._on_deliver_sm(c.raw, b1)
+    c._on_message(c.raw, b1)
     assert [m.text for m in await _drain(c)] == ['b' * 200]
 
 
@@ -268,7 +268,7 @@ async def test_out_of_range_part_number_is_standalone():
     assert udh[:3] == b'\x05\x00\x03'
     udh[5] = 3  # part 3 of 2
     p2.short_message = bytes(udh)
-    c._on_deliver_sm(c.raw, p2)
+    c._on_message(c.raw, p2)
     assert c._parts == {}
     (msg,) = await _drain(c)
     assert msg.pdu is p2
@@ -305,7 +305,8 @@ async def _consume(c):
 
 def test_client_sets_data_sm_handler():
     c = _client()
-    assert c.raw.on_data_sm == c._on_data_sm
+    assert c.raw.on_deliver_sm == c._on_message
+    assert c.raw.on_data_sm == c._on_message
 
 
 @pytest.mark.asyncio
@@ -313,7 +314,7 @@ async def test_data_sm_yields_message():
     c = _client()
     pdu = DataSm(source_addr='1', destination_addr='2')  # type: ignore[call-arg]
     pdu.set_message_text('hello')
-    c._on_data_sm(c.raw, pdu)
+    c._on_message(c.raw, pdu)
     (msg,) = await _drain(c)
     assert msg.text == 'hello'
     assert msg.receipt is None
@@ -326,8 +327,94 @@ async def test_data_sm_receipt_from_tlvs():
     pdu = DataSm(source_addr='1', destination_addr='2', esm_class=0x04)  # type: ignore[call-arg]
     pdu.set_tlv(OptionalTag.RECEIPTED_MESSAGE_ID, 'tlv-id')
     pdu.set_tlv(OptionalTag.MESSAGE_STATE, MessageState.DELIVERED)
-    c._on_data_sm(c.raw, pdu)
+    c._on_message(c.raw, pdu)
     (msg,) = await _drain(c)
     assert msg.is_receipt
     assert msg.receipt.id == 'tlv-id'
     assert msg.receipt.state == MessageState.DELIVERED
+
+
+def _sar(pdu, ref, total, seq):
+    pdu.set_tlv(OptionalTag.SAR_MSG_REF_NUM, ref)
+    pdu.set_tlv(OptionalTag.SAR_TOTAL_SEGMENTS, total)
+    pdu.set_tlv(OptionalTag.SAR_SEGMENT_SEQNUM, seq)
+    return pdu
+
+
+@pytest.mark.asyncio
+async def test_data_sm_udh_parts_reassembled():
+    c = _client()
+    text = 'Ω' * 80
+    for part in make_parts(text, DataCoding.UCS2, reference=7):
+        pdu = DataSm(  # type: ignore[call-arg]
+            source_addr='1',
+            destination_addr='2',
+            esm_class=0x40,
+            data_coding=DataCoding.UCS2,
+        )
+        pdu.set_message_payload(part.get_short_message())
+        c._on_message(c.raw, pdu)
+    (msg,) = await _drain(c)
+    assert msg.text == text
+
+
+@pytest.mark.asyncio
+async def test_data_sm_sar_parts_reassembled():
+    c = _client()
+    halves = []
+    for n, chunk in enumerate([b'hello ', b'world'], 1):
+        pdu = DataSm(source_addr='1', destination_addr='2')  # type: ignore[call-arg]
+        pdu.set_message_payload(chunk)
+        halves.append(_sar(pdu, 300, 2, n))
+    c._on_message(c.raw, halves[1])
+    c._on_message(c.raw, halves[0])
+    (msg,) = await _drain(c)
+    assert msg.text == 'hello world'
+
+
+@pytest.mark.asyncio
+async def test_deliver_sm_payload_udh_parts_reassembled():
+    c = _client()
+    text = 'Ω' * 80
+    for part in make_parts(text, DataCoding.UCS2, reference=7):
+        pdu = DeliverSm(  # type: ignore[call-arg]
+            source_addr='1',
+            destination_addr='2',
+            esm_class=0x40,
+            data_coding=DataCoding.UCS2,
+        )
+        pdu.set_tlv(OptionalTag.MESSAGE_PAYLOAD, part.get_short_message())
+        c._on_message(c.raw, pdu)
+    (msg,) = await _drain(c)
+    assert msg.text == text
+
+
+@pytest.mark.asyncio
+async def test_deliver_sm_sar_parts_reassembled():
+    c = _client()
+    for n, chunk in enumerate([b'hello ', b'world'], 1):
+        pdu = DeliverSm(source_addr='1', destination_addr='2', short_message=chunk)  # type: ignore[call-arg]
+        c._on_message(c.raw, _sar(pdu, 9, 2, n))
+    (msg,) = await _drain(c)
+    assert msg.text == 'hello world'
+
+
+@pytest.mark.asyncio
+async def test_single_data_sm_with_udh_strips_header():
+    c = _client()
+    pdu = DataSm(source_addr='1', destination_addr='2', esm_class=0x40)  # type: ignore[call-arg]
+    pdu.set_message_payload(b'\x00hello')
+    c._on_message(c.raw, pdu)
+    (msg,) = await _drain(c)
+    assert msg.text == 'hello'
+
+
+@pytest.mark.asyncio
+async def test_malformed_udh_is_standalone():
+    c = _client()
+    pdu = DataSm(source_addr='1', destination_addr='2', esm_class=0x40)  # type: ignore[call-arg]
+    pdu.set_message_payload(b'\x09ab')
+    c._on_message(c.raw, pdu)
+    assert c._parts == {}
+    (msg,) = await _drain(c)
+    assert msg.pdu is pdu
