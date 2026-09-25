@@ -52,6 +52,25 @@ class TestAddressParse:
     def test_empty(self):
         assert Address.parse('') == Address('', TonType.UNKNOWN, NpiType.UNKNOWN)
 
+    @pytest.mark.parametrize('s', ['+30 690 000 0000', '+30-690-000-0000'])
+    def test_formatted_international(self, s):
+        assert Address.parse(s) == Address(
+            '306900000000', TonType.INTERNATIONAL, NpiType.ISDN
+        )
+
+    def test_formatted_digits(self):
+        assert Address.parse('690 000') == Address(
+            '690000', TonType.UNKNOWN, NpiType.UNKNOWN
+        )
+
+    def test_alphanumeric_keeps_hyphen(self):
+        assert Address.parse('ACME-Co') == Address(
+            'ACME-Co', TonType.ALPHANUMERIC, NpiType.UNKNOWN
+        )
+
+    def test_non_ascii_digits_are_alphanumeric(self):
+        assert Address.parse('+٣٠٦').ton == TonType.ALPHANUMERIC
+
 
 class TestParseReceipt:
     def test_appendix_b_text(self):
@@ -186,3 +205,98 @@ async def test_messages_raises_on_connection_lost():
     with pytest.raises(ConnectionError):
         async for _ in c.messages():
             pass
+
+
+def _client():
+    from smpp.client.highlevel import Client
+
+    return Client(smpp.SMPPClient('127.0.0.1', 1, 'u', 'p'))
+
+
+def _part_pdus(text: str, reference: int):
+    return [
+        DeliverSm(  # type: ignore[call-arg]
+            source_addr='306900000000',
+            destination_addr='ACME',
+            esm_class=0x40,
+            data_coding=DataCoding.DEFAULT,
+            short_message=part.get_short_message(),
+        )
+        for part in make_parts(text, DataCoding.DEFAULT, reference=reference)
+    ]
+
+
+async def _drain(c):
+    c._close()
+    return [m async for m in c.messages()]
+
+
+@pytest.mark.asyncio
+async def test_queue_drops_oldest_beyond_cap(monkeypatch):
+    from smpp.client import highlevel
+
+    monkeypatch.setattr(highlevel, '_MAX_PENDING', 3)
+    c = _client()
+    for i in range(5):
+        pdu = DeliverSm(source_addr='1', destination_addr='2')  # type: ignore[call-arg]
+        pdu.set_message_text(f'm{i}')
+        c._on_deliver_sm(c.raw, pdu)
+    assert [m.text for m in await _drain(c)] == ['m2', 'm3', 'm4']
+
+
+@pytest.mark.asyncio
+async def test_stale_part_set_is_evicted(monkeypatch):
+    from smpp.client import highlevel
+
+    c = _client()
+    a1, _ = _part_pdus('a' * 200, reference=5)
+    b1, b2 = _part_pdus('b' * 200, reference=5)
+    c._on_deliver_sm(c.raw, a1)
+    monkeypatch.setattr(highlevel, '_PART_TTL', -1)
+    c._on_deliver_sm(c.raw, b2)  # without eviction, a1 + b2 would complete
+    monkeypatch.setattr(highlevel, '_PART_TTL', 300.0)
+    c._on_deliver_sm(c.raw, b1)
+    assert [m.text for m in await _drain(c)] == ['b' * 200]
+
+
+@pytest.mark.asyncio
+async def test_out_of_range_part_number_is_standalone():
+    c = _client()
+    _, p2 = _part_pdus('z' * 200, reference=7)
+    udh = bytearray(p2.short_message)
+    assert udh[:3] == b'\x05\x00\x03'
+    udh[5] = 3  # part 3 of 2
+    p2.short_message = bytes(udh)
+    c._on_deliver_sm(c.raw, p2)
+    assert c._parts == {}
+    (msg,) = await _drain(c)
+    assert msg.pdu is p2
+
+
+@pytest.mark.asyncio
+async def test_connection_lost_while_closing_ends_cleanly():
+    c = _client()
+    c._closing = True
+    c.raw.on_connection_lost(c.raw, ConnectionError())
+    assert await _drain(c) == []
+
+
+@pytest.mark.asyncio
+async def test_messages_ends_when_disconnect_fails(server):
+    with pytest.raises(RuntimeError):
+        async with smpp.connect('127.0.0.1', server.test_port, 'u', 'p') as c:
+            consumer = asyncio.create_task(_consume(c))
+            await asyncio.sleep(0)
+            real_disconnect = c.raw.disconnect
+
+            async def boom():
+                raise RuntimeError('unbind failed')
+
+            c.raw.disconnect = boom  # type: ignore[method-assign]
+    await asyncio.wait_for(consumer, 1)
+    await real_disconnect()
+
+
+async def _consume(c):
+    async for _ in c.messages():
+        pass

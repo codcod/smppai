@@ -42,9 +42,12 @@ mid-sequence carries `.sent_message_ids`.
 `messages()`::
 An async iterator of inbound `Message` objects. Only one consumer may iterate
 at a time; a second concurrent `messages()` raises `RuntimeError`. Messages
-are queued from the moment `connect()` binds, so none are lost before you
-start iterating. Iteration ends when the `connect()` block exits, and raises
-the underlying error if the connection drops.
+are queued from the moment `connect()` binds; up to 1000 unread messages are
+buffered, and beyond that the oldest are dropped with a warning. A
+concatenated message whose parts stay incomplete for 5 minutes is discarded.
+Iteration ends when the `connect()` block exits, and raises the underlying
+error if the connection drops. To iterate again right after a `break`, wrap
+the first loop in `contextlib.aclosing(c.messages())` so it is closed at once.
 
 `Message`::
 `sender` and `to` (`Address`), `text` (decoded per `data_coding`, or `None`
@@ -61,7 +64,9 @@ when present and well-formed.
 `Address.parse(s)`::
 `"+306900000000"` becomes international/ISDN (the `+` is dropped), plain
 digits become unknown/unknown, and anything else (e.g. `"ACME"`) becomes an
-alphanumeric sender. `send` accepts a `str` or an `Address` for `to` and
+alphanumeric sender. Spaces and `-` are ignored in numbers, so
+`"+30 690 000 0000"` is international too; only ASCII digits count as a
+number. `send` accepts a `str` or an `Address` for `to` and
 `sender`.
 
 `client.raw`::
