@@ -20,6 +20,7 @@ from ..exceptions import (
     SMPPPDUException,
     SMPPThrottlingException,
     SMPPTimeoutException,
+    SMPPValidationException,
 )
 from ..gsm import make_parts
 from ..protocol import (
@@ -36,6 +37,7 @@ from ..protocol import (
     EnquireLink,
     EnquireLinkResp,
     NpiType,
+    OptionalTag,
     QuerySm,
     QuerySmResp,
     RegisteredDelivery,
@@ -118,6 +120,7 @@ class SMPPClient:
 
         self._connection: Optional[SMPPConnection] = None
         self._bind_type: Optional[BindType] = None
+        self.sc_interface_version: Optional[int] = None
         self._bound = False
 
         # Event handlers
@@ -193,6 +196,7 @@ class SMPPClient:
 
         self._bound = False
         self._bind_type = None
+        self.sc_interface_version = None
         logger.info('Disconnected from SMSC')
 
     async def bind_transmitter(self) -> None:
@@ -259,6 +263,11 @@ class SMPPClient:
             # Update state
             self._bound = True
             self._bind_type = bind_type
+            try:
+                tlv = response.get_tlv(OptionalTag.SC_INTERFACE_VERSION)
+            except SMPPValidationException:
+                tlv = None
+            self.sc_interface_version = tlv if isinstance(tlv, int) else None
             self._connection.set_bound_state(bind_type.value)
 
             logger.info(f'Successfully bound as {bind_type.value}')
@@ -311,6 +320,7 @@ class SMPPClient:
         finally:
             self._bound = False
             self._bind_type = None
+            self.sc_interface_version = None
             logger.info('Unbound from SMSC')
 
             # Trigger unbind event
@@ -806,6 +816,7 @@ class SMPPClient:
             # Update state
             self._bound = False
             self._bind_type = None
+            self.sc_interface_version = None
 
             logger.info('Received unbind request from SMSC')
 
@@ -825,6 +836,7 @@ class SMPPClient:
 
         self._bound = False
         self._bind_type = None
+        self.sc_interface_version = None
 
         if self.on_connection_lost:
             try:

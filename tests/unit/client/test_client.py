@@ -2044,3 +2044,44 @@ class TestHeaderOnlyErrorResponses:
                 await client._connection.disconnect()
             server.close()
             await server.wait_closed()
+
+
+@pytest.mark.asyncio
+class TestScInterfaceVersion:
+    """sc_interface_version against a real SMPPServer (loopback)."""
+
+    @staticmethod
+    async def _server():
+        from smpp.server.server import SMPPServer
+
+        srv = SMPPServer(host='127.0.0.1', port=0, setup_signal_handlers=False)
+        srv.configure_shutdown(
+            grace_period=0.1, reminder_delay=0.1, shutdown_timeout=0.5
+        )
+        await srv.start()
+        return srv, srv._server.sockets[0].getsockname()[1]
+
+    async def test_v34_bind_reads_version_and_unbind_resets(self):
+        srv, port = await self._server()
+        try:
+            client = SMPPClient('127.0.0.1', port, 'u', 'p')
+            await client.connect()
+            await client.bind_transceiver()
+            assert client.sc_interface_version == 0x34
+            await client.unbind()
+            assert client.sc_interface_version is None
+            await client.disconnect()
+        finally:
+            await srv.stop()
+
+    async def test_v33_bind_sees_none(self):
+        srv, port = await self._server()
+        try:
+            client = SMPPClient('127.0.0.1', port, 'u', 'p', interface_version=0x33)
+            await client.connect()
+            await client.bind_transceiver()
+            assert client.is_bound
+            assert client.sc_interface_version is None
+            await client.disconnect()
+        finally:
+            await srv.stop()
