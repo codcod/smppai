@@ -133,6 +133,19 @@ class TLVParameter:
         return hash((self.tag, self.value))
 
 
+def _bare_tlvs(data: bytes, start: int, end: int) -> Optional[List[TLVParameter]]:
+    """Parse data[start:end] as a TLV sequence ending exactly at end, else None."""
+    params = []
+    offset = start
+    try:
+        while offset < end:
+            param, offset = TLVParameter.decode(data, offset)
+            params.append(param)
+    except Exception:  # any failure means "not a bare TLV tail"
+        return None
+    return params if offset == end else None
+
+
 @dataclass
 class PDU(ABC):
     """
@@ -290,21 +303,23 @@ class PDU(ABC):
 
         # Decode body
         # SMPP v3.4 allows a response PDU to omit its body when command_status
-        # is non-OK (§4.4.2, §4.1); real SMSCs do this. Skip decode_body for
-        # those so callers get the typed status exception instead of a torn-down
-        # connection. A header-only *success* response is still malformed.
-        header_only_error_response = (
-            length == PDU_HEADER_SIZE
-            and command_status != CommandStatus.ESME_ROK
-            and isinstance(pdu, ResponsePDU)
-        )
-        if not header_only_error_response:
+        # is non-OK (§4.4.2, §4.1); real SMSCs do this, sometimes still sending
+        # TLVs. Skip decode_body when the PDU is header-only, or when the bytes
+        # after the header form an exact TLV sequence: an empty C-string body
+        # field and a standard TLV tag both start with 0x00, so probe the tail
+        # rather than trust a body decode. A body-less *success* response is
+        # still malformed.
+        bare_tlvs = None
+        if command_status != CommandStatus.ESME_ROK and isinstance(pdu, ResponsePDU):
+            bare_tlvs = _bare_tlvs(data, PDU_HEADER_SIZE, length)
+        if bare_tlvs is None:
             try:
                 offset = pdu.decode_body(data, PDU_HEADER_SIZE)
             except Exception as e:
                 raise SMPPPDUException(f'Failed to decode PDU body: {e}') from e
         else:
-            offset = PDU_HEADER_SIZE
+            pdu.optional_parameters = bare_tlvs
+            offset = length
 
         # Decode optional parameters
         while offset < length:

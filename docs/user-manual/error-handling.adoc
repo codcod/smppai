@@ -65,7 +65,11 @@ All of these are importable from the top-level `smpp` package, except
   handlers still catch it; `command_status` holds the code. The library
   doesn't retry — backing off is the caller's job. Raised whether or not the
   SMSC's rejection carries a response body: SMPP v3.4 allows omitting it on
-  a non-OK status, and the connection stays up either way.
+  a non-OK status, even when the SMSC still sends TLVs, and the connection
+  stays up either way. `exc.pdu` holds the response, so
+  `exc.pdu.get_tlv(OptionalTag.ADDITIONAL_STATUS_INFO_TEXT)` reads the SMSC's
+  reason (use `exc.pdu.get_optional_parameter_value(0x001D)` for the raw bytes
+  if the text may not be printable ASCII).
 
 | `SMPPMessageException`
 | `submit_sm`/`deliver_sm` failed — SMSC error response, encoding failure,

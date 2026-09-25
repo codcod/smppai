@@ -249,6 +249,54 @@ class TestPDUDecodeHeaderOnlyErrorResponse:
         assert pdu.command_status == 0x58
         assert pdu.sequence_number == 7
 
+    BUSY_TLV = struct.pack('>HH', 0x001D, 4) + b'busy'
+
+    @pytest.mark.parametrize('command_id', HEADER_ONLY_RESPONSE_COMMAND_IDS)
+    def test_decodes_non_ok_response_with_tlvs_and_no_body(self, command_id):
+        from smpp.protocol.pdu.factory import decode_pdu
+
+        data = struct.pack('>IIII', 16 + 8, command_id, 0x58, 7) + self.BUSY_TLV
+        pdu = decode_pdu(data)
+
+        assert pdu.command_status == 0x58
+        assert pdu.get_optional_parameter_value(0x001D) == b'busy'
+
+    @pytest.mark.parametrize(
+        'command_id',
+        (0x80000004, 0x80000103, 0x80000005, 0x80000009),  # one C-string body
+    )
+    def test_empty_cstring_body_before_tlvs_still_decodes(self, command_id):
+        from smpp.protocol.pdu.factory import decode_pdu
+
+        body = b'\x00'
+        data = (
+            struct.pack('>IIII', 16 + 1 + 8, command_id, 0x58, 7) + body + self.BUSY_TLV
+        )
+        pdu = decode_pdu(data)
+
+        assert pdu.command_status == 0x58
+        assert getattr(pdu, 'message_id', getattr(pdu, 'system_id', None)) == ''
+        assert pdu.get_optional_parameter_value(0x001D) == b'busy'
+
+    def test_ok_status_response_with_only_tlvs_still_fails(self):
+        from smpp.protocol.pdu.factory import decode_pdu
+
+        data = (
+            struct.pack('>IIII', 16 + 8, 0x80000004, CommandStatus.ESME_ROK, 7)
+            + self.BUSY_TLV
+        )
+        with pytest.raises(SMPPPDUException):
+            decode_pdu(data)
+
+    def test_invalid_tlv_tail_raises_pdu_exception(self):
+        from smpp.protocol.pdu.factory import decode_pdu
+
+        # receipted_message_id with a non-printable value fails validation
+        tlv = struct.pack('>HH', 0x001E, 1) + b'\x01'
+        data = struct.pack('>IIII', 16 + 5, 0x80000004, 0x58, 7) + tlv
+        with pytest.raises(SMPPPDUException):
+            decode_pdu(data)
+
     def test_header_only_ok_status_response_still_fails(self):
         from smpp.protocol.pdu.factory import decode_pdu
 

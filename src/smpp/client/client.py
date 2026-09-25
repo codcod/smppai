@@ -253,6 +253,7 @@ class SMPPClient:
                     f'Bind failed: {error_msg}',
                     bind_type=bind_type.value,
                     command_status=response.command_status,
+                    pdu=response,
                 )
 
             # Update state
@@ -447,6 +448,7 @@ class SMPPClient:
                 raise exc_type(
                     f'Message submission failed: {error_msg}',
                     command_status=response.command_status,
+                    pdu=response,
                 )
 
             message_id = response.message_id  # type: ignore[attr-defined]
@@ -696,7 +698,9 @@ class SMPPClient:
                     if response.command_status in _THROTTLE_STATUSES
                     else SMPPMessageException
                 )
-                raise exc_type(error_msg, command_status=response.command_status)
+                raise exc_type(
+                    error_msg, command_status=response.command_status, pdu=response
+                )
 
             return response
 
