@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.7.1 (2026-09-25)
+
+### Bug Fixes
+
+- Pack stateful-codec text by run when splitting (SMP-010)
+  ([`c866859`](https://github.com/codcod/smppai/commit/c866859a12c7dc5f2888b10d7d36a67fc5707308))
+
+
 ## v0.7.0 (2026-09-25)
 
 ### Bug Fixes
