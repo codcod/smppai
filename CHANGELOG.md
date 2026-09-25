@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.8.3 (2026-09-25)
+
+### Bug Fixes
+
+- **client**: Guard inbound queue, cap part sets, quiet logs (SMP-020)
+  ([`34ff49c`](https://github.com/codcod/smppai/commit/34ff49cb8c0aa2eb1e9fcc1341bf08a687e39b45))
+
+
 ## v0.8.2 (2026-09-25)
 
 ### Bug Fixes
