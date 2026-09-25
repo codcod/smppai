@@ -1,6 +1,29 @@
 # CHANGELOG
 
 
+## v0.7.0 (2026-09-25)
+
+### Bug Fixes
+
+- **server**: Validate interface_version, TLV only as v3.4 (SMP-008)
+  ([`174415c`](https://github.com/codcod/smppai/commit/174415c93dc0bf1c6e54fe1c38ed68820f7fe089))
+
+### Chores
+
+- **deps**: Sync uv.lock with v0.6.2
+  ([`73a9fe7`](https://github.com/codcod/smppai/commit/73a9fe7f56b82c249f81bc3b9566db608fd4604b))
+
+### Continuous Integration
+
+- Re-lock uv.lock in the semantic-release commit
+  ([`9beb21f`](https://github.com/codcod/smppai/commit/9beb21f500b2cf0da0e0cde90248328cfc6d9f1c))
+
+### Features
+
+- Report sc_interface_version on bind, record peer version (SMP-008)
+  ([`d12708d`](https://github.com/codcod/smppai/commit/d12708db924046249a9d604b183689edc412c060))
+
+
 ## v0.6.2 (2026-09-25)
 
 ### Bug Fixes
