@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.8.0 (2026-09-25)
+
+### Features
+
+- Send and handle data_sm in client and server (SMP-007)
+  ([`2fd5444`](https://github.com/codcod/smppai/commit/2fd54442417dfe76a797782af1f7847463b08424))
+
+### Testing
+
+- Give oversized data_sm cases short ids (SMP-007)
+  ([`7cc54a6`](https://github.com/codcod/smppai/commit/7cc54a634deb39ded24f84a4dbe40021a990aaac))
+
+
 ## v0.7.1 (2026-09-25)
 
 ### Bug Fixes
