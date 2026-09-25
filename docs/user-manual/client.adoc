@@ -43,8 +43,11 @@ mid-sequence carries `.sent_message_ids`.
 An async iterator of inbound `Message` objects. Only one consumer may iterate
 at a time; a second concurrent `messages()` raises `RuntimeError`. Messages
 are queued from the moment `connect()` binds; up to 1000 unread messages are
-buffered, and beyond that the oldest are dropped with a warning. A
-concatenated message whose parts stay incomplete for 5 minutes is discarded.
+buffered, and beyond that the oldest are dropped. A warning is logged once
+when dropping starts, and once more, with the count, when there is room again.
+A concatenated message whose parts stay incomplete for 5 minutes is discarded.
+At most 1000 incomplete concatenated messages are held at once; beyond that
+the oldest is discarded.
 Iteration ends when the `connect()` block exits, and raises the underlying
 error if the connection drops. To iterate again right after a `break`, wrap
 the first loop in `contextlib.aclosing(c.messages())` so it is closed at once.

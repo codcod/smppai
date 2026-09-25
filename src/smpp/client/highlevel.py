@@ -210,6 +210,8 @@ _CLOSED = object()
 _PartKey = Tuple[str, str, int, int]
 # ponytail: fixed cap, expose it on connect() if someone needs to tune it
 _MAX_PENDING = 1000
+# ponytail: fixed cap, expose it on connect() if someone needs to tune it
+_MAX_PART_SETS = 1000
 _PART_TTL = 300.0  # seconds an incomplete part set may wait
 
 
@@ -226,6 +228,9 @@ class Client:
         ] = {}
         self._consuming = False
         self._closing = False
+        self._ended = False  # a terminal item is queued
+        self._dropped = 0  # messages dropped in the current overflow episode
+        self._evicted = 0  # part sets evicted in the current cap episode
         raw.on_deliver_sm = self._on_message
         raw.on_data_sm = self._on_message
         raw.on_connection_lost = self._on_connection_lost
@@ -304,12 +309,40 @@ class Client:
             return
 
         now = time.monotonic()
-        for k in [k for k, (t, _) in self._parts.items() if now - t > _PART_TTL]:
-            logger.warning('Discarding incomplete concatenated message %s', k)
-            del self._parts[k]
         # ponytail: two sets sharing the 8-bit reference within the TTL still
         # collide; inherent to the reference size, 16-bit refs make it rarer
         key = (pdu.source_addr, pdu.destination_addr, info.reference, info.total_parts)
+        # Insertion order + setdefault keeps the head the oldest set, so stop
+        # at the first one that is neither expired nor over the cap.
+        expired = evicted = 0
+        while self._parts:
+            head, (t, _) = next(iter(self._parts.items()))
+            if now - t > _PART_TTL:
+                expired += 1
+            elif len(self._parts) >= _MAX_PART_SETS and key not in self._parts:
+                evicted += 1
+            else:
+                break
+            del self._parts[head]
+        if expired:
+            logger.warning(
+                'Discarded %d incomplete concatenated message(s) after %.0f s',
+                expired,
+                _PART_TTL,
+            )
+        if evicted:
+            if not self._evicted:
+                logger.warning(
+                    'Too many incomplete concatenated messages (%d): discarding oldest',
+                    _MAX_PART_SETS,
+                )
+            self._evicted += evicted
+        elif self._evicted and key not in self._parts:
+            logger.warning(
+                'Incomplete concatenated messages back under the cap: discarded %d',
+                self._evicted,
+            )
+            self._evicted = 0
         received = self._parts.setdefault(key, (now, {}))[1]
         received[info.part_number] = pdu
         if len(received) < info.total_parts:
@@ -331,18 +364,34 @@ class Client:
         self._put(_to_message(pdu, text))
 
     def _put(self, msg: Message) -> None:
-        # Only Messages are queued before a terminal item, so the oldest
-        # item is always a Message while the cap is reached.
+        # Until a terminal item is queued every item is a Message, so the
+        # oldest can be evicted. After it, never evict: the terminal item must
+        # survive, and stragglers (already acked) stay bounded as the link is dead.
+        if self._ended:
+            self._queue.put_nowait(msg)
+            return
         if self._queue.qsize() >= _MAX_PENDING:
             self._queue.get_nowait()
-            logger.warning('Dropped oldest inbound message: %d unread', _MAX_PENDING)
+            if not self._dropped:
+                logger.warning(
+                    'Inbound queue full (%d unread): dropping oldest messages',
+                    _MAX_PENDING,
+                )
+            self._dropped += 1
+        elif self._dropped:
+            logger.warning(
+                'Inbound queue has room again: dropped %d messages', self._dropped
+            )
+            self._dropped = 0
         self._queue.put_nowait(msg)
 
     def _on_connection_lost(self, raw: SMPPClient, error: Exception) -> None:
         if not self._closing:
+            self._ended = True
             self._queue.put_nowait(error)
 
     def _close(self) -> None:
+        self._ended = True
         self._queue.put_nowait(_CLOSED)
 
 
