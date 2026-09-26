@@ -14,9 +14,9 @@ The module provides:
 import struct
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+import typing as tp
 
-if TYPE_CHECKING:
+if tp.TYPE_CHECKING:
     from ...gsm.udh import UDH, ConcatenatedSMSHeader
 
 from ...exceptions import SMPPPDUException, SMPPValidationException
@@ -97,7 +97,7 @@ class TLVParameter:
         return bytes(result)
 
     @classmethod
-    def decode(cls, data: bytes, offset: int = 0) -> Tuple['TLVParameter', int]:
+    def decode(cls, data: bytes, offset: int = 0) -> tp.Tuple['TLVParameter', int]:
         """
         Decode TLV parameter from bytes.
 
@@ -136,7 +136,7 @@ class TLVParameter:
 _STANDARD_TAGS = frozenset(OptionalTag)
 
 
-def _bare_tlvs(data: bytes, start: int, end: int) -> Optional[List[TLVParameter]]:
+def _bare_tlvs(data: bytes, start: int, end: int) -> tp.Optional[tp.List[TLVParameter]]:
     """Parse data[start:end] as standard TLVs ending exactly at end, else None."""
     params = []
     offset = start
@@ -169,7 +169,7 @@ class PDU(ABC):
     command_id: int = 0
     command_status: int = CommandStatus.ESME_ROK
     sequence_number: int = 0
-    optional_parameters: List[TLVParameter] = field(default_factory=list)
+    optional_parameters: tp.List[TLVParameter] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Initialize PDU after creation."""
@@ -339,7 +339,7 @@ class PDU(ABC):
 
         return pdu
 
-    def get_optional_parameter(self, tag: int) -> Optional[TLVParameter]:
+    def get_optional_parameter(self, tag: int) -> tp.Optional[TLVParameter]:
         """
         Get optional parameter by tag.
 
@@ -393,7 +393,7 @@ class PDU(ABC):
                 return True
         return False
 
-    def get_optional_parameter_value(self, tag: int) -> Optional[bytes]:
+    def get_optional_parameter_value(self, tag: int) -> tp.Optional[bytes]:
         """
         Get optional parameter value by tag.
 
@@ -647,12 +647,15 @@ class ResponsePDU(PDU):
     """
 
     def __init__(
-        self, command_status: int = CommandStatus.ESME_ROK, **kwargs: Any
+        self, command_status: int = CommandStatus.ESME_ROK, **kwargs: tp.Any
     ) -> None:
         super().__init__(command_status=command_status, **kwargs)
 
     def create_error_response(
-        self, request_pdu: PDU, error_status: int, error_message: Optional[str] = None
+        self,
+        request_pdu: PDU,
+        error_status: int,
+        error_message: tp.Optional[str] = None,
     ) -> 'ResponsePDU':
         """
         Create an error response for a request PDU.
@@ -693,7 +696,7 @@ class BindRequestPDU(RequestPDU):
         addr_ton: int = 0,
         addr_npi: int = 0,
         address_range: str = '',
-        **kwargs: Any,
+        **kwargs: tp.Any,
     ) -> None:
         super().__init__(**kwargs)
         self.system_id = system_id
@@ -745,7 +748,7 @@ class BindResponsePDU(ResponsePDU):
     Bind responses are sent by servers in response to bind requests.
     """
 
-    def __init__(self, system_id: str = '', **kwargs: Any) -> None:
+    def __init__(self, system_id: str = '', **kwargs: tp.Any) -> None:
         super().__init__(**kwargs)
         self.system_id = system_id
 
@@ -788,7 +791,7 @@ class MessagePDU(PDU):
         data_coding: int = 0,
         sm_default_msg_id: int = 0,
         short_message: bytes = b'',
-        **kwargs: Any,
+        **kwargs: tp.Any,
     ) -> None:
         super().__init__(**kwargs)
         self.service_type = service_type
@@ -881,7 +884,7 @@ class MessagePDU(PDU):
         """
         return bool(self.esm_class & 0x40)
 
-    def get_udh(self) -> Optional['UDH']:
+    def get_udh(self) -> tp.Optional['UDH']:
         """
         Extract UDH from short message if present.
 
@@ -953,7 +956,7 @@ class MessagePDU(PDU):
         except ImportError:
             return False
 
-    def get_concatenated_info(self) -> Optional['ConcatenatedSMSHeader']:
+    def get_concatenated_info(self) -> tp.Optional['ConcatenatedSMSHeader']:
         """
         Get concatenated SMS information if present.
 

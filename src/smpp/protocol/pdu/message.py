@@ -7,7 +7,7 @@ and their corresponding response PDUs for SMS message handling.
 
 import struct
 from dataclasses import dataclass
-from typing import Optional
+import typing as tp
 
 from ...exceptions import SMPPPDUException, SMPPValidationException
 from ..codec import codec_for_data_coding, decode_cstring, encode_cstring
@@ -140,7 +140,7 @@ class StandardMessagePDU(MessagePDU):
 
         return offset
 
-    def get_message_text(self, encoding: Optional[str] = None) -> str:
+    def get_message_text(self, encoding: tp.Optional[str] = None) -> str:
         """Get message text as string using specified or auto-detected encoding
 
         Args:
@@ -162,7 +162,7 @@ class StandardMessagePDU(MessagePDU):
         except UnicodeDecodeError:
             return self.short_message.decode(encoding, errors='replace')
 
-    def set_message_text(self, text: str, encoding: Optional[str] = None) -> None:
+    def set_message_text(self, text: str, encoding: tp.Optional[str] = None) -> None:
         """Set message text from string using specified or auto-detected encoding
 
         Args:

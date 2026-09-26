@@ -9,7 +9,7 @@ import asyncio
 import logging
 import time
 from enum import Enum
-from typing import Callable, List, Optional
+import typing as tp
 
 from ..exceptions import (
     SMPPBindException,
@@ -120,19 +120,23 @@ class SMPPClient:
         self.bind_timeout = bind_timeout
         self.response_timeout = response_timeout
 
-        self._connection: Optional[SMPPConnection] = None
-        self._bind_type: Optional[BindType] = None
-        self.sc_interface_version: Optional[int] = None
+        self._connection: tp.Optional[SMPPConnection] = None
+        self._bind_type: tp.Optional[BindType] = None
+        self.sc_interface_version: tp.Optional[int] = None
         self._bound = False
 
         # Event handlers
-        self.on_deliver_sm: Optional[Callable[['SMPPClient', DeliverSm], None]] = None
-        self.on_data_sm: Optional[Callable[['SMPPClient', DataSm], None]] = None
-        self.on_connection_lost: Optional[Callable[['SMPPClient', Exception], None]] = (
-            None
-        )
-        self.on_bind_success: Optional[Callable[['SMPPClient', BindType], None]] = None
-        self.on_unbind: Optional[Callable[['SMPPClient'], None]] = None
+        self.on_deliver_sm: tp.Optional[
+            tp.Callable[['SMPPClient', DeliverSm], None]
+        ] = None
+        self.on_data_sm: tp.Optional[tp.Callable[['SMPPClient', DataSm], None]] = None
+        self.on_connection_lost: tp.Optional[
+            tp.Callable[['SMPPClient', Exception], None]
+        ] = None
+        self.on_bind_success: tp.Optional[
+            tp.Callable[['SMPPClient', BindType], None]
+        ] = None
+        self.on_unbind: tp.Optional[tp.Callable[['SMPPClient'], None]] = None
 
         # Create connection
         self._connection = SMPPConnection(
@@ -158,7 +162,7 @@ class SMPPClient:
         return self._bound and self.is_connected
 
     @property
-    def bind_type(self) -> Optional[BindType]:
+    def bind_type(self) -> tp.Optional[BindType]:
         """Get current bind type"""
         return self._bind_type
 
@@ -362,7 +366,7 @@ class SMPPClient:
         replace_if_present_flag: int = 0,
         data_coding: int = DataCoding.DEFAULT,
         sm_default_msg_id: int = 0,
-        timeout: Optional[float] = None,
+        timeout: tp.Optional[float] = None,
     ) -> str:
         """
         Submit SMS message
@@ -449,7 +453,7 @@ class SMPPClient:
             )
 
     async def _send_submit(
-        self, pdu: SubmitSm | DataSm, timeout: Optional[float]
+        self, pdu: SubmitSm | DataSm, timeout: tp.Optional[float]
     ) -> str:
         """Send a built submit_sm/data_sm PDU and wait for its response message_id."""
         try:
@@ -496,9 +500,9 @@ class SMPPClient:
         data_coding: int = DataCoding.DEFAULT,
         esm_class: int = 0,
         registered_delivery: int = RegisteredDelivery.NO_RECEIPT,
-        timeout: Optional[float] = None,
+        timeout: tp.Optional[float] = None,
         **submit_kwargs,
-    ) -> List[str]:
+    ) -> tp.List[str]:
         """
         Submit a message as one or more concatenated (UDH) SMS parts.
 
@@ -540,7 +544,7 @@ class SMPPClient:
         except SMPPPDUException as e:
             raise SMPPMessageException(str(e)) from e
 
-        message_ids: List[str] = []
+        message_ids: tp.List[str] = []
         for part in parts:
             submit_pdu = SubmitSm(  # type: ignore[call-arg]
                 source_addr=source_addr,
@@ -572,7 +576,7 @@ class SMPPClient:
         esm_class: int = 0,
         registered_delivery: int = RegisteredDelivery.NO_RECEIPT,
         data_coding: int = DataCoding.DEFAULT,
-        timeout: Optional[float] = None,
+        timeout: tp.Optional[float] = None,
     ) -> str:
         """
         Send a message as data_sm, carried in the message_payload TLV
@@ -636,7 +640,7 @@ class SMPPClient:
         source_addr: str = '',
         source_addr_ton: int = TonType.UNKNOWN,
         source_addr_npi: int = NpiType.UNKNOWN,
-        timeout: Optional[float] = None,
+        timeout: tp.Optional[float] = None,
     ) -> QuerySmResp:
         """
         Query the status of a previously submitted message
@@ -676,7 +680,7 @@ class SMPPClient:
         source_addr_npi: int = NpiType.UNKNOWN,
         dest_addr_ton: int = TonType.UNKNOWN,
         dest_addr_npi: int = NpiType.UNKNOWN,
-        timeout: Optional[float] = None,
+        timeout: tp.Optional[float] = None,
     ) -> None:
         """
         Cancel a previously submitted message
@@ -722,7 +726,7 @@ class SMPPClient:
         validity_period: str = '',
         registered_delivery: int = RegisteredDelivery.NO_RECEIPT,
         sm_default_msg_id: int = 0,
-        timeout: Optional[float] = None,
+        timeout: tp.Optional[float] = None,
     ) -> None:
         """
         Replace the text of a previously submitted message
@@ -774,7 +778,7 @@ class SMPPClient:
         )
         await self._send_management(replace_pdu, timeout)
 
-    async def _send_management(self, pdu: PDU, timeout: Optional[float]) -> PDU:
+    async def _send_management(self, pdu: PDU, timeout: tp.Optional[float]) -> PDU:
         """Send a query/cancel/replace_sm PDU and raise on a non-ESME_ROK response."""
         try:
             if self._connection is None:
@@ -807,7 +811,7 @@ class SMPPClient:
                 raise
             raise SMPPMessageException(f'Operation failed: {e}')
 
-    async def enquire_link(self, timeout: Optional[float] = None) -> bool:
+    async def enquire_link(self, timeout: tp.Optional[float] = None) -> bool:
         """
         Send enquire_link to test connection
 
@@ -973,7 +977,7 @@ class SMPPClient:
         """Async context manager exit - automatically disconnect."""
         await self.disconnect()
 
-    async def wait_for_connection(self, timeout: Optional[float] = None) -> bool:
+    async def wait_for_connection(self, timeout: tp.Optional[float] = None) -> bool:
         """
         Wait for connection to be established.
 
@@ -990,7 +994,7 @@ class SMPPClient:
             await asyncio.sleep(0.1)
         return True
 
-    async def wait_for_bind(self, timeout: Optional[float] = None) -> bool:
+    async def wait_for_bind(self, timeout: tp.Optional[float] = None) -> bool:
         """
         Wait for binding to be completed.
 

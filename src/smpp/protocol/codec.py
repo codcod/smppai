@@ -6,7 +6,7 @@ including C-string handling, integer packing, and field validation.
 """
 
 import struct
-from typing import Optional, Tuple, Union
+import typing as tp
 
 from .. import gsm  # noqa: F401  registers the 'gsm0338' codec
 from ..exceptions import SMPPPDUException
@@ -45,7 +45,7 @@ def encode_cstring(s: str, max_length: int, encoding: str = 'latin-1') -> bytes:
 
 def decode_cstring(
     data: bytes, offset: int, max_length: int, encoding: str = 'latin-1'
-) -> Tuple[str, int]:
+) -> tp.Tuple[str, int]:
     """
     Decode a C-style null-terminated string from bytes.
 
@@ -119,7 +119,7 @@ def encode_integer(value: int, size: int, signed: bool = False) -> bytes:
 
 def decode_integer(
     data: bytes, offset: int, size: int, signed: bool = False
-) -> Tuple[int, int]:
+) -> tp.Tuple[int, int]:
     """
     Decode an integer from bytes.
 
@@ -161,9 +161,9 @@ def decode_integer(
 
 def validate_field_length(
     field_name: str,
-    value: Union[str, bytes],
+    value: tp.Union[str, bytes],
     min_length: int = 0,
-    max_length: Optional[int] = None,
+    max_length: tp.Optional[int] = None,
 ) -> None:
     """
     Validate that a field value meets length requirements.
@@ -285,7 +285,7 @@ def pack_tlv_parameter(tag: int, value: bytes) -> bytes:
         raise SMPPPDUException(f'TLV packing error: {e}') from e
 
 
-def unpack_tlv_parameter(data: bytes, offset: int = 0) -> Tuple[int, bytes, int]:
+def unpack_tlv_parameter(data: bytes, offset: int = 0) -> tp.Tuple[int, bytes, int]:
     """
     Unpack a TLV (Tag-Length-Value) parameter.
 

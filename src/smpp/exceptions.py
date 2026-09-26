@@ -5,7 +5,7 @@ This module defines all SMPP-specific exception classes used throughout the libr
 """
 
 from enum import IntEnum
-from typing import Any, Dict, Optional, Union
+import typing as tp
 
 
 class SMPPErrorCode(IntEnum):
@@ -32,11 +32,11 @@ class SMPPException(Exception):
     def __init__(
         self,
         message: str,
-        command_status: Optional[int] = None,
-        pdu: Optional[Any] = None,
-        error_code: Optional[Union[str, SMPPErrorCode]] = None,
-        context: Optional[Dict[str, Any]] = None,
-        original_error: Optional[Exception] = None,
+        command_status: tp.Optional[int] = None,
+        pdu: tp.Optional[tp.Any] = None,
+        error_code: tp.Optional[tp.Union[str, SMPPErrorCode]] = None,
+        context: tp.Optional[tp.Dict[str, tp.Any]] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         super().__init__(message)
@@ -75,10 +75,10 @@ class SMPPConnectionException(SMPPException):
     def __init__(
         self,
         message: str,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        connection_state: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        host: tp.Optional[str] = None,
+        port: tp.Optional[int] = None,
+        connection_state: tp.Optional[str] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}
@@ -107,10 +107,10 @@ class SMPPPDUException(SMPPException):
     def __init__(
         self,
         message: str,
-        pdu_type: Optional[str] = None,
-        command_id: Optional[int] = None,
-        sequence_number: Optional[int] = None,
-        original_error: Optional[Exception] = None,
+        pdu_type: tp.Optional[str] = None,
+        command_id: tp.Optional[int] = None,
+        sequence_number: tp.Optional[int] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}
@@ -142,9 +142,9 @@ class SMPPTimeoutException(SMPPException):
     def __init__(
         self,
         message: str,
-        timeout_duration: Optional[float] = None,
-        operation: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        timeout_duration: tp.Optional[float] = None,
+        operation: tp.Optional[str] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}
@@ -170,9 +170,9 @@ class SMPPBindException(SMPPException):
     def __init__(
         self,
         message: str,
-        bind_type: Optional[str] = None,
-        system_id: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        bind_type: tp.Optional[str] = None,
+        system_id: tp.Optional[str] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}
@@ -198,8 +198,8 @@ class SMPPProtocolException(SMPPException):
     def __init__(
         self,
         message: str,
-        protocol_version: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        protocol_version: tp.Optional[str] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}
@@ -222,9 +222,9 @@ class SMPPAuthenticationException(SMPPException):
     def __init__(
         self,
         message: str,
-        system_id: Optional[str] = None,
-        auth_method: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        system_id: tp.Optional[str] = None,
+        auth_method: tp.Optional[str] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}
@@ -250,10 +250,10 @@ class SMPPInvalidStateException(SMPPException):
     def __init__(
         self,
         message: str,
-        current_state: Optional[str] = None,
-        expected_state: Optional[str] = None,
-        operation: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        current_state: tp.Optional[str] = None,
+        expected_state: tp.Optional[str] = None,
+        operation: tp.Optional[str] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}
@@ -282,9 +282,9 @@ class SMPPMessageException(SMPPException):
     def __init__(
         self,
         message: str,
-        message_id: Optional[str] = None,
-        destination: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        message_id: tp.Optional[str] = None,
+        destination: tp.Optional[str] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}
@@ -314,9 +314,9 @@ class SMPPThrottlingException(SMPPMessageException):
     def __init__(
         self,
         message: str,
-        current_rate: Optional[float] = None,
-        max_rate: Optional[float] = None,
-        original_error: Optional[Exception] = None,
+        current_rate: tp.Optional[float] = None,
+        max_rate: tp.Optional[float] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         # SMPPMessageException passes error_code/context to its parent itself,
@@ -337,10 +337,10 @@ class SMPPValidationException(SMPPException):
     def __init__(
         self,
         message: str,
-        field_name: Optional[str] = None,
-        field_value: Optional[str] = None,
-        validation_rule: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        field_name: tp.Optional[str] = None,
+        field_value: tp.Optional[str] = None,
+        validation_rule: tp.Optional[str] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}
@@ -369,10 +369,10 @@ class SMPPConfigurationException(SMPPException):
     def __init__(
         self,
         message: str,
-        config_section: Optional[str] = None,
-        config_key: Optional[str] = None,
-        config_value: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        config_section: tp.Optional[str] = None,
+        config_key: tp.Optional[str] = None,
+        config_value: tp.Optional[str] = None,
+        original_error: tp.Optional[Exception] = None,
         **kwargs,
     ):
         context = {}

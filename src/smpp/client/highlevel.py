@@ -16,7 +16,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import AsyncIterator, Dict, Literal, Optional, Tuple, Union
+import typing as tp
 
 from ..exceptions import SMPPPDUException
 from ..gsm import MessagePart, reassemble_parts
@@ -42,13 +42,13 @@ logger = logging.getLogger(__name__)
 class SendResult:
     """Outcome of Client.send: one SMSC message_id per part."""
 
-    message_ids: Tuple[str, ...]
+    message_ids: tp.Tuple[str, ...]
     parts: int
     data_coding: DataCoding
 
 
 _CLOSED = object()
-_PartKey = Tuple[str, str, int, int]
+_PartKey = tp.Tuple[str, str, int, int]
 # ponytail: fixed cap, expose it on connect() if someone needs to tune it
 _MAX_PENDING = 1000
 # ponytail: fixed cap, expose it on connect() if someone needs to tune it
@@ -64,8 +64,8 @@ class Client:
         # Unbounded so terminal items always fit; _put caps the Messages.
         self._queue: asyncio.Queue = asyncio.Queue()
         # key -> (first-arrival monotonic time, part_number -> pdu)
-        self._parts: Dict[
-            _PartKey, Tuple[float, Dict[int, Union[DeliverSm, DataSm]]]
+        self._parts: tp.Dict[
+            _PartKey, tp.Tuple[float, tp.Dict[int, tp.Union[DeliverSm, DataSm]]]
         ] = {}
         self._consuming = False
         self._closing = False
@@ -78,12 +78,12 @@ class Client:
 
     async def send(
         self,
-        to: Union[str, Address],
+        to: tp.Union[str, Address],
         text: str,
         *,
-        sender: Union[str, Address] = '',
+        sender: tp.Union[str, Address] = '',
         receipt: bool = False,
-        timeout: Optional[float] = None,
+        timeout: tp.Optional[float] = None,
     ) -> SendResult:
         """
         Send text, as GSM-7 if it fits the alphabet else UCS2, split into
@@ -116,7 +116,7 @@ class Client:
         )
         return SendResult(tuple(ids), len(ids), data_coding)
 
-    async def messages(self) -> AsyncIterator[Message]:
+    async def messages(self) -> tp.AsyncIterator[Message]:
         """
         Yield inbound messages until the connect() block exits.
 
@@ -139,7 +139,7 @@ class Client:
         finally:
             self._consuming = False
 
-    def _on_message(self, raw: SMPPClient, pdu: Union[DeliverSm, DataSm]) -> None:
+    def _on_message(self, raw: SMPPClient, pdu: tp.Union[DeliverSm, DataSm]) -> None:
         info, content = _split(pdu)
         if (
             info is None
@@ -199,7 +199,7 @@ class Client:
             for n, p in received.items()
         ]
         try:
-            text: Optional[str] = reassemble_parts(parts, pdu.data_coding)
+            text: tp.Optional[str] = reassemble_parts(parts, pdu.data_coding)
         except (ValueError, SMPPPDUException):
             text = None
         self._put(_to_message(pdu, text))
@@ -250,9 +250,9 @@ async def connect(
     system_id: str,
     password: str,
     *,
-    bind: Literal['tx', 'rx', 'trx'] = 'trx',
+    bind: tp.Literal['tx', 'rx', 'trx'] = 'trx',
     **client_kwargs,
-) -> AsyncIterator[Client]:
+) -> tp.AsyncIterator[Client]:
     """
     Connect and bind to an SMSC; unbind and disconnect on exit.
 
