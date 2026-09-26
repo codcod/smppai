@@ -122,7 +122,7 @@ uv run ruff format src tests
 uv run ruff check src tests
 
 # Type checking
-uv run mypy src
+uv run ty check src
 
 # Run tests
 uv run pytest

@@ -69,9 +69,9 @@ lint-fix: ## Run linting with auto-fix
 	@echo "$(GREEN)Linting with auto-fix completed$(RESET)"
 
 .PHONY: typecheck
-typecheck: ## Run type checking with mypy
+typecheck: ## Run type checking with ty
 	@echo "$(BLUE)Running type checker...$(RESET)"
-	$(UV) run mypy $(SRC_DIR)
+	$(UV) run ty check $(SRC_DIR)
 	@echo "$(GREEN)Type checking completed$(RESET)"
 
 .PHONY: check
@@ -131,7 +131,6 @@ clean: ## Clean build artifacts
 	rm -rf htmlcov/
 	rm -rf .coverage
 	rm -rf .pytest_cache/
-	rm -rf .mypy_cache/
 	rm -rf .ruff_cache/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete

@@ -19,7 +19,7 @@
 <!-- Describe the tests you ran to verify your changes -->
 - [ ] Tests pass locally with `uv run pytest`
 - [ ] Linting passes with `uv run ruff check`
-- [ ] Type checking passes with `uv run mypy src`
+- [ ] Type checking passes with `uv run ty check src`
 - [ ] Added tests for new functionality
 - [ ] Updated documentation if needed
 

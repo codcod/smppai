@@ -888,33 +888,27 @@ class SMPPServer:
             # Create appropriate response PDU
             resp_pdu: tp.Optional[PDU] = None
             if isinstance(bind_pdu, BindTransmitter):
-                resp_pdu = BindTransmitterResp(  # type: ignore[call-arg]
+                resp_pdu = BindTransmitterResp(
                     sequence_number=bind_pdu.sequence_number,
                     command_status=status,
                     system_id=(
-                        self.system_id  # type: ignore[call-arg]
-                        if status == CommandStatus.ESME_ROK
-                        else ''
+                        self.system_id if status == CommandStatus.ESME_ROK else ''
                     ),
                 )
             elif isinstance(bind_pdu, BindReceiver):
-                resp_pdu = BindReceiverResp(  # type: ignore[call-arg]
+                resp_pdu = BindReceiverResp(
                     sequence_number=bind_pdu.sequence_number,
                     command_status=status,
                     system_id=(
-                        self.system_id  # type: ignore[call-arg]
-                        if status == CommandStatus.ESME_ROK
-                        else ''
+                        self.system_id if status == CommandStatus.ESME_ROK else ''
                     ),
                 )
             elif isinstance(bind_pdu, BindTransceiver):
-                resp_pdu = BindTransceiverResp(  # type: ignore[call-arg]
+                resp_pdu = BindTransceiverResp(
                     sequence_number=bind_pdu.sequence_number,
                     command_status=status,
                     system_id=(
-                        self.system_id  # type: ignore[call-arg]
-                        if status == CommandStatus.ESME_ROK
-                        else ''
+                        self.system_id if status == CommandStatus.ESME_ROK else ''
                     ),
                 )
             else:
@@ -1242,7 +1236,7 @@ class SMPPServer:
 
         try:
             # Create deliver_sm PDU
-            deliver_pdu = DeliverSm(  # type: ignore[call-arg]
+            deliver_pdu = DeliverSm(
                 service_type=service_type,
                 source_addr_ton=source_addr_ton,
                 source_addr_npi=source_addr_npi,
