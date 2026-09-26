@@ -7,7 +7,6 @@ __pycache__/
 
 # Test/type/lint caches
 .pytest_cache/
-.mypy_cache/
 .ruff_cache/
 
 # Coverage (make test-cov)

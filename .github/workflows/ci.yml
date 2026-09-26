@@ -50,10 +50,8 @@ jobs:
         with:
           python-version: ${{ env.PRIMARY_PYTHON_VERSION }}
 
-      - name: Run mypy
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
-        run: uv run python -m mypy src
+      - name: Run ty
+        run: uv run ty check src
 
   security:
     runs-on: ubuntu-latest

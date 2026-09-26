@@ -45,6 +45,7 @@ from ..protocol import (
     RegisteredDelivery,
     ReplaceSm,
     SubmitSm,
+    SubmitSmResp,
     TonType,
     Unbind,
     UnbindResp,
@@ -236,7 +237,7 @@ class SMPPClient:
         }
 
         bind_pdu_class = bind_pdu_map[bind_type]
-        bind_pdu = bind_pdu_class(  # type: ignore[call-arg]
+        bind_pdu = bind_pdu_class(
             system_id=self.system_id,
             password=self.password,
             system_type=self.system_type,
@@ -403,7 +404,7 @@ class SMPPClient:
         logger.debug('Submitting SMS from %s to %s', source_addr, destination_addr)
 
         # Create submit_sm PDU
-        submit_pdu = SubmitSm(  # type: ignore[call-arg]
+        submit_pdu = SubmitSm(
             service_type=service_type,
             source_addr_ton=source_addr_ton,
             source_addr_npi=source_addr_npi,
@@ -480,7 +481,7 @@ class SMPPClient:
                     pdu=response,
                 )
 
-            message_id = response.message_id  # type: ignore[attr-defined]
+            message_id = tp.cast(SubmitSmResp | DataSmResp, response).message_id
             logger.debug('SMS submitted successfully, message_id: %s', message_id)
             return str(message_id) if message_id is not None else ''
 
@@ -546,7 +547,7 @@ class SMPPClient:
 
         message_ids: tp.List[str] = []
         for part in parts:
-            submit_pdu = SubmitSm(  # type: ignore[call-arg]
+            submit_pdu = SubmitSm(
                 source_addr=source_addr,
                 destination_addr=destination_addr,
                 short_message=part.get_short_message(),
@@ -558,7 +559,7 @@ class SMPPClient:
             try:
                 message_ids.append(await self._send_submit(submit_pdu, timeout))
             except Exception as e:
-                e.sent_message_ids = message_ids  # type: ignore[attr-defined]
+                setattr(e, 'sent_message_ids', message_ids)
                 raise
 
         return message_ids
@@ -607,7 +608,7 @@ class SMPPClient:
         """
         self._require_tx_bind()
 
-        pdu = DataSm(  # type: ignore[call-arg]
+        pdu = DataSm(
             service_type=service_type,
             source_addr_ton=source_addr_ton,
             source_addr_npi=source_addr_npi,
@@ -661,14 +662,14 @@ class SMPPClient:
         """
         self._require_tx_bind()
 
-        query_pdu = QuerySm(  # type: ignore[call-arg]
+        query_pdu = QuerySm(
             message_id=message_id,
             source_addr_ton=source_addr_ton,
             source_addr_npi=source_addr_npi,
             source_addr=source_addr,
         )
         response = await self._send_management(query_pdu, timeout)
-        return response  # type: ignore[return-value]
+        return tp.cast(QuerySmResp, response)
 
     async def cancel_sm(
         self,
@@ -702,7 +703,7 @@ class SMPPClient:
         """
         self._require_tx_bind()
 
-        cancel_pdu = CancelSm(  # type: ignore[call-arg]
+        cancel_pdu = CancelSm(
             service_type=service_type,
             message_id=message_id,
             source_addr_ton=source_addr_ton,
@@ -765,7 +766,7 @@ class SMPPClient:
                 f'Message too long: {len(encoded_message)} bytes'
             )
 
-        replace_pdu = ReplaceSm(  # type: ignore[call-arg]
+        replace_pdu = ReplaceSm(
             message_id=message_id,
             source_addr_ton=source_addr_ton,
             source_addr_npi=source_addr_npi,
