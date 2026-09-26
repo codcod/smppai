@@ -39,9 +39,12 @@ jobs:
 
       # `brew update` first: a preinstalled runner image's Homebrew snapshot can
       # lag behind the tap's bottle metadata, which otherwise only fails on fresh
-      # runners and not on an already-updated developer machine.
+      # runners and not on an already-updated developer machine. Ubuntu runners
+      # ship Homebrew but keep it off PATH, so put it there for later steps too.
       - name: Install snowball
         run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
           brew update --quiet
           brew install codcod/tap/snowball
           snowball setup
