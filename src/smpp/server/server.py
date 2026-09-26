@@ -17,6 +17,7 @@ from typing import (
     Callable,
     Coroutine,
     Dict,
+    Iterable,
     List,
     Optional,
     Set,
@@ -89,6 +90,8 @@ class ClientSession:
     _disconnect_reported: bool = field(
         default=False, init=False, repr=False, compare=False
     )
+    # Set once an unbind starts; the session then refuses binds
+    _unbinding: bool = field(default=False, init=False, repr=False, compare=False)
 
 
 class SMPPServer:
@@ -129,6 +132,10 @@ class SMPPServer:
         await server.start()
         await server.serve_forever()  # Handles shutdown automatically
     """
+
+    # Seconds an unbind waits for earlier requests before unbind_resp; below
+    # the client's 30 s default response_timeout, so its unbind doesn't time out
+    _unbind_timeout = 10.0
 
     def __init__(
         self,
@@ -498,13 +505,9 @@ class SMPPServer:
 
         # Let in-flight handlers answer first. Skip the task running this:
         # stop() may be awaited from inside a handler
-        pending = self._tasks - {asyncio.current_task()}
-        if pending:
-            _, still_pending = await asyncio.wait(
-                pending, timeout=self._shutdown_timeout
-            )
-            for task in still_pending:
-                task.cancel()
+        await self._drain(
+            self._tasks - {asyncio.current_task()}, self._shutdown_timeout
+        )
 
         if not self._clients:
             logger.info('No clients connected - shutdown sequence complete')
@@ -608,6 +611,10 @@ class SMPPServer:
                     f'Timeout after {self._shutdown_timeout}s waiting for client disconnections'
                 )
 
+        # disconnect() doesn't report a lost connection, so report it here
+        for client in clients:
+            await self._handle_client_disconnected(client, None)
+
     async def _send_unbind_to_client(self, client: ClientSession) -> None:
         """Send unbind request to a client"""
         try:
@@ -647,10 +654,23 @@ class SMPPServer:
             task.add_done_callback(lambda t: tasks.pop(t, None))
         return task
 
+    @staticmethod
+    async def _drain(tasks: Iterable[asyncio.Task], timeout: float) -> None:
+        """Wait up to timeout for tasks, then cancel those still running"""
+        tasks = set(tasks)
+        if tasks:
+            _, still_pending = await asyncio.wait(tasks, timeout=timeout)
+            for task in still_pending:
+                task.cancel()
+
     def _session_live(self, session: ClientSession) -> bool:
-        """True while the server still tracks session and its stream is open"""
+        """
+        True while the server still tracks session, its stream is open and
+        it isn't unbinding
+        """
         return (
             self._accept_new_connections
+            and not session._unbinding
             and any(s is session for s in self._clients.values())
             and not session.connection.is_closed
         )
@@ -721,7 +741,7 @@ class SMPPServer:
     async def _handle_client_disconnected(
         self, session: ClientSession, error: Optional[Exception]
     ) -> None:
-        """Handle client disconnection; error is None after a clean unbind"""
+        """Handle client disconnection; error is None when the server closed it"""
         client_id = None
 
         # Find and remove client
@@ -737,9 +757,8 @@ class SMPPServer:
             return
         session._disconnect_reported = True
 
-        logger.info(
-            f'Client {client_id or "unknown"} disconnected: {error or "unbound"}'
-        )
+        name = client_id or session.system_id or 'unknown'
+        logger.info(f'Client {name} disconnected: {error or "closed"}')
 
         # Trigger client disconnected event
         if self.on_client_disconnected:
@@ -930,22 +949,21 @@ class SMPPServer:
         try:
             logger.info(f'Unbind request from {session.system_id}')
 
-            # Refuse new requests, then let those that arrived before the
-            # unbind answer before unbind_resp: closing first would drop the
-            # response to a message a handler has already accepted. Only
-            # earlier ones, so a second unbind can't wait on this one and back
+            # Refuse new requests and binds, then let those that arrived
+            # before the unbind answer before unbind_resp: closing first
+            # would drop the response to a message a handler has already
+            # accepted. Only earlier ones, so a second unbind can't wait on
+            # this one and back; none if this task isn't tracked, since then
+            # none of them is known to be earlier
+            session._unbinding = True
             session.bound = False
             session.bind_type = ''
             current = asyncio.current_task()
-            pending = list(
-                itertools.takewhile(lambda t: t is not current, session._tasks)
-            )
-            if pending:
-                _, still_pending = await asyncio.wait(
-                    pending, timeout=self._shutdown_timeout
+            if current in session._tasks:
+                earlier = itertools.takewhile(
+                    lambda t: t is not current, session._tasks
                 )
-                for task in still_pending:
-                    task.cancel()
+                await self._drain(earlier, self._unbind_timeout)
 
             # Send unbind response
             resp_pdu = UnbindResp(

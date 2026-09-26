@@ -12,7 +12,7 @@
 (* action below is the code between two awaits of one task. The server's  *)
 (* handler tasks for this session are `tasks`, in arrival order, like      *)
 (* ClientSession._tasks. Timeouts are not modelled: a wait that only a     *)
-(* timeout ends is a stall (30 s by default), so it shows up as a deadlock.*)
+(* timeout ends is a stall (10 s for an unbind), so it shows as a deadlock.*)
 (*                                                                         *)
 (* Each fix is a constant, so a config can switch one off and check that   *)
 (* TLC finds the bug again; see README.md.                                 *)

@@ -44,7 +44,7 @@ shows that the model can see it:
 |---|---|---|
 | `Fixed` | nothing | no error |
 | `LostAck` | unbind waits for in-flight requests (`Drain = "none"`, as in 0.9.0) | `NoLostAck` violated: unbind answers and closes while `on_submit` is still running |
-| `DrainDeadlock` | unbind waits only for *earlier* requests (`Drain = "others"`) | deadlock: two unbinds wait for each other; in the code, a 30 s stall until `shutdown_timeout` |
+| `DrainDeadlock` | unbind waits only for *earlier* requests (`Drain = "others"`) | deadlock: two unbinds wait for each other; in the code, a 10 s stall until the unbind timeout |
 | `GhostSession` | unbind removes the session (`ReleaseOnUnbind`) | `NoGhostSession` violated: `disconnect()` never reports a lost connection |
 | `DoubleReport` | once-only reporting (`ReportOnce`) | `ReportedOnce` violated: unbind and the client's EOF both report |
 | `StaleState` | client unbind resets the connection state (`ClearOnUnbind`) | `StateAgreement` violated |
@@ -69,4 +69,5 @@ The model leaves out:
 Adding `stop()` next would cover the one known remaining corner. If
 `stop()` is awaited from inside an `on_submit` while the same client
 unbinds, the unbind waits for that handler, and `stop()` waits for the
-unbind. Timeouts end this, but only after `shutdown_timeout`.
+unbind. Timeouts end this, but only after the 10 s unbind timeout or
+`shutdown_timeout`, whichever is shorter.
