@@ -1,6 +1,42 @@
 # CHANGELOG
 
 
+## v0.9.1 (2026-09-26)
+
+### Bug Fixes
+
+- **client**: Close the connection when unbind fails (SMP-024)
+  ([`fbe30e0`](https://github.com/codcod/smppai/commit/fbe30e07dc9ef1c38b37563b8bbe915521437520))
+
+- **server**: Answer earlier requests before unbind_resp (SMP-024)
+  ([`edd2101`](https://github.com/codcod/smppai/commit/edd2101cd6ce353851da0ffd59fa122df6b4b8f5))
+
+- **server**: Refuse binds racing an unbind, own drain timeout (SMP-024)
+  ([`d5580dc`](https://github.com/codcod/smppai/commit/d5580dc27e95c165ccb8eab82c8d306f50299cf3))
+
+- **transport**: Return connection to OPEN after unbind (SMP-024)
+  ([`e9ef0b2`](https://github.com/codcod/smppai/commit/e9ef0b215ce1e9a2be77c9e555a2955cc5f43d3d))
+
+### Documentation
+
+- Document unbind drain and failed-unbind close (SMP-024)
+  ([`0297638`](https://github.com/codcod/smppai/commit/02976388808ca15e07ad8c92f87b8bc1b55e7084))
+
+- **client**: Qualify rebind after a clean unbind (SMP-024)
+  ([`0620200`](https://github.com/codcod/smppai/commit/06202001030d109559634cfae3c0ef0baeb17fab))
+
+- **server**: Drop unbind from shutdown_timeout docstrings (SMP-024)
+  ([`a7aa3da`](https://github.com/codcod/smppai/commit/a7aa3da667ded94dd92849beea531bc44eba7b79))
+
+### Testing
+
+- Model-check the unbind/session lifecycle with TLA+ (SMP-024)
+  ([`d24ad84`](https://github.com/codcod/smppai/commit/d24ad84b473a78a50a44f6d212535750a1df01cd))
+
+- Register integration and performance pytest markers (SMP-024)
+  ([`8396432`](https://github.com/codcod/smppai/commit/8396432830885f7e3c7c0ca7f61b74c4d08e470d))
+
+
 ## v0.9.0 (2026-09-25)
 
 ### Bug Fixes
