@@ -255,6 +255,19 @@ A client that wants to participate gracefully watches `on_deliver_sm` for
 these notifications and disconnects on its own once it sees one — see
 `examples/client_advanced.py` for a complete implementation of that side.
 
+=== Client unbind
+
+When a client sends `unbind`, the server marks the session unbound and then
+lets that session's earlier requests finish first. It waits up to 10 seconds
+for their handlers to send responses, and cancels any handler still running
+after that. It then sends `unbind_resp`, closes the connection and calls
+`on_client_disconnected`. Requests that arrive after the `unbind` are refused
+(`submit_sm` with `ESME_RINVBNDSTS`). A bind that races the unbind, including
+one still waiting on an async `authenticate`, gets `ESME_RBINDFAIL`.
+
+`on_client_disconnected` fires once per session, whether the client unbinds,
+drops the connection, or is disconnected by `stop()`.
+
 == Full example
 
 `examples/server_advanced.py` wires up authentication, all five event handlers,

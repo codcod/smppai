@@ -157,6 +157,12 @@ wait than handle an exception:
 
 Both return `False` on timeout instead of raising.
 
+`await client.unbind()` ends the bind. If the SMSC answers `ESME_ROK`, the
+connection stays open and you can bind again on it. If the unbind fails (an
+error status, a timeout or an exception), the client closes the connection,
+since the SMSC may still consider the session bound. Call `connect()` again
+before binding. `on_unbind` fires either way.
+
 == Sending a message
 
 [source,python]
