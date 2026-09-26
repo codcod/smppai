@@ -111,8 +111,8 @@ class SMPPServer:
     Configuration:
         grace_period: Time to wait after initial notification (default: 30s)
         reminder_delay: Additional time after reminder (default: 10s)
-        shutdown_timeout: Maximum wait for in-flight handlers (on stop and on
-            a client's unbind), then again for force disconnect (default: 30s)
+        shutdown_timeout: Maximum wait for in-flight handlers, then again for
+            force disconnect (default: 30s)
 
     Features:
     - Thread-safe shutdown operations
@@ -252,8 +252,8 @@ class SMPPServer:
         Set the timeout for graceful shutdown.
 
         Args:
-            timeout: Maximum seconds to wait for in-flight handlers (on stop
-                and on a client's unbind), then again for clients to disconnect
+            timeout: Maximum seconds to wait for in-flight handlers, then
+                again for clients to disconnect
         """
         if timeout < 0:
             raise ValueError('Shutdown timeout must be non-negative')
@@ -1370,9 +1370,8 @@ class SMPPServer:
         Args:
             grace_period: Seconds to wait after shutdown notification
             reminder_delay: Seconds to wait after reminder before force disconnect
-            shutdown_timeout: Maximum seconds to wait for in-flight handlers
-                (on stop and on a client's unbind), then again for client
-                disconnections
+            shutdown_timeout: Maximum seconds to wait for in-flight handlers,
+                then again for client disconnections
 
         Raises:
             TypeError: If parameters are not numeric
