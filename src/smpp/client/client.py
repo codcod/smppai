@@ -299,6 +299,7 @@ class SMPPClient:
 
         logger.info('Unbinding from SMSC')
 
+        unbound = False
         try:
             unbind_pdu = Unbind()
 
@@ -312,8 +313,10 @@ class SMPPClient:
 
             if (
                 response is not None
-                and response.command_status != CommandStatus.ESME_ROK
+                and response.command_status == CommandStatus.ESME_ROK
             ):
+                unbound = True
+            elif response is not None:
                 logger.warning(
                     f'Unbind response error: {get_error_message(response.command_status)}'
                 )
@@ -324,6 +327,13 @@ class SMPPClient:
             self._bound = False
             self._bind_type = None
             self.sc_interface_version = None
+            if self._connection is not None:
+                # Without an ESME_ROK the SMSC may still hold the bind;
+                # closing is the only state both ends then agree on
+                if unbound:
+                    self._connection.clear_bound_state()
+                else:
+                    await self._connection.disconnect()
             logger.info('Unbound from SMSC')
 
             # Trigger unbind event
@@ -925,6 +935,8 @@ class SMPPClient:
             self._bound = False
             self._bind_type = None
             self.sc_interface_version = None
+            if self._connection is not None:
+                self._connection.clear_bound_state()
 
             logger.info('Received unbind request from SMSC')
 

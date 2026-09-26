@@ -575,6 +575,19 @@ class TestBindingStates:
         connection.set_bound_state('invalid')
         assert connection.state == original_state  # Should not change
 
+    def test_clear_bound_state_returns_to_open(self, connection):
+        """Unbinding leaves the connection open but no longer bound"""
+        connection._state = ConnectionState.OPEN
+        connection.set_bound_state('transceiver')
+        connection.clear_bound_state()
+        assert connection.state == ConnectionState.OPEN
+        assert not connection.is_bound
+
+    def test_clear_bound_state_leaves_closed_alone(self, connection):
+        """A closed connection stays closed"""
+        connection.clear_bound_state()
+        assert connection.state == ConnectionState.CLOSED
+
 
 class TestErrorHandling:
     """Test error handling"""

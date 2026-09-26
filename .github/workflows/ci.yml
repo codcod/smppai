@@ -77,6 +77,23 @@ jobs:
           name: bandit-report-${{ env.PRIMARY_PYTHON_VERSION }}
           path: bandit-report.json
 
+  model-check:
+    runs-on: ubuntu-latest
+    name: TLA+ model check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download TLA+ tools
+        run: |
+          curl -fsSL -o specs/tla2tools.jar \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+          echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  specs/tla2tools.jar" \
+            | sha256sum -c -
+
+      - name: Run TLC
+        run: specs/check.sh
+
   unit-tests:
     runs-on: ${{ matrix.os }}
     needs: [lint, type-check]
@@ -245,7 +262,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     name: All checks status
-    needs: [lint, type-check, security, unit-tests, integration-test, build]
+    needs: [lint, type-check, security, model-check, unit-tests, integration-test, build]
     steps:
       - name: Summarize results
         run: |
@@ -256,6 +273,7 @@ jobs:
             echo "| Lint | ${{ needs.lint.result }} |"
             echo "| Type Check | ${{ needs.type-check.result }} |"
             echo "| Security | ${{ needs.security.result }} |"
+            echo "| Model check | ${{ needs.model-check.result }} |"
             echo "| Tests | ${{ needs.unit-tests.result }} |"
             echo "| Integration | ${{ needs.integration-test.result }} |"
             echo "| Build | ${{ needs.build.result }} |"
@@ -266,6 +284,7 @@ jobs:
           # Fix: Use proper bash syntax for needs reference
           if [[ "${{ needs.lint.result }}" != "success" || \
                 "${{ needs.type-check.result }}" != "success" || \
+                "${{ needs.model-check.result }}" != "success" || \
                 "${{ needs.unit-tests.result }}" != "success" ]]; then
             echo "Required job failed"
             exit 1

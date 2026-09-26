@@ -524,6 +524,8 @@ class TestSMPPClientUnbinding:
 
         assert client._bound is False
         assert client._bind_type is None
+        client._connection.clear_bound_state.assert_called_once()
+        client._connection.disconnect.assert_not_called()
         client.on_unbind.assert_called_once_with(client)
 
     @pytest.mark.asyncio
@@ -569,6 +571,9 @@ class TestSMPPClientUnbinding:
 
         assert client._bound is False
         assert client._bind_type is None
+        # The SMSC refused the unbind, so drop the connection
+        client._connection.disconnect.assert_awaited_once()
+        client._connection.clear_bound_state.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_unbind_exception(self):
@@ -583,6 +588,9 @@ class TestSMPPClientUnbinding:
 
         assert client._bound is False
         assert client._bind_type is None
+        # No answer from the SMSC, so drop the connection
+        client._connection.disconnect.assert_awaited_once()
+        client._connection.clear_bound_state.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_unbind_handler_exception(self):
@@ -2073,6 +2081,7 @@ class TestScInterfaceVersion:
             assert client.sc_interface_version == 0x34
             await client.unbind()
             assert client.sc_interface_version is None
+            assert client.connection_state == ConnectionState.OPEN
         finally:
             await client.disconnect()
             await srv.stop()

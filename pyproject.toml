@@ -126,6 +126,10 @@ addopts = [
   # "--cov=smpp",
 ]
 testpaths = ["tests/unit"]
+markers = [
+  "integration: needs a live server or simulator",
+  "performance: slow shutdown/load tests",
+]
 pythonpath = ["src"]
 log_format = "%(asctime)s [%(levelname)-8s] [%(filename)s:%(lineno)s] %(message)s"
 log_date_format = "%H:%M:%S"

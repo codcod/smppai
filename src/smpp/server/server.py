@@ -7,15 +7,17 @@ for testing SMPP clients or as a foundation for building custom SMSC solutions.
 
 import asyncio
 import inspect
+import itertools
 import logging
 import signal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     Any,
     Awaitable,
     Callable,
     Coroutine,
     Dict,
+    Iterable,
     List,
     Optional,
     Set,
@@ -80,6 +82,16 @@ class ClientSession:
     address_range: str = ''
     interface_version: int = 0x34
     message_counter: int = 0
+    # In-flight handler tasks for this session's requests, in arrival order
+    # (a dict used as an ordered set), drained on unbind
+    _tasks: Dict[asyncio.Task, None] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+    _disconnect_reported: bool = field(
+        default=False, init=False, repr=False, compare=False
+    )
+    # Set once an unbind starts; the session then refuses binds
+    _unbinding: bool = field(default=False, init=False, repr=False, compare=False)
 
 
 class SMPPServer:
@@ -120,6 +132,10 @@ class SMPPServer:
         await server.start()
         await server.serve_forever()  # Handles shutdown automatically
     """
+
+    # Seconds an unbind waits for earlier requests before unbind_resp; below
+    # the client's 30 s default response_timeout, so its unbind doesn't time out
+    _unbind_timeout = 10.0
 
     def __init__(
         self,
@@ -489,13 +505,9 @@ class SMPPServer:
 
         # Let in-flight handlers answer first. Skip the task running this:
         # stop() may be awaited from inside a handler
-        pending = self._tasks - {asyncio.current_task()}
-        if pending:
-            _, still_pending = await asyncio.wait(
-                pending, timeout=self._shutdown_timeout
-            )
-            for task in still_pending:
-                task.cancel()
+        await self._drain(
+            self._tasks - {asyncio.current_task()}, self._shutdown_timeout
+        )
 
         if not self._clients:
             logger.info('No clients connected - shutdown sequence complete')
@@ -599,6 +611,10 @@ class SMPPServer:
                     f'Timeout after {self._shutdown_timeout}s waiting for client disconnections'
                 )
 
+        # disconnect() doesn't report a lost connection, so report it here
+        for client in clients:
+            await self._handle_client_disconnected(client, None)
+
     async def _send_unbind_to_client(self, client: ClientSession) -> None:
         """Send unbind request to a client"""
         try:
@@ -615,21 +631,46 @@ class SMPPServer:
                 # Update client state
                 client.bound = False
                 client.bind_type = ''
+                client.connection.clear_bound_state()
 
         except Exception as e:
             logger.warning(f'Error sending unbind to client {client.system_id}: {e}')
 
-    def _spawn(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task:
-        """Start a task, holding it until done so stop() can drain it"""
+    def _spawn(
+        self,
+        coro: Coroutine[Any, Any, Any],
+        session: Optional[ClientSession] = None,
+    ) -> asyncio.Task:
+        """
+        Start a task, holding it until done so stop() can drain it, and
+        unbind too when it answers a request from session
+        """
         task = asyncio.create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        if session is not None:
+            tasks = session._tasks
+            tasks[task] = None
+            task.add_done_callback(lambda t: tasks.pop(t, None))
         return task
 
+    @staticmethod
+    async def _drain(tasks: Iterable[asyncio.Task], timeout: float) -> None:
+        """Wait up to timeout for tasks, then cancel those still running"""
+        tasks = set(tasks)
+        if tasks:
+            _, still_pending = await asyncio.wait(tasks, timeout=timeout)
+            for task in still_pending:
+                task.cancel()
+
     def _session_live(self, session: ClientSession) -> bool:
-        """True while the server still tracks session and its stream is open"""
+        """
+        True while the server still tracks session, its stream is open and
+        it isn't unbinding
+        """
         return (
             self._accept_new_connections
+            and not session._unbinding
             and any(s is session for s in self._clients.values())
             and not session.connection.is_closed
         )
@@ -698,9 +739,9 @@ class SMPPServer:
         logger.info(f'Client {client_id} connected')
 
     async def _handle_client_disconnected(
-        self, session: ClientSession, error: Exception
+        self, session: ClientSession, error: Optional[Exception]
     ) -> None:
-        """Handle client disconnection"""
+        """Handle client disconnection; error is None when the server closed it"""
         client_id = None
 
         # Find and remove client
@@ -710,7 +751,14 @@ class SMPPServer:
                 del self._clients[cid]
                 break
 
-        logger.info(f'Client {client_id or "unknown"} disconnected: {error}')
+        # Both unbind and a lost connection lead here, possibly for the same
+        # session; report the disconnect only once
+        if session._disconnect_reported:
+            return
+        session._disconnect_reported = True
+
+        name = client_id or session.system_id or 'unknown'
+        logger.info(f'Client {name} disconnected: {error or "closed"}')
 
         # Trigger client disconnected event
         if self.on_client_disconnected:
@@ -727,19 +775,19 @@ class SMPPServer:
             )
 
             if isinstance(pdu, (BindTransmitter, BindReceiver, BindTransceiver)):
-                self._spawn(self._handle_bind_request(session, pdu))
+                self._spawn(self._handle_bind_request(session, pdu), session)
             elif isinstance(pdu, Unbind):
-                self._spawn(self._handle_unbind_request(session, pdu))
+                self._spawn(self._handle_unbind_request(session, pdu), session)
             elif isinstance(pdu, (SubmitSm, DataSm)):
-                self._spawn(self._handle_submit_sm(session, pdu))
+                self._spawn(self._handle_submit_sm(session, pdu), session)
             elif isinstance(pdu, QuerySm):
-                self._spawn(self._handle_query_sm(session, pdu))
+                self._spawn(self._handle_query_sm(session, pdu), session)
             elif isinstance(pdu, CancelSm):
-                self._spawn(self._handle_cancel_sm(session, pdu))
+                self._spawn(self._handle_cancel_sm(session, pdu), session)
             elif isinstance(pdu, ReplaceSm):
-                self._spawn(self._handle_replace_sm(session, pdu))
+                self._spawn(self._handle_replace_sm(session, pdu), session)
             elif isinstance(pdu, EnquireLink):
-                self._spawn(self._handle_enquire_link(session, pdu))
+                self._spawn(self._handle_enquire_link(session, pdu), session)
             elif isinstance(pdu, (DeliverSmResp, DataSmResp)):
                 # Acknowledgement of a server-initiated deliver_sm/data_sm
                 logger.debug(
@@ -750,7 +798,8 @@ class SMPPServer:
                 self._spawn(
                     self._send_generic_nack(
                         session, pdu.sequence_number, CommandStatus.ESME_RINVCMDID
-                    )
+                    ),
+                    session,
                 )
 
         except Exception as e:
@@ -758,7 +807,8 @@ class SMPPServer:
             self._spawn(
                 self._send_generic_nack(
                     session, pdu.sequence_number, CommandStatus.ESME_RUNKNOWNERR
-                )
+                ),
+                session,
             )
 
     async def _handle_bind_request(self, session: ClientSession, pdu: PDU) -> None:
@@ -899,6 +949,22 @@ class SMPPServer:
         try:
             logger.info(f'Unbind request from {session.system_id}')
 
+            # Refuse new requests and binds, then let those that arrived
+            # before the unbind answer before unbind_resp: closing first
+            # would drop the response to a message a handler has already
+            # accepted. Only earlier ones, so a second unbind can't wait on
+            # this one and back; none if this task isn't tracked, since then
+            # none of them is known to be earlier
+            session._unbinding = True
+            session.bound = False
+            session.bind_type = ''
+            current = asyncio.current_task()
+            if current in session._tasks:
+                earlier = itertools.takewhile(
+                    lambda t: t is not current, session._tasks
+                )
+                await self._drain(earlier, self._unbind_timeout)
+
             # Send unbind response
             resp_pdu = UnbindResp(
                 sequence_number=pdu.sequence_number,
@@ -906,12 +972,10 @@ class SMPPServer:
             )
             await session.connection.send_pdu(resp_pdu, wait_response=False)
 
-            # Update session state
-            session.bound = False
-            session.bind_type = ''
-
-            # Disconnect client
+            # Disconnect client. disconnect() doesn't report a lost
+            # connection, so stop tracking the session here
             await session.connection.disconnect()
+            await self._handle_client_disconnected(session, None)
 
         except Exception as e:
             logger.error(f'Error handling unbind request: {e}')

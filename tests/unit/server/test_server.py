@@ -48,6 +48,19 @@ def _track(server, session):
     return session
 
 
+def _bind_pdu(sequence_number=1):
+    return BindTransceiver(
+        sequence_number=sequence_number,
+        system_id='test_client',
+        password='test_pass',
+        system_type='test',
+        interface_version=0x34,
+        addr_ton=0,
+        addr_npi=0,
+        address_range='',
+    )
+
+
 class TestClientSession:
     """Tests for ClientSession dataclass."""
 
@@ -689,6 +702,32 @@ class TestSMPPServerClientConnection:
         # Client should still be removed
         assert '127.0.0.1:12345' not in server._clients
 
+    @pytest.mark.asyncio
+    async def test_handle_client_disconnected_reports_once(self):
+        """Unbind and a lost connection may both report one session"""
+        server = SMPPServer()
+        session = ClientSession(connection=Mock())
+        server._clients = {'127.0.0.1:12345': session}
+        mock_handler = Mock()
+        server.on_client_disconnected = mock_handler
+
+        await server._handle_client_disconnected(session, None)
+        await server._handle_client_disconnected(session, Exception('lost'))
+
+        mock_handler.assert_called_once_with(server, session)
+
+    @pytest.mark.asyncio
+    async def test_handle_client_disconnected_untracked_still_reported(self):
+        """A session stop() already dropped from _clients is still reported"""
+        server = SMPPServer()
+        session = ClientSession(connection=Mock())
+        mock_handler = Mock()
+        server.on_client_disconnected = mock_handler
+
+        await server._handle_client_disconnected(session, Exception('lost'))
+
+        mock_handler.assert_called_once_with(server, session)
+
 
 class TestSMPPServerBindHandling:
     """Tests for bind request handling."""
@@ -982,6 +1021,32 @@ class TestSMPPServerUnbindHandling:
         session.connection.disconnect.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_handle_unbind_request_stops_tracking_session(self):
+        """disconnect() reports no lost connection, so unbind drops the session"""
+        server = SMPPServer()
+        session = _track(server, ClientSession(connection=AsyncMock(), bound=True))
+
+        await server._handle_unbind_request(session, Unbind(sequence_number=1))
+
+        assert server.client_count == 0
+
+    @pytest.mark.asyncio
+    async def test_repeated_unbind_does_not_wait_on_itself(self):
+        """Each unbind drains only earlier requests, so two can't deadlock"""
+        server = SMPPServer()
+        session = _track(server, ClientSession(connection=AsyncMock(), bound=True))
+
+        unbinds = [
+            server._spawn(
+                server._handle_unbind_request(session, Unbind(sequence_number=n)),
+                session,
+            )
+            for n in (1, 2)
+        ]
+
+        await asyncio.wait_for(asyncio.gather(*unbinds), timeout=1.0)
+
+    @pytest.mark.asyncio
     async def test_handle_unbind_request_exception(self):
         """Test unbind request when exception occurs."""
         server = SMPPServer()
@@ -991,6 +1056,97 @@ class TestSMPPServerUnbindHandling:
 
         # Should not raise exception
         await server._handle_unbind_request(session, pdu)
+
+    @pytest.mark.asyncio
+    async def test_bind_racing_unbind_is_refused(self):
+        """A bind still authenticating when an unbind starts must not bind"""
+        server = SMPPServer()
+        session = _track(server, ClientSession(connection=AsyncMock()))
+        release = asyncio.Event()
+
+        async def authenticate(*_):
+            await release.wait()
+            return True
+
+        server.authenticate = authenticate
+        bind = server._spawn(server._handle_bind_request(session, _bind_pdu()), session)
+        unbind = server._spawn(
+            server._handle_unbind_request(session, Unbind(sequence_number=2)), session
+        )
+        await asyncio.sleep(0)  # both started; the unbind waits for the bind
+        release.set()
+        await asyncio.wait_for(asyncio.gather(bind, unbind), timeout=1.0)
+
+        statuses = [
+            c.args[0].command_status for c in session.connection.send_pdu.call_args_list
+        ]
+        assert statuses == [CommandStatus.ESME_RBINDFAIL, CommandStatus.ESME_ROK]
+        assert session.bound is False
+
+    @pytest.mark.asyncio
+    async def test_bind_during_unbind_drain_is_refused(self):
+        """A bind that arrives while an unbind drains must not bind"""
+        server = SMPPServer()
+        session = _track(server, ClientSession(connection=AsyncMock()))
+        release = asyncio.Event()
+        server._spawn(release.wait(), session)
+        unbind = server._spawn(
+            server._handle_unbind_request(session, Unbind(sequence_number=2)), session
+        )
+        await asyncio.sleep(0)
+
+        await server._handle_bind_request(session, _bind_pdu())
+
+        sent_pdu = session.connection.send_pdu.call_args[0][0]
+        assert sent_pdu.command_status == CommandStatus.ESME_RBINDFAIL
+        assert session.bound is False
+        release.set()
+        await asyncio.wait_for(unbind, timeout=1.0)
+
+    @pytest.mark.asyncio
+    async def test_unbind_drain_ignores_shutdown_timeout(self):
+        """A zero shutdown_timeout must not cancel requests an unbind waits for"""
+        server = SMPPServer()
+        server.set_shutdown_timeout(0)
+        session = _track(server, ClientSession(connection=AsyncMock()))
+        release = asyncio.Event()
+        handler = server._spawn(release.wait(), session)
+        unbind = server._spawn(
+            server._handle_unbind_request(session, Unbind(sequence_number=2)), session
+        )
+        await asyncio.sleep(0.05)
+
+        assert not handler.done() and not unbind.done()
+        release.set()
+        await asyncio.wait_for(unbind, timeout=1.0)
+        assert not handler.cancelled()
+
+    @pytest.mark.asyncio
+    async def test_untracked_unbind_does_not_wait(self):
+        """An unbind not run as a session task knows no earlier requests"""
+        server = SMPPServer()
+        session = _track(server, ClientSession(connection=AsyncMock()))
+        forever = server._spawn(asyncio.Event().wait(), session)
+
+        await asyncio.wait_for(
+            server._handle_unbind_request(session, Unbind(sequence_number=1)),
+            timeout=1.0,
+        )
+        forever.cancel()
+
+    @pytest.mark.asyncio
+    async def test_force_disconnect_reports_each_client(self):
+        """stop()'s force disconnect fires on_client_disconnected per session"""
+        server = SMPPServer()
+        gone = []
+        server.on_client_disconnected = lambda srv, s: gone.append(s)
+        sessions = [
+            _track(server, ClientSession(connection=AsyncMock())) for _ in range(2)
+        ]
+
+        await server._force_disconnect_remaining_clients()
+
+        assert gone == sessions
 
 
 class TestSMPPServerSubmitSmHandling:
