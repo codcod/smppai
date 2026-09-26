@@ -2,14 +2,26 @@
 # GitHub-only: this workflow relies on `gh` and the `release` event, both specific
 # to GitHub — there is no equivalent step here for other forges.
 #
-# Triggers whenever a release is published, regardless of what created it (a
-# manual release, goreleaser, or anything else) — the manual is not the release,
-# so a broken manual build never blocks or unpublishes the release itself.
+# Triggers on a published release, but GitHub suppresses that event for releases
+# created with GITHUB_TOKEN — which is how semantic-release publishes ours — so
+# release.yml also calls this workflow directly after a release. Run it by hand
+# (workflow_dispatch) to backfill a release that is missing its manual. The manual
+# is not the release, so a broken manual build never blocks or unpublishes it.
 name: docs-release
 
 on:
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the manual to (e.g. v0.9.1)
+        required: true
 
 permissions:
   contents: write
@@ -18,7 +30,12 @@ jobs:
   attach-manual:
     runs-on: ubuntu-latest
     steps:
+      # Check out the tagged commit with history so snowball's git-describe
+      # revision matches the release.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+          fetch-depth: 0
 
       # `brew update` first: a preinstalled runner image's Homebrew snapshot can
       # lag behind the tap's bottle metadata, which otherwise only fails on fresh
@@ -38,7 +55,7 @@ jobs:
       - name: Attach user manual to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: |
           shopt -s nullglob
           existing=(dist/docs/*.pdf dist/docs/*.epub)
