@@ -95,12 +95,19 @@ skip-magic-trailing-comma = false
 
 [tool.ruff.lint]
 # select = ["E4", "E7", "E9", "F", "W", "E", "B", "I", "PL", "C90"]
-select = ["E4", "E7", "E9", "F"]
+select = ["E4", "E7", "E9", "F", "ICN"]
 ignore = []
 
 fixable = ["ALL"]
 unfixable = ["B"]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# `import typing as tp`, never `from typing import ...` (ICN001/ICN003)
+[tool.ruff.lint.flake8-import-conventions]
+banned-from = ["typing"]
+
+[tool.ruff.lint.flake8-import-conventions.extend-aliases]
+typing = "tp"
 
 [tool.ruff.lint.flake8-bugbear]
 # Allow default arguments like, e.g., `data: List[str] = fastapi.Query(None)`.

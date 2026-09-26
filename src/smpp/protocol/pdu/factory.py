@@ -5,7 +5,7 @@ This module provides factory functions for creating and managing PDU instances
 based on command IDs, enabling centralized PDU creation and registration.
 """
 
-from typing import Any, Dict, Optional, Type, TypeVar, cast
+import typing as tp
 
 from ...exceptions import SMPPPDUException
 from ..constants import CommandId, OptionalTag
@@ -38,10 +38,10 @@ from .session import (
 )
 
 # Add type variable for better type safety
-T_PDU = TypeVar('T_PDU', bound=PDU)
+T_PDU = tp.TypeVar('T_PDU', bound=PDU)
 
 # Mapping of command IDs to PDU classes
-PDU_CLASSES: Dict[int, Type[PDU]] = {
+PDU_CLASSES: tp.Dict[int, tp.Type[PDU]] = {
     # Bind operations
     CommandId.BIND_TRANSMITTER: BindTransmitter,
     CommandId.BIND_TRANSMITTER_RESP: BindTransmitterResp,
@@ -74,7 +74,7 @@ PDU_CLASSES: Dict[int, Type[PDU]] = {
 }
 
 
-def get_pdu_class(command_id: int) -> Type[PDU]:
+def get_pdu_class(command_id: int) -> tp.Type[PDU]:
     """Get PDU class for a given command ID.
 
     Args:
@@ -96,7 +96,7 @@ def get_pdu_class(command_id: int) -> Type[PDU]:
     return pdu_class
 
 
-def create_pdu(command_id: int, **kwargs: Any) -> PDU:
+def create_pdu(command_id: int, **kwargs: tp.Any) -> PDU:
     """Factory function to create PDU instances.
 
     Args:
@@ -121,7 +121,9 @@ def create_pdu(command_id: int, **kwargs: Any) -> PDU:
         ) from e
 
 
-def create_typed_pdu(pdu_type: Type[T_PDU], command_id: int, **kwargs: Any) -> T_PDU:
+def create_typed_pdu(
+    pdu_type: tp.Type[T_PDU], command_id: int, **kwargs: tp.Any
+) -> T_PDU:
     """Create a PDU with specific type for better type safety.
 
     Args:
@@ -144,7 +146,7 @@ def create_typed_pdu(pdu_type: Type[T_PDU], command_id: int, **kwargs: Any) -> T
             error_code='TYPE_MISMATCH',
         )
 
-    return cast(T_PDU, create_pdu(command_id, **kwargs))
+    return tp.cast(T_PDU, create_pdu(command_id, **kwargs))
 
 
 def create_request_pdu(command_id: int, **kwargs) -> PDU:
@@ -201,7 +203,7 @@ def create_response_pdu(
 
 
 def create_error_response(
-    request_pdu: PDU, error_status: int, error_message: Optional[str] = None
+    request_pdu: PDU, error_status: int, error_message: tp.Optional[str] = None
 ) -> PDU:
     """
     Create an error response PDU for a request PDU.

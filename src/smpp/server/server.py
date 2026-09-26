@@ -11,19 +11,7 @@ import itertools
 import logging
 import signal
 from dataclasses import dataclass, field
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Coroutine,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Set,
-    Tuple,
-    Union,
-)
+import typing as tp
 
 from ..exceptions import SMPPException
 from ..protocol import (
@@ -63,7 +51,7 @@ from ..transport import SMPPConnection
 logger = logging.getLogger(__name__)
 
 
-async def _call(fn: Callable[..., Any], *args: Any) -> Any:
+async def _call(fn: tp.Callable[..., tp.Any], *args: tp.Any) -> tp.Any:
     """Call a user callback, awaiting its result if it is awaitable."""
     result = fn(*args)
     if inspect.isawaitable(result):
@@ -84,7 +72,7 @@ class ClientSession:
     message_counter: int = 0
     # In-flight handler tasks for this session's requests, in arrival order
     # (a dict used as an ordered set), drained on unbind
-    _tasks: Dict[asyncio.Task, None] = field(
+    _tasks: tp.Dict[asyncio.Task, None] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
     _disconnect_reported: bool = field(
@@ -172,15 +160,17 @@ class SMPPServer:
         self.max_connections = max_connections
         self._setup_signals = setup_signal_handlers
 
-        self._server: Optional[asyncio.Server] = None
+        self._server: tp.Optional[asyncio.Server] = None
         self._running = False
-        self._clients: Dict[str, ClientSession] = {}
-        self._tasks: Set[asyncio.Task] = set()  # In-flight PDU handler tasks
+        self._clients: tp.Dict[str, ClientSession] = {}
+        self._tasks: tp.Set[asyncio.Task] = set()  # In-flight PDU handler tasks
         self._message_id_counter = 1
         self._shutdown_event = asyncio.Event()  # Always create for clarity
         self._shutdown_timeout = 30.0  # seconds to wait for graceful shutdown
         self._signal_handlers_set = False  # Track signal handler registration
-        self._original_signal_handlers: Dict[int, Any] = {}  # Store original handlers
+        self._original_signal_handlers: tp.Dict[
+            int, tp.Any
+        ] = {}  # Store original handlers
 
         # Enhanced shutdown configuration
         self._shutdown_grace_period = (
@@ -191,56 +181,58 @@ class SMPPServer:
             False  # Flag to control acceptance of new connections/messages
         )
         self._shutdown_lock = asyncio.Lock()  # Thread-safe shutdown operations
-        self._loop: Optional[asyncio.AbstractEventLoop] = (
+        self._loop: tp.Optional[asyncio.AbstractEventLoop] = (
             None  # Store event loop reference
         )
         self._accept_new_connections = True  # Flag to control new connection acceptance
         self._accept_new_messages = True  # Flag to control new message acceptance
 
         # Authentication callback - should return True if credentials are valid
-        self.authenticate: Optional[
-            Callable[[str, str, str], Union[bool, Awaitable[bool]]]
+        self.authenticate: tp.Optional[
+            tp.Callable[[str, str, str], tp.Union[bool, tp.Awaitable[bool]]]
         ] = None
 
         # Event handlers
-        self.on_client_connected: Optional[
-            Callable[['SMPPServer', ClientSession], Optional[Awaitable[None]]]
+        self.on_client_connected: tp.Optional[
+            tp.Callable[['SMPPServer', ClientSession], tp.Optional[tp.Awaitable[None]]]
         ] = None
-        self.on_client_disconnected: Optional[
-            Callable[['SMPPServer', ClientSession], Optional[Awaitable[None]]]
+        self.on_client_disconnected: tp.Optional[
+            tp.Callable[['SMPPServer', ClientSession], tp.Optional[tp.Awaitable[None]]]
         ] = None
-        self.on_client_bound: Optional[
-            Callable[['SMPPServer', ClientSession], Optional[Awaitable[None]]]
+        self.on_client_bound: tp.Optional[
+            tp.Callable[['SMPPServer', ClientSession], tp.Optional[tp.Awaitable[None]]]
         ] = None
-        self.on_message_received: Optional[
-            Callable[
+        self.on_message_received: tp.Optional[
+            tp.Callable[
                 ['SMPPServer', ClientSession, SubmitSm],
-                Union[Optional[str], Awaitable[Optional[str]]],
+                tp.Union[tp.Optional[str], tp.Awaitable[tp.Optional[str]]],
             ]
         ] = None
-        self.on_data_sm: Optional[
-            Callable[
+        self.on_data_sm: tp.Optional[
+            tp.Callable[
                 ['SMPPServer', ClientSession, DataSm],
-                Union[Optional[str], Awaitable[Optional[str]]],
+                tp.Union[tp.Optional[str], tp.Awaitable[tp.Optional[str]]],
             ]
         ] = None
-        self.on_query_sm: Optional[
-            Callable[
+        self.on_query_sm: tp.Optional[
+            tp.Callable[
                 ['SMPPServer', ClientSession, QuerySm],
-                Union[
-                    Optional[Tuple[int, str, int]],
-                    Awaitable[Optional[Tuple[int, str, int]]],
+                tp.Union[
+                    tp.Optional[tp.Tuple[int, str, int]],
+                    tp.Awaitable[tp.Optional[tp.Tuple[int, str, int]]],
                 ],
             ]
         ] = None
-        self.on_cancel_sm: Optional[
-            Callable[
-                ['SMPPServer', ClientSession, CancelSm], Union[bool, Awaitable[bool]]
+        self.on_cancel_sm: tp.Optional[
+            tp.Callable[
+                ['SMPPServer', ClientSession, CancelSm],
+                tp.Union[bool, tp.Awaitable[bool]],
             ]
         ] = None
-        self.on_replace_sm: Optional[
-            Callable[
-                ['SMPPServer', ClientSession, ReplaceSm], Union[bool, Awaitable[bool]]
+        self.on_replace_sm: tp.Optional[
+            tp.Callable[
+                ['SMPPServer', ClientSession, ReplaceSm],
+                tp.Union[bool, tp.Awaitable[bool]],
             ]
         ] = None
 
@@ -574,7 +566,7 @@ class SMPPServer:
         # Force disconnect all clients
         await self._disconnect_all_clients(clients_to_cleanup)
 
-    async def _send_unbind_requests(self, clients: List[ClientSession]) -> None:
+    async def _send_unbind_requests(self, clients: tp.List[ClientSession]) -> None:
         """Send unbind requests to all bound clients."""
         unbind_tasks = [
             self._send_unbind_to_client(client) for client in clients if client.bound
@@ -589,7 +581,7 @@ class SMPPServer:
             except asyncio.TimeoutError:
                 logger.warning('Timeout waiting for unbind responses (10s)')
 
-    async def _disconnect_all_clients(self, clients: List[ClientSession]) -> None:
+    async def _disconnect_all_clients(self, clients: tp.List[ClientSession]) -> None:
         """Force disconnect all clients."""
         disconnect_tasks = []
         for client in clients:
@@ -638,8 +630,8 @@ class SMPPServer:
 
     def _spawn(
         self,
-        coro: Coroutine[Any, Any, Any],
-        session: Optional[ClientSession] = None,
+        coro: tp.Coroutine[tp.Any, tp.Any, tp.Any],
+        session: tp.Optional[ClientSession] = None,
     ) -> asyncio.Task:
         """
         Start a task, holding it until done so stop() can drain it, and
@@ -655,7 +647,7 @@ class SMPPServer:
         return task
 
     @staticmethod
-    async def _drain(tasks: Iterable[asyncio.Task], timeout: float) -> None:
+    async def _drain(tasks: tp.Iterable[asyncio.Task], timeout: float) -> None:
         """Wait up to timeout for tasks, then cancel those still running"""
         tasks = set(tasks)
         if tasks:
@@ -739,7 +731,7 @@ class SMPPServer:
         logger.info(f'Client {client_id} connected')
 
     async def _handle_client_disconnected(
-        self, session: ClientSession, error: Optional[Exception]
+        self, session: ClientSession, error: tp.Optional[Exception]
     ) -> None:
         """Handle client disconnection; error is None when the server closed it"""
         client_id = None
@@ -894,7 +886,7 @@ class SMPPServer:
         """Send bind response to client"""
         try:
             # Create appropriate response PDU
-            resp_pdu: Optional[PDU] = None
+            resp_pdu: tp.Optional[PDU] = None
             if isinstance(bind_pdu, BindTransmitter):
                 resp_pdu = BindTransmitterResp(  # type: ignore[call-arg]
                     sequence_number=bind_pdu.sequence_number,
@@ -1321,11 +1313,11 @@ class SMPPServer:
         finally:
             await self.stop()
 
-    def get_client_sessions(self) -> List[ClientSession]:
+    def get_client_sessions(self) -> tp.List[ClientSession]:
         """Get list of all client sessions"""
         return list(self._clients.values())
 
-    def get_bound_clients(self) -> List[ClientSession]:
+    def get_bound_clients(self) -> tp.List[ClientSession]:
         """Get list of bound client sessions"""
         return [session for session in self._clients.values() if session.bound]
 

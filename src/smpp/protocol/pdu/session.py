@@ -7,7 +7,7 @@ generic_nack, and other session-related protocol data units.
 
 import struct
 from dataclasses import dataclass
-from typing import Optional
+import typing as tp
 
 from ...exceptions import SMPPPDUException
 from ..codec import codec_for_data_coding
@@ -46,7 +46,7 @@ class GenericNack(EmptyBodyPDU, ResponsePDU):
         self,
         sequence_number: int,
         error_status: int,
-        error_message: Optional[str] = None,
+        error_message: tp.Optional[str] = None,
     ) -> 'GenericNack':
         """Create a generic_nack for an invalid PDU
 
@@ -264,7 +264,7 @@ class DataSm(RequestPDU):
 
         self.add_optional_parameter(OptionalTag.MESSAGE_PAYLOAD, payload)
 
-    def get_message_text(self, encoding: Optional[str] = None) -> str:
+    def get_message_text(self, encoding: tp.Optional[str] = None) -> str:
         """Get message text from payload, decoded per data_coding by default"""
         if encoding is None:
             try:
@@ -277,7 +277,7 @@ class DataSm(RequestPDU):
         except UnicodeDecodeError:
             return payload.decode(encoding, errors='replace')
 
-    def set_message_text(self, text: str, encoding: Optional[str] = None) -> None:
+    def set_message_text(self, text: str, encoding: tp.Optional[str] = None) -> None:
         """Set message text as payload, encoded per data_coding by default"""
         if encoding is None:
             encoding = codec_for_data_coding(self.data_coding)

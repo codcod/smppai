@@ -18,7 +18,7 @@ decorator-registered handlers, sync or async.
 """
 
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Optional, Union
+import typing as tp
 
 from ..message import Message, _decode, _split, _to_message
 from ..protocol import SubmitSm
@@ -26,9 +26,9 @@ from .server import ClientSession, SMPPServer
 
 __all__ = ['Server', 'Shutdown']
 
-Authenticate = Callable[[str, str, str], Union[bool, Awaitable[bool]]]
-OnSubmit = Callable[
-    [ClientSession, Message], Union[Optional[str], Awaitable[Optional[str]]]
+Authenticate = tp.Callable[[str, str, str], tp.Union[bool, tp.Awaitable[bool]]]
+OnSubmit = tp.Callable[
+    [ClientSession, Message], tp.Union[tp.Optional[str], tp.Awaitable[tp.Optional[str]]]
 ]
 
 
@@ -49,7 +49,7 @@ class Server:
         host: str = 'localhost',
         port: int = 2775,
         *,
-        shutdown: Optional[Shutdown] = None,
+        shutdown: tp.Optional[Shutdown] = None,
         **server_kwargs,
     ):
         """
@@ -82,7 +82,7 @@ class Server:
 
         def adapter(
             raw: SMPPServer, session: ClientSession, pdu: SubmitSm
-        ) -> Union[Optional[str], Awaitable[Optional[str]]]:
+        ) -> tp.Union[tp.Optional[str], tp.Awaitable[tp.Optional[str]]]:
             text = _decode(_split(pdu)[1], pdu.data_coding)
             return fn(session, _to_message(pdu, text))
 

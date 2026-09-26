@@ -10,7 +10,7 @@ import logging
 import struct
 import time
 from enum import Enum
-from typing import Callable, Dict, Optional, Tuple
+import typing as tp
 
 from smpp.exceptions import (
     SMPPConnectionException,
@@ -48,8 +48,8 @@ class SMPPConnection:
         self,
         host: str,
         port: int,
-        reader: Optional[asyncio.StreamReader] = None,
-        writer: Optional[asyncio.StreamWriter] = None,
+        reader: tp.Optional[asyncio.StreamReader] = None,
+        writer: tp.Optional[asyncio.StreamWriter] = None,
         read_timeout: float = 30.0,
         write_timeout: float = 30.0,
         enquire_link_interval: float = 30.0,
@@ -77,19 +77,19 @@ class SMPPConnection:
         self._state = ConnectionState.CLOSED
         self._connected = False
         self._sequence_counter = 1  # Start at 1
-        self._pending_pdus: Dict[int, Tuple[asyncio.Future[PDU], float]] = {}
+        self._pending_pdus: tp.Dict[int, tp.Tuple[asyncio.Future[PDU], float]] = {}
         self.max_pending_pdus = 1000  # Default limit for pending PDUs
         self.cleanup_interval = 60  # Default cleanup interval in seconds
-        self._receive_task: Optional[asyncio.Task] = None
-        self._enquire_link_task: Optional[asyncio.Task] = None
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._receive_task: tp.Optional[asyncio.Task] = None
+        self._enquire_link_task: tp.Optional[asyncio.Task] = None
+        self._cleanup_task: tp.Optional[asyncio.Task] = None
         self._last_activity = time.time()
 
         # Event handlers
-        self.on_pdu_received: Optional[Callable[[PDU], None]] = None
-        self.on_connection_lost: Optional[Callable[[Exception], None]] = None
-        self.on_state_changed: Optional[
-            Callable[[ConnectionState, ConnectionState], None]
+        self.on_pdu_received: tp.Optional[tp.Callable[[PDU], None]] = None
+        self.on_connection_lost: tp.Optional[tp.Callable[[Exception], None]] = None
+        self.on_state_changed: tp.Optional[
+            tp.Callable[[ConnectionState, ConnectionState], None]
         ] = None
 
     @property
@@ -241,8 +241,8 @@ class SMPPConnection:
         logger.info('Disconnected')
 
     async def send_pdu(
-        self, pdu: PDU, wait_response: bool = True, timeout: Optional[float] = None
-    ) -> Optional[PDU]:
+        self, pdu: PDU, wait_response: bool = True, timeout: tp.Optional[float] = None
+    ) -> tp.Optional[PDU]:
         """
         Send PDU and optionally wait for response
 
@@ -261,7 +261,7 @@ class SMPPConnection:
             pdu.sequence_number = self._get_next_sequence()
 
         # Prepare future for response if needed
-        response_future: Optional[asyncio.Future[PDU]] = None
+        response_future: tp.Optional[asyncio.Future[PDU]] = None
         if wait_response:
             response_future = asyncio.Future[PDU]()
             self._pending_pdus[pdu.sequence_number] = (response_future, time.time())
@@ -349,7 +349,7 @@ class SMPPConnection:
         finally:
             logger.debug('Receive loop ended')
 
-    async def _receive_pdu(self) -> Optional[PDU]:
+    async def _receive_pdu(self) -> tp.Optional[PDU]:
         """Receive and decode a single PDU"""
         if not self._reader:
             return None

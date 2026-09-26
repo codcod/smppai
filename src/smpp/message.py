@@ -6,7 +6,7 @@ one to on_submit for each inbound submit_sm.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
+import typing as tp
 
 from .exceptions import SMPPPDUException, SMPPValidationException
 from .gsm import UDH, ConcatenatedSMSHeader
@@ -33,7 +33,7 @@ class Address:
     npi: int = NpiType.UNKNOWN
 
     @classmethod
-    def parse(cls, s: Union[str, 'Address']) -> 'Address':
+    def parse(cls, s: tp.Union[str, 'Address']) -> 'Address':
         """
         Parse an address string.
 
@@ -59,13 +59,13 @@ def _ascii_digits(s: str) -> bool:
 class DeliveryReceipt:
     """A parsed delivery receipt; TLVs take precedence over the receipt text."""
 
-    id: Optional[str] = None
-    state: Optional[MessageState] = None
-    stat: Optional[str] = None
-    err: Optional[str] = None
-    submit_date: Optional[str] = None
-    done_date: Optional[str] = None
-    text: Optional[str] = None
+    id: tp.Optional[str] = None
+    state: tp.Optional[MessageState] = None
+    stat: tp.Optional[str] = None
+    err: tp.Optional[str] = None
+    submit_date: tp.Optional[str] = None
+    done_date: tp.Optional[str] = None
+    text: tp.Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -74,9 +74,9 @@ class Message:
 
     sender: Address
     to: Address
-    text: Optional[str]
-    receipt: Optional[DeliveryReceipt]
-    pdu: Union[DeliverSm, DataSm, SubmitSm]
+    text: tp.Optional[str]
+    receipt: tp.Optional[DeliveryReceipt]
+    pdu: tp.Union[DeliverSm, DataSm, SubmitSm]
 
     @property
     def is_receipt(self) -> bool:
@@ -95,14 +95,14 @@ _STAT_TO_STATE = {
 }
 
 
-def _is_receipt(pdu: Union[DeliverSm, DataSm, SubmitSm]) -> bool:
+def _is_receipt(pdu: tp.Union[DeliverSm, DataSm, SubmitSm]) -> bool:
     # SMSC delivery receipt message type (SMPP v3.4 §5.2.12)
     return (pdu.esm_class & 0x3C) == 0x04
 
 
 def _tlv(
-    pdu: Union[DeliverSm, DataSm, SubmitSm], tag: int
-) -> Union[int, str, bytes, None]:
+    pdu: tp.Union[DeliverSm, DataSm, SubmitSm], tag: int
+) -> tp.Union[int, str, bytes, None]:
     """get_tlv, treating a malformed TLV as absent."""
     try:
         return pdu.get_tlv(tag)
@@ -110,7 +110,7 @@ def _tlv(
         return None
 
 
-def _parse_receipt(pdu: Union[DeliverSm, DataSm, SubmitSm]) -> DeliveryReceipt:
+def _parse_receipt(pdu: tp.Union[DeliverSm, DataSm, SubmitSm]) -> DeliveryReceipt:
     """Parse a receipt from its Appendix B text, overridden by receipt TLVs."""
     # data_sm has no Appendix B text; its receipt is TLVs only
     fields = pdu.parse_delivery_receipt() if isinstance(pdu, DeliverSm) else {}
@@ -139,7 +139,7 @@ def _parse_receipt(pdu: Union[DeliverSm, DataSm, SubmitSm]) -> DeliveryReceipt:
     )
 
 
-def _decode(content: bytes, data_coding: int) -> Optional[str]:
+def _decode(content: bytes, data_coding: int) -> tp.Optional[str]:
     try:
         return decode_message_with_encoding(content, data_coding)
     except SMPPPDUException:
@@ -147,8 +147,8 @@ def _decode(content: bytes, data_coding: int) -> Optional[str]:
 
 
 def _split(
-    pdu: Union[DeliverSm, DataSm, SubmitSm],
-) -> Tuple[Optional[ConcatenatedSMSHeader], bytes]:
+    pdu: tp.Union[DeliverSm, DataSm, SubmitSm],
+) -> tp.Tuple[tp.Optional[ConcatenatedSMSHeader], bytes]:
     """Concat info (from UDH, else SAR TLVs) and the message bytes without UDH."""
     if isinstance(pdu, (DeliverSm, SubmitSm)) and pdu.short_message:
         raw = pdu.short_message
@@ -176,7 +176,7 @@ def _split(
 
 
 def _to_message(
-    pdu: Union[DeliverSm, DataSm, SubmitSm], text: Optional[str]
+    pdu: tp.Union[DeliverSm, DataSm, SubmitSm], text: tp.Optional[str]
 ) -> Message:
     return Message(
         sender=Address(pdu.source_addr, pdu.source_addr_ton, pdu.source_addr_npi),

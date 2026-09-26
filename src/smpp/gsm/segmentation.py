@@ -7,7 +7,7 @@ concatenated SMS support.
 
 import random
 from dataclasses import dataclass
-from typing import List, Optional, Union
+import typing as tp
 
 from ..exceptions import SMPPPDUException
 from .constants import (
@@ -34,11 +34,11 @@ class MessagePart:
     """
 
     content: bytes
-    udh: Optional[UDH] = None
+    udh: tp.Optional[UDH] = None
     encoding: int = 0  # GSM 7-bit default
     part_number: int = 1
     total_parts: int = 1
-    reference: Optional[int] = None
+    reference: tp.Optional[int] = None
 
     def get_short_message(self) -> bytes:
         """
@@ -66,7 +66,7 @@ class MessagePart:
             return base_esm_class | 0x40  # Set UDH indicator
         return base_esm_class
 
-    def get_concatenated_info(self) -> Optional[ConcatenatedSMSHeader]:
+    def get_concatenated_info(self) -> tp.Optional[ConcatenatedSMSHeader]:
         """
         Get concatenated SMS information if this part has UDH.
 
@@ -90,10 +90,10 @@ class MessagePart:
 
 
 def make_parts(
-    message: Union[str, bytes],
+    message: tp.Union[str, bytes],
     data_coding: int = 0,  # smpp.protocol.constants.DataCoding.DEFAULT
-    reference: Optional[int] = None,
-) -> List[MessagePart]:
+    reference: tp.Optional[int] = None,
+) -> tp.List[MessagePart]:
     """
     Split a message into SMS parts for transmission.
 
@@ -192,7 +192,7 @@ _STATEFUL_CODECS = frozenset({'iso2022_jp'})
 
 def _split_by_character(
     text: str, data_coding: int, part_budget: int, stateful: bool = False
-) -> List[bytes]:
+) -> tp.List[bytes]:
     """
     Greedily pack encoded characters into parts, never splitting one.
 
@@ -205,7 +205,7 @@ def _split_by_character(
     if stateful:
         # ponytail: O(n·part) re-encode, only for stateful codecs; incremental
         # encoder if a large stateful coding is ever added
-        runs: List[bytes] = []
+        runs: tp.List[bytes] = []
         run = ''
         for ch in text:
             if (
@@ -220,7 +220,7 @@ def _split_by_character(
             runs.append(encode_message_with_encoding(run, data_coding))
         return runs
 
-    chunks: List[bytes] = []
+    chunks: tp.List[bytes] = []
     current = bytearray()
     for ch in text:
         ch_bytes = encode_message_with_encoding(ch, data_coding)
@@ -233,7 +233,7 @@ def _split_by_character(
     return chunks
 
 
-def reassemble_parts(parts: List[MessagePart], data_coding: int = 0) -> str:
+def reassemble_parts(parts: tp.List[MessagePart], data_coding: int = 0) -> str:
     """
     Reassemble message parts into the original text.
 

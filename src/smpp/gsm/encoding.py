@@ -6,7 +6,7 @@ GSM 7-bit character set handling.
 """
 
 import codecs
-from typing import Optional, Tuple, cast
+import typing as tp
 
 # GSM 7-bit basic character set
 GSM_7BIT_BASIC = (
@@ -32,7 +32,7 @@ GSM_7BIT_EXTENDED = {
 GSM_7BIT_EXTENDED_REVERSE = {v: k for k, v in GSM_7BIT_EXTENDED.items()}
 
 
-def encode_gsm7(text: str) -> Tuple[bytes, int]:
+def encode_gsm7(text: str) -> tp.Tuple[bytes, int]:
     """
     Encode text to GSM 7-bit format.
 
@@ -90,7 +90,7 @@ def encode_gsm7(text: str) -> Tuple[bytes, int]:
     return bytes(packed), char_count
 
 
-def decode_gsm7(data: bytes, character_count: Optional[int] = None) -> str:
+def decode_gsm7(data: bytes, character_count: tp.Optional[int] = None) -> str:
     """
     Decode GSM 7-bit encoded data to text.
 
@@ -210,7 +210,7 @@ def decode_gsm0338(data: bytes, errors: str = 'strict') -> str:
                 'gsm0338', data, i, i + 1, 'byte > 0x7F in GSM 03.38'
             )
             replacement, i = codecs.lookup_error(errors)(exc)
-            out.append(cast(str, replacement))  # decode handlers return str
+            out.append(tp.cast(str, replacement))  # decode handlers return str
         elif value != 0x1B:
             out.append(GSM_7BIT_BASIC[value])
             i += 1
@@ -230,7 +230,7 @@ def decode_gsm0338(data: bytes, errors: str = 'strict') -> str:
     return ''.join(out)
 
 
-def _search_gsm0338(name: str) -> Optional[codecs.CodecInfo]:
+def _search_gsm0338(name: str) -> tp.Optional[codecs.CodecInfo]:
     if name != 'gsm0338':
         return None
     return codecs.CodecInfo(

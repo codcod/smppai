@@ -6,7 +6,7 @@ defined in the SMPP v3.4 specification.
 """
 
 from enum import IntEnum
-from typing import Dict
+import typing as tp
 
 
 class CommandId(IntEnum):
@@ -322,7 +322,7 @@ MAX_ADDRESS_LENGTH = 21
 MAX_SERVICE_TYPE_LENGTH = 6
 
 # Error Messages
-ERROR_MESSAGES: Dict[int, str] = {
+ERROR_MESSAGES: tp.Dict[int, str] = {
     CommandStatus.ESME_ROK: 'No Error',
     CommandStatus.ESME_RINVMSGLEN: 'Message Length is invalid',
     CommandStatus.ESME_RINVCMDLEN: 'Command Length is invalid',

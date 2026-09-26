@@ -8,7 +8,7 @@ implementation, including common helper functions and data processing utilities.
 import logging
 import re
 import time
-from typing import Optional, Union
+import typing as tp
 
 
 def generate_message_id() -> str:
@@ -46,21 +46,21 @@ def setup_logging(level: int = logging.INFO) -> None:
     )
 
 
-def calculate_message_length(message: Union[str, bytes]) -> int:
+def calculate_message_length(message: tp.Union[str, bytes]) -> int:
     """Calculate message length."""
     if isinstance(message, str):
         return len(message.encode('utf-8'))
     return len(message)
 
 
-def format_smpp_time(timestamp: Optional[float] = None) -> str:
+def format_smpp_time(timestamp: tp.Optional[float] = None) -> str:
     """Format time for SMPP protocol."""
     if timestamp is None:
         timestamp = time.time()
     return time.strftime('%y%m%d%H%M%S000+', time.gmtime(timestamp))
 
 
-def parse_smpp_time(smpp_time: str) -> Optional[float]:
+def parse_smpp_time(smpp_time: str) -> tp.Optional[float]:
     """Parse SMPP time string to timestamp."""
     if not smpp_time or len(smpp_time) < 12:
         return None

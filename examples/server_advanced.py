@@ -18,7 +18,7 @@ import asyncio
 import logging
 import os
 import sys
-from typing import Optional
+import typing as tp
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -175,7 +175,7 @@ class SMSCServer:
 
     def handle_message_received(
         self, server: SMPPServer, session: ClientSession, pdu: SubmitSm
-    ) -> Optional[str]:
+    ) -> tp.Optional[str]:
         """Handle SMS message from client with enhanced logging and commands."""
         try:
             # Decode message

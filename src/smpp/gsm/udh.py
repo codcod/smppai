@@ -5,7 +5,7 @@ Provides UDH parsing and generation for concatenated SMS and other features.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+import typing as tp
 
 
 @dataclass
@@ -54,7 +54,7 @@ class UDH:
     IEI_APPLICATION_PORT_8BIT = 0x04
     IEI_APPLICATION_PORT_16BIT = 0x05
 
-    def __init__(self, elements: Optional[List[UDHElement]] = None):
+    def __init__(self, elements: tp.Optional[tp.List[UDHElement]] = None):
         """Initialize UDH with optional elements."""
         self.elements = elements or []
 
@@ -62,7 +62,7 @@ class UDH:
         """Add UDH element."""
         self.elements.append(UDHElement(iei, data))
 
-    def get_element(self, iei: int) -> Optional[UDHElement]:
+    def get_element(self, iei: int) -> tp.Optional[UDHElement]:
         """Get UDH element by IEI."""
         for element in self.elements:
             if element.iei == iei:

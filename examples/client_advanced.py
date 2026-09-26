@@ -17,7 +17,7 @@ For a minimal connect/send/receive walkthrough, see client_basic.py.
 
 import asyncio
 import logging
-from typing import Optional
+import typing as tp
 
 
 from smpp import (
@@ -256,7 +256,7 @@ class SMSClient:
         source_npi: int = NpiType.ISDN,
         dest_ton: int = TonType.INTERNATIONAL,
         dest_npi: int = NpiType.ISDN,
-    ) -> Optional[str]:
+    ) -> tp.Optional[str]:
         """Send SMS message"""
         try:
             if not self.client.is_bound:
@@ -292,7 +292,7 @@ class SMSClient:
                 logger.error(f'Failed to send SMS: {e}')
             return None
 
-    async def send_command(self, command: str) -> Optional[str]:
+    async def send_command(self, command: str) -> tp.Optional[str]:
         """
         Send a command to the server (for testing enhanced shutdown).
 
@@ -317,7 +317,7 @@ class SMSClient:
         destination_addr: str,
         message: str,
         request_delivery_receipt: bool = False,
-    ) -> Optional[str]:
+    ) -> tp.Optional[str]:
         """Send Unicode SMS message"""
         try:
             if not self.client.is_bound:
