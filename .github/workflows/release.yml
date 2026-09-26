@@ -12,6 +12,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     name: Semantic Release
+    outputs:
+      released: ${{ steps.semrel.outputs.released }}
+      tag: ${{ steps.semrel.outputs.tag }}
     permissions:
       contents: write
       issues: write
@@ -41,7 +44,9 @@ jobs:
           # Configure git to use the token for authentication
           git config url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
+      # semantic-release writes `released` and `tag` to $GITHUB_OUTPUT.
       - name: Run Semantic Release
+        id: semrel
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -52,3 +57,14 @@ jobs:
 
           # Run semantic release
           uv run semantic-release version
+
+  # The release event docs-release.yml listens for never fires for a release made
+  # with GITHUB_TOKEN, so attach the user manual explicitly.
+  docs:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/docs-release.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
