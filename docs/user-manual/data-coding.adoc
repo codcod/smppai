@@ -41,14 +41,23 @@ single source of truth for the mapping.
 | ISO-2022-JP
 | `iso2022_jp`
 
+| `0x10`–`0x1B`
+| General group with message class
+| GSM 03.38 for `0x10`–`0x13`, `utf-8` for `0x14`–`0x17`, `utf-16-be` for `0x18`–`0x1B`
+
 | `0xF0`–`0xF7`
 | GSM message class
 | GSM 03.38 when bit `0x04` is clear, `utf-8` when set
 |===
 
 `short_message` is capped at 254 octets on every coding (SMPP v3.4
-§5.2.21), and every value in the table, `0xF0`–`0xF7` included, is accepted
-on encode. `submit_sm` never splits a message on its own; for anything that
+§5.2.21), and every value in the table, the message class ranges
+`0x10`–`0x1B` and `0xF0`–`0xF7` included, is accepted on encode.
+`0x10`–`0x1B` are GSM 03.38 values that SMPP v3.4 lists as reserved; they
+are accepted for interoperability (Kannel, for one, sends a class 0 UCS-2
+message as `0x18`). SMPP v3.4's own route for a message class is the
+`dest_addr_subunit` TLV.
+`submit_sm` never splits a message on its own; for anything that
 might not fit one segment (160 GSM 03.38 / 140 other octets), send it with
 `client.submit_multipart(...)` instead, which splits it and sends one
 `submit_sm` per part — see <<gsm,GSM encoding, segmentation and UDH>> and
@@ -57,9 +66,9 @@ might not fit one segment (160 GSM 03.38 / 140 other octets), send it with
 JIS `0x05`, pictogram `0x09`, `0x0D` and KS C 5601 `0x0E` have no text
 codec: raw `short_message` bytes on them encode, but text is rejected
 (`submit_sm` raises `SMPPMessageException`, and `set_message_text` raises
-`SMPPPDUException`). The MWI groups `0xC0`–`0xEF`, `0xF8`–`0xFF` (bit 3 is
-reserved in GSM 03.38) and other reserved values are rejected outright.
-Text that the chosen coding cannot represent raises `SMPPMessageException`
+`SMPPPDUException`). `0x1C`–`0x1F` (reserved alphabet), the MWI groups
+`0xC0`–`0xEF`, `0xF8`–`0xFF` (bit 3 is reserved in GSM 03.38) and other
+reserved values are rejected outright. Text that the chosen coding cannot represent raises `SMPPMessageException`
 too, so send it with `DataCoding.UCS2` instead.
 
 On receipt, `get_message_text()` never raises: it decodes an unsupported

@@ -30,7 +30,8 @@ using `smpp.protocol.codec_for_data_coding` as the single source of truth for th
 Supported schemes include the GSM 03.38 default alphabet (registered as the Python codec
 `gsm0338`), IA5/ASCII, Latin-1, Cyrillic and Hebrew ISO-8859 variants, UCS2, and
 ISO-2022-JP. Coding values with no text codec (JIS, pictogram, KS C 5601) still accept raw
-bytes but reject text, and reserved `data_coding` ranges are rejected outright.
+bytes but reject text. Reserved `data_coding` ranges are rejected outright, except the
+GSM 03.38 message class values `0x10`–`0x1B`, accepted for interoperability.
 
 == Who this manual is for
 

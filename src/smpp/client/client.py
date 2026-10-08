@@ -496,7 +496,7 @@ class SMPPClient:
         self,
         source_addr: str,
         destination_addr: str,
-        message: str,
+        message: str | bytes,
         *,
         data_coding: int = DataCoding.DEFAULT,
         esm_class: int = 0,
@@ -515,7 +515,11 @@ class SMPPClient:
         Args:
             source_addr: Source address (sender)
             destination_addr: Destination address (recipient)
-            message: Message text to split and send
+            message: Message text to split, or pre-encoded bytes (sliced at
+                the octet budget as-is). Bytes that fit one segment are sent
+                unchanged with the given `esm_class`, so a caller-built UDH +
+                payload goes out with `esm_class=0x40`. Longer bytes get the
+                concatenation UDH, so a caller-built UDH must fit one segment.
             data_coding: Data coding scheme, applied to every part
             esm_class: Base ESM class (the UDH indicator bit is added
                 automatically for multi-part messages)

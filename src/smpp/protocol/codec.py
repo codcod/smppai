@@ -204,6 +204,10 @@ def codec_for_data_coding(data_coding: int) -> str:
     """
     Return the Python codec name for an SMPP data_coding value.
 
+    0x10-0x1B (general group with message class, 0x10 | alphabet << 2 | class)
+    follow the alphabet bits: GSM 03.38, 8-bit data or UCS-2. 0x1C-0x1F use the
+    reserved alphabet and are unsupported.
+
     0xF0-0xF7 (GSM message class group) map to GSM 03.38 when bit 0x04 is
     clear and to 8-bit data otherwise. 0xF8-0xFF set the reserved bit 3 and
     are unsupported, matching validate_data_coding.
@@ -213,6 +217,8 @@ def codec_for_data_coding(data_coding: int) -> str:
     """
     if data_coding in _DATA_CODING_CODECS:
         return _DATA_CODING_CODECS[data_coding]
+    if 0x10 <= data_coding <= 0x1B:
+        return {0x00: 'gsm0338', 0x04: 'utf-8', 0x08: 'utf-16-be'}[data_coding & 0x0C]
     if 0xF0 <= data_coding <= 0xF7:
         return 'utf-8' if data_coding & 0x04 else 'gsm0338'
     raise SMPPPDUException(f'Unsupported data_coding {data_coding:#04x}')

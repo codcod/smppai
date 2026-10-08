@@ -215,6 +215,13 @@ is no automatic rollback or retry. `submit_sm` itself still raises
 never splits on its own. See <<gsm,GSM encoding, segmentation and UDH>> for
 the encoding and budget details.
 
+`message` may also be pre-encoded bytes, which are sliced at the octet
+budget without re-encoding. Bytes that fit one segment are sent as they are,
+with the caller's `esm_class`, so a caller-built UDH + payload goes out with
+`esm_class=0x40` as a single `submit_sm`. A caller-built UDH must fit one
+segment: longer bytes get smppai's own concatenation UDH, and the caller's
+UDH is then sent as part of the first part's payload.
+
 To send as `data_sm` instead, use `client.data_sm(...)`. It takes the same
 address, `esm_class`, `registered_delivery` and `data_coding` arguments as
 `submit_sm`, and `message` may be a `str` (encoded per `data_coding`) or
