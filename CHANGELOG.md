@@ -1,6 +1,40 @@
 # CHANGELOG
 
 
+## v0.10.0 (2026-10-08)
+
+### Build System
+
+- Replace mypy with ty for type checking (SMP-026)
+  ([`aa1414e`](https://github.com/codcod/smppai/commit/aa1414eed7d107cc5ed75f797c175c51b353bcbd))
+
+### Chores
+
+- **deps-dev**: Bump python-semantic-release from 10.6.2 to 10.7.0
+  ([`b032231`](https://github.com/codcod/smppai/commit/b032231deed6c725bd6cd0f73c962032e977a01e))
+
+- **deps-dev**: Bump ruff from 0.16.8 to 0.16.9
+  ([`79dcf38`](https://github.com/codcod/smppai/commit/79dcf3809d4fe9a412a326ffe114bdc9a3880f2d))
+
+### Continuous Integration
+
+- **docs**: Put Homebrew on PATH before installing snowball
+  ([`b5dea38`](https://github.com/codcod/smppai/commit/b5dea38a3ab06254206fa269cd1df9a4ac4ba9bd))
+
+- **release**: Attach user manual to semantic-release releases
+  ([`9ff1ee9`](https://github.com/codcod/smppai/commit/9ff1ee94a9441378bfdaabca935b45ecdba6167b))
+
+### Features
+
+- **protocol**: Accept message-class data codings 0x10-0x1B (SMP-027)
+  ([`02d9d57`](https://github.com/codcod/smppai/commit/02d9d5725d7151fcfa929e510956119d810aad42))
+
+### Refactoring
+
+- Import typing as tp in every module (SMP-025)
+  ([`e4296ac`](https://github.com/codcod/smppai/commit/e4296aced4de8fe5724cc0edb7514b6fe19cb078))
+
+
 ## v0.9.1 (2026-09-26)
 
 ### Bug Fixes
