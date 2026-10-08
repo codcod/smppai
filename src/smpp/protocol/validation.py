@@ -217,10 +217,13 @@ def validate_data_coding(data_coding: int) -> None:
     Raises:
         SMPPValidationException: If data coding is invalid
     """
+    # 0x10-0x1B: general data coding group with message class (any alphabet,
+    # UCS-2 included); alphabet 11 is reserved, so 0x1C-0x1F are rejected.
     # 0xF0-0xF7: GSM 03.38 message class group (flash SMS etc.); bit 3 is reserved,
     # so 0xF8-0xFF are rejected.
     if not isinstance(data_coding, int) or (
         data_coding not in DataCoding._value2member_map_
+        and not 0x10 <= data_coding <= 0x1B
         and not 0xF0 <= data_coding <= 0xF7
     ):
         raise SMPPValidationException(

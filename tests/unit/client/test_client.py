@@ -1187,6 +1187,50 @@ class TestSMPPClientSubmitMultipart:
         assert pdu.esm_class == 0
 
     @pytest.mark.asyncio
+    async def test_submit_multipart_bytes_with_udh_sent_as_is(self):
+        """Caller-built UDH + payload in one segment keeps the caller's esm_class."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = Mock()
+        response.command_status = CommandStatus.ESME_ROK
+        response.message_id = 'MSG1'
+        client._connection.send_pdu.return_value = response
+
+        payload = b'\x05\x00\x03\xa1\x02\x01' + b'p1'
+        message_ids = await client.submit_multipart(
+            '12345', '67890', payload, data_coding=0x04, esm_class=0x40
+        )
+
+        assert message_ids == ['MSG1']
+        assert client._connection.send_pdu.call_count == 1
+        pdu = client._connection.send_pdu.call_args.args[0]
+        assert pdu.short_message == payload
+        assert pdu.esm_class == 0x40
+        assert pdu.data_coding == 0x04
+
+    @pytest.mark.asyncio
+    async def test_submit_multipart_ucs2_message_class(self):
+        """A UCS-2 text with data_coding 0x18 is sent as utf-16-be with 0x18 kept."""
+        client = SMPPClient('localhost', 2775, 'test_system', 'password')
+        client._connection = AsyncMock()
+        client._bound = True
+        client._bind_type = BindType.TRANSMITTER
+
+        response = Mock()
+        response.command_status = CommandStatus.ESME_ROK
+        response.message_id = 'MSG1'
+        client._connection.send_pdu.return_value = response
+
+        await client.submit_multipart('12345', '67890', 'Ωμέγα', data_coding=0x18)
+
+        pdu = client._connection.send_pdu.call_args.args[0]
+        assert pdu.data_coding == 0x18
+        assert pdu.short_message == 'Ωμέγα'.encode('utf-16-be')
+
+    @pytest.mark.asyncio
     async def test_submit_multipart_stops_at_first_failure(self):
         """A failing part stops the send and reports already-sent ids."""
         client = SMPPClient('localhost', 2775, 'test_system', 'password')

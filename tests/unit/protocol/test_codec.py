@@ -251,6 +251,12 @@ class TestCodecForDataCoding:
             (0x07, 'iso8859_8'),
             (0x08, 'utf-16-be'),
             (0x0A, 'iso2022_jp'),
+            (0x10, 'gsm0338'),
+            (0x13, 'gsm0338'),
+            (0x14, 'utf-8'),
+            (0x17, 'utf-8'),
+            (0x18, 'utf-16-be'),
+            (0x1B, 'utf-16-be'),
             (0xF0, 'gsm0338'),
             (0xF3, 'gsm0338'),
             (0xF4, 'utf-8'),
@@ -261,11 +267,18 @@ class TestCodecForDataCoding:
         assert codec.codec_for_data_coding(data_coding) == expected
 
     @pytest.mark.parametrize(
-        'data_coding', [0x05, 0x09, 0x0B, 0x0D, 0x0E, 0xC0, 0xEF, 0xF8, 0xFF]
+        'data_coding',
+        [0x05, 0x09, 0x0B, 0x0D, 0x0E, 0x1C, 0x1F, 0xC0, 0xEF, 0xF8, 0xFF],
     )
     def test_rejected(self, data_coding):
         with pytest.raises(SMPPPDUException, match='Unsupported data_coding'):
             codec.codec_for_data_coding(data_coding)
+
+    def test_ucs2_message_class_round_trip(self):
+        """0x18 (UCS-2, class 0) encodes like 0x08 and decodes back."""
+        encoded = codec.encode_message_with_encoding('Ωμέγα', 0x18)
+        assert encoded == codec.encode_message_with_encoding('Ωμέγα', 0x08)
+        assert codec.decode_message_with_encoding(encoded, 0x18) == 'Ωμέγα'
 
 
 class TestMessageEncoding:

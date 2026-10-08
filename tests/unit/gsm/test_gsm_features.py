@@ -213,6 +213,12 @@ class TestMessageSegmentation:
         parts = make_parts('é' * 71, DataCoding.UCS2, reference=1)
         assert [len(p.content) for p in parts] == [134, 8]
 
+    def test_message_class_codings_budget(self):
+        """0x18 uses the UCS-2 budget and 0x10 the GSM 7-bit one."""
+        assert len(make_parts('Ω' * 70, 0x18)) == 1
+        assert len(make_parts('Ω' * 71, 0x18)) == 2
+        assert len(make_parts('a' * 160, 0x10)) == 1
+
     def test_iso2022_jp_packed_by_run(self):
         """A stateful codec splits by encoded run, not per character."""
         parts = make_parts('日' * 71, DataCoding.ISO_2022_JP, reference=1)

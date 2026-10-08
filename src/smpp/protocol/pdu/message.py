@@ -204,7 +204,7 @@ class StandardMessagePDU(MessagePDU):
         """
         from ..constants import DataCoding
 
-        return self.data_coding == DataCoding.UCS2
+        return self.data_coding == DataCoding.UCS2 or 0x18 <= self.data_coding <= 0x1B
 
     def get_message_encoding(self) -> str:
         """Get appropriate encoding for the message based on data_coding

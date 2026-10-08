@@ -205,6 +205,15 @@ class TestStandardMessagePDU:
         pdu = TestMessage(data_coding=DataCoding.DEFAULT)
         assert pdu.is_unicode_message() is False
 
+        for data_coding, expected in (
+            (0x18, True),
+            (0x1B, True),
+            (0x10, False),
+            (0x14, False),
+        ):
+            pdu = TestMessage(data_coding=data_coding)
+            assert pdu.is_unicode_message() is expected
+
     def test_get_message_encoding(self):
         """Test message encoding detection."""
 
