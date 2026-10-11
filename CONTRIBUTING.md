@@ -223,7 +223,7 @@ smppai/
 │   ├── server/         # SMPP server implementation
 │   ├── protocol/       # SMPP protocol definitions
 │   ├── transport/      # Connection and transport
-│   └── config/         # Configuration management
+│   └── gsm/            # GSM 03.38 encoding, segmentation and UDH
 ├── tests/              # Test suite
 │   ├── unit/           # Unit tests
 │   └── integration/    # Integration tests

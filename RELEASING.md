@@ -5,7 +5,11 @@ Releases are automated by `python-semantic-release`, configured in `pyproject.to
 
 1. `semantic-release version` inspects Conventional Commit messages since the last tag.
 2. It bumps `version` in `pyproject.toml`, re-locks `uv.lock` to match (`build_command`),
-   regenerates `CHANGELOG.md`, and creates a `vX.Y.Z` git tag — with no further human approval.
+   regenerates `CHANGELOG.md`, creates a `vX.Y.Z` git tag and a GitHub release for it — with no
+   further human approval.
+3. `release.yml`'s `docs` job then runs `.github/workflows/docs-release.yml`, which builds the
+   user manual with snowball and attaches it to that release. It is called directly because a
+   release created with `GITHUB_TOKEN` fires no `release` event.
 
 There is no manual release step and no PyPI publish (see `PACKAGING.md`) — pushing to `main` is
 the release trigger itself. Because of that, `porth-umbrella`'s publish-gated commit policy
