@@ -4,6 +4,7 @@ import asyncio
 import pathlib
 import socket
 import ssl
+import struct
 import threading
 import time
 
@@ -139,6 +140,87 @@ async def test_server_stop_bounded_when_rejected_peer_ignores_close_notify(
     finally:
         release.set()
         peer.join(5)
+
+
+@pytest.mark.asyncio
+async def test_reject_absorbs_reset_during_close(monkeypatch):
+    monkeypatch.setattr(server_module, '_REJECT_CLOSE_TIMEOUT', 5)
+    outcome = []
+    done = asyncio.Event()
+    real_close_writer = server_module.close_writer
+
+    async def spy(writer, timeout):
+        try:
+            await real_close_writer(writer, timeout)
+            outcome.append(None)
+        except BaseException as e:
+            outcome.append(e)
+            raise
+        finally:
+            done.set()
+
+    monkeypatch.setattr(server_module, 'close_writer', spy)
+    ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ctx.load_cert_chain(CERT, KEY)
+    srv = SMPPServer(
+        '127.0.0.1', 0, max_connections=0, setup_signal_handlers=False, ssl=ctx
+    )
+    await srv.start()
+    port = srv._server.sockets[0].getsockname()[1]
+
+    def resetting_client():
+        # Handshake, let the server send close_notify, then reset instead of answering.
+        client_ctx = ssl.create_default_context(cafile=CERT)
+        sock = socket.create_connection(('127.0.0.1', port))
+        tls = client_ctx.wrap_socket(sock, server_hostname='localhost')
+        time.sleep(0.3)
+        tls.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+        tls.close()
+
+    peer = threading.Thread(target=resetting_client, daemon=True)
+    peer.start()
+    try:
+        await asyncio.wait_for(done.wait(), timeout=3)
+        assert outcome == [None]
+    finally:
+        peer.join(5)
+        await srv.stop()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_disconnect_releases_socket():
+    ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ctx.load_cert_chain(CERT, KEY)
+    listener = socket.create_server(('127.0.0.1', 0))
+    release = threading.Event()
+
+    def silent_peer():
+        sock, _ = listener.accept()
+        with ctx.wrap_socket(sock, server_side=True):
+            release.wait(10)
+
+    peer = threading.Thread(target=silent_peer, daemon=True)
+    peer.start()
+    try:
+        conn = SMPPConnection(
+            '127.0.0.1',
+            listener.getsockname()[1],
+            write_timeout=10,
+            ssl=ssl.create_default_context(cafile=CERT),
+        )
+        await conn.connect()
+        raw = conn._writer.get_extra_info('socket')
+        task = asyncio.create_task(conn.disconnect())
+        await asyncio.sleep(0.3)  # let it block on the unanswered close_notify
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await asyncio.sleep(0.1)
+        assert raw.fileno() == -1
+    finally:
+        release.set()
+        peer.join(5)
+        listener.close()
 
 
 def test_plain_by_default():
