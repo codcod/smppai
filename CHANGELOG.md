@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.12.1 (2026-10-12)
+
+### Bug Fixes
+
+- **transport**: Abort on reset or cancellation in close_writer (SMP-030)
+  ([`a66ee72`](https://github.com/codcod/smppai/commit/a66ee7276add22e2861fb2ed3a8945eb574c89e8))
+
+
 ## v0.12.0 (2026-10-12)
 
 ### Features
