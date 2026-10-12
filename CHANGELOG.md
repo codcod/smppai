@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.12.0 (2026-10-12)
+
+### Features
+
+- **transport**: Connect and serve SMPP over TLS (SMP-029)
+  ([`59d0ece`](https://github.com/codcod/smppai/commit/59d0ece5a0ff3f3d48f659738eeffa4ab5f16d03))
+
+
 ## v0.11.0 (2026-10-12)
 
 ### Build System
