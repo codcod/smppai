@@ -31,12 +31,17 @@ async def close_writer(writer: asyncio.StreamWriter, timeout: float) -> None:
     """Close writer, aborting it if the close takes longer than timeout.
 
     A TLS peer that never answers close_notify would otherwise block wait_closed().
+    A reset or TLS error during close also aborts, and a cancelled close aborts
+    before re-raising.
     """
     writer.close()
     try:
         await asyncio.wait_for(writer.wait_closed(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except (asyncio.TimeoutError, OSError):
         writer.transport.abort()
+    except asyncio.CancelledError:
+        writer.transport.abort()
+        raise
 
 
 class ConnectionState(Enum):
