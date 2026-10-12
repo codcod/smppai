@@ -1,6 +1,34 @@
 # CHANGELOG
 
 
+## v0.11.0 (2026-10-12)
+
+### Build System
+
+- **deps**: Bump uvloop from 0.22.1 to 0.23.0
+  ([`830d8d4`](https://github.com/codcod/smppai/commit/830d8d4f48f08babfbbac0dcf4cdbee9dd94368b))
+
+### Chores
+
+- **deps-dev**: Bump ruff from 0.16.9 to 0.16.10
+  ([`2f31f97`](https://github.com/codcod/smppai/commit/2f31f9768927e58dc839ba8d36f2d6c866fd018e))
+
+### Continuous Integration
+
+- Release only when a push to main changes src/
+  ([`7dd4924`](https://github.com/codcod/smppai/commit/7dd4924ce603e9c8a275832d788a3efbd4e114f4))
+
+### Documentation
+
+- Align release notes and the manual with the code
+  ([`d44a65c`](https://github.com/codcod/smppai/commit/d44a65c3ef5d74b668aba16a5e3dcfc9ccf613da))
+
+### Features
+
+- **server**: Add a simulator SMSC with receipts and MO (SMP-028)
+  ([`03a93c9`](https://github.com/codcod/smppai/commit/03a93c95e313a43cfc65cb7f8046d38589c609e0))
+
+
 ## v0.10.0 (2026-10-08)
 
 ### Build System
