@@ -17,6 +17,8 @@ version 3.4, built on `asyncio` for non-blocking network I/O.
   graceful-shutdown sequence (notify, grace period, reminder, unbind, force
   disconnect) instead of dropping connections outright.
 
+Both sides can run over plain TCP or TLS (an `ssl` argument with asyncio's meaning).
+
 The protocol layer covers the PDU types needed for a working SMPP session: the bind
 operations (`bind_transmitter`, `bind_receiver`, `bind_transceiver`, `unbind`, `outbind`),
 message operations (`submit_sm`, `deliver_sm`, `data_sm`), message management

@@ -228,7 +228,7 @@ class TestConnection:
             assert connection.state == ConnectionState.OPEN
             assert connection._reader == mock_reader
             assert connection._writer == mock_writer
-            mock_open.assert_called_once_with('localhost', 2775)
+            mock_open.assert_called_once_with('localhost', 2775, ssl=None)
 
             # Clean up background tasks
             await connection.disconnect()

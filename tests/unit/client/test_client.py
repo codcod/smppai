@@ -124,6 +124,7 @@ class TestSMPPClientInitialization:
             enquire_link_interval=60.0,
             read_timeout=30.0,
             write_timeout=30.0,
+            ssl=None,
         )
 
         assert client._connection == mock_connection

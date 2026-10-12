@@ -7,6 +7,7 @@ including connection management, PDU sending/receiving, and connection state tra
 
 import asyncio
 import logging
+import ssl
 import struct
 import time
 from enum import Enum
@@ -24,6 +25,18 @@ from smpp.protocol.pdu.session import EnquireLink
 from smpp.protocol.validation import validate_pdu_structure
 
 logger = logging.getLogger(__name__)
+
+
+async def close_writer(writer: asyncio.StreamWriter, timeout: float) -> None:
+    """Close writer, aborting it if the close takes longer than timeout.
+
+    A TLS peer that never answers close_notify would otherwise block wait_closed().
+    """
+    writer.close()
+    try:
+        await asyncio.wait_for(writer.wait_closed(), timeout=timeout)
+    except asyncio.TimeoutError:
+        writer.transport.abort()
 
 
 class ConnectionState(Enum):
@@ -53,6 +66,8 @@ class SMPPConnection:
         read_timeout: float = 30.0,
         write_timeout: float = 30.0,
         enquire_link_interval: float = 30.0,
+        *,
+        ssl: tp.Union[ssl.SSLContext, bool, None] = None,
     ):
         """
         Initialize SMPP connection
@@ -63,14 +78,18 @@ class SMPPConnection:
             reader: Optional existing StreamReader (for server connections)
             writer: Optional existing StreamWriter (for server connections)
             read_timeout: Timeout for read operations in seconds
-            write_timeout: Timeout for write operations in seconds
+            write_timeout: Timeout for write operations in seconds, also bounding
+                connect() and the close in disconnect()
             enquire_link_interval: Interval for enquire_link keepalive in seconds
+            ssl: TLS for connect(), passed to asyncio.open_connection: True for
+                the system CAs, an SSLContext for custom settings, None for plain TCP
         """
         self.host = host
         self.port = port
         self.read_timeout = read_timeout
         self.write_timeout = write_timeout
         self.enquire_link_interval = enquire_link_interval
+        self.ssl = ssl
 
         self._reader = reader
         self._writer = writer
@@ -161,7 +180,7 @@ class SMPPConnection:
         try:
             logger.info(f'Connecting to {self.host}:{self.port}')
             self._reader, self._writer = await asyncio.wait_for(
-                asyncio.open_connection(self.host, self.port),
+                asyncio.open_connection(self.host, self.port, ssl=self.ssl),
                 timeout=self.write_timeout,
             )
 
@@ -212,8 +231,7 @@ class SMPPConnection:
         # Close writer
         if self._writer:
             try:
-                self._writer.close()
-                await self._writer.wait_closed()
+                await close_writer(self._writer, self.write_timeout)
             except Exception as e:
                 logger.warning(f'Error closing writer: {e}')
             finally:
