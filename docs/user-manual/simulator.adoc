@@ -1,0 +1,137 @@
+[#simulator]
+= The simulator
+
+`smpp.sim` is a simulator SMSC for testing an ESME without a carrier. It
+accepts any bind and every `submit_sm`, sends the delivery receipts the
+ESME asked for after a delay, with an outcome drawn from a weighted list,
+and injects mobile-originated (MO) messages on an HTTP request.
+
+WARNING: The simulator is for testing only. It accepts every bind, whatever
+the credentials, and its HTTP endpoint has no authentication. Keep both on
+loopback or a private network.
+
+== Running it
+
+[source,bash]
+----
+python -m smpp.sim --receipt-delay 0.5 --stat DELIVRD:9 --stat UNDELIV:1
+----
+
+`--host HOST`::
+Address both servers bind to. Default `127.0.0.1`; use `0.0.0.0` in a
+container.
+
+`--port PORT`::
+SMPP port. Default `2775`.
+
+`--http-port PORT`::
+Port for `POST /mo`. Default `2776`.
+
+`--receipt-delay SECONDS`::
+Time between a `submit_sm` and its receipt. Default `1.0`.
+
+`--stat STAT[:WEIGHT]`::
+A receipt outcome and its weight, a positive integer that defaults to 1.
+Repeat the flag to build a weighted list: `--stat DELIVRD:9 --stat
+UNDELIV:1` delivers about nine messages in ten. `STAT` is one of
+`DELIVRD`, `EXPIRED`, `DELETED`, `UNDELIV`, `ACCEPTD`, `UNKNOWN`,
+`REJECTD`, `ENROUTE`, or `none`, which sends no receipt, so you can test
+what your ESME does when one never arrives. Case does not matter. The
+default is `DELIVRD` alone.
+
+Ctrl-C (SIGINT) or SIGTERM stops it within a few seconds. It logs one line
+per submit, receipt and MO.
+
+== Receipts
+
+The simulator gives every `submit_sm` a fresh message ID (32 hex digits,
+unique across restarts) and draws its outcome. Whether a receipt follows
+depends on bits 0-1 of the submit's `registered_delivery` (SMPP 3.4
+§5.2.17):
+
+[cols="1,3"]
+|===
+|`registered_delivery & 0x03` |Receipt
+
+|`1` |Always, unless the outcome is `none`
+|`2` |Only when the outcome is not `DELIVRD` (and not `none`)
+|`0` or `3` |Never
+|===
+
+`client.send(..., receipt=True)` sets `1`.
+
+The receipt is a `deliver_sm` with `esm_class=0x04`, from the submit's
+destination to its source, sent to a receiver or transceiver session bound
+with the same `system_id` as the submitter. If none is bound when the delay
+runs out, the receipt is logged and dropped: there is no retry and no
+queue. Its text follows SMPP 3.4 Appendix B, which smppai's client parses
+into `msg.receipt`:
+
+----
+id:<message id> sub:001 dlvrd:001 submit date:2610121530 done date:2610121530 stat:DELIVRD err:000 text:<first 20 chars>
+----
+
+`dlvrd:001` and `err:000` mark `DELIVRD`; every other outcome carries
+`dlvrd:000` and `err:001`. Dates are local time, `YYMMDDhhmm`. Characters
+of the original text that GSM-7 cannot carry show as `?`.
+
+== Injecting MO
+
+[source,bash]
+----
+curl -X POST 'http://localhost:2776/mo?from=%2B306900000001&to=1234&text=hi'
+curl -X POST http://localhost:2776/mo --data-urlencode from=+306900000001 -d to=1234 -d text=hi
+----
+
+Encode `+` as `%2B` in both forms; a bare `+` decodes to a space and the
+number loses its international type.
+
+`POST /mo` takes its parameters from the query string or a form body:
+
+`from`, `to`::
+Required. Parsed like the client's addresses: `+306900000001` is sent as
+international/ISDN, plain digits as unknown/unknown, anything else as
+alphanumeric.
+
+`text`::
+Required. Sent as GSM-7 when it fits that alphabet, else as UCS2.
+
+`system_id`::
+Optional. The ESME to deliver to; by default the first bound receiver or
+transceiver.
+
+[cols="1,3"]
+|===
+|Status |Meaning
+
+|`200` |Delivered: the ESME answered `deliver_sm_resp` with `ESME_ROK`
+|`400` |`from`, `to` or `text` is missing
+|`409` |No receiver is bound, or the ESME refused the message
+|`404` |Any path other than `/mo`
+|===
+
+== In-process use
+
+In tests, run the `Simulator` class on ephemeral ports and drive it
+directly:
+
+[source,python]
+----
+from smpp.sim import Simulator
+
+sim = Simulator(
+    "127.0.0.1", 0,                    # 0 = any free port
+    http_port=0,                       # None (the default) = no HTTP
+    receipt_delay=0.05,
+    stats=[("DELIVRD", 9), ("UNDELIV", 1)],
+    setup_signal_handlers=False,       # any other SMPPServer argument
+)
+await sim.start()                      # sim.port, sim.http_port are now real
+async with smpp.connect("127.0.0.1", sim.port, "test", "x") as client:
+    await sim.mo("+306900000001", "1234", "hi")  # True if delivered
+    ...
+await sim.stop()
+----
+
+`sim.server` is the underlying `smpp.Server`; `serve_forever()` runs until
+a signal, as the CLI does.

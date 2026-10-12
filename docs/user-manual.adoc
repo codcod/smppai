@@ -17,6 +17,8 @@ include::user-manual/client.adoc[leveloffset=+1]
 
 include::user-manual/server.adoc[leveloffset=+1]
 
+include::user-manual/simulator.adoc[leveloffset=+1]
+
 include::user-manual/protocol.adoc[leveloffset=+1]
 
 include::user-manual/data-coding.adoc[leveloffset=+1]

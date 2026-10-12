@@ -28,6 +28,9 @@ The `Makefile` wraps the same commands (`make test`, `make
 build`, `make lint`) for use from the umbrella workspace or CI; see
 CONTRIBUTING.md for the full local quality-check and commit/PR workflow.
 
+To test your own ESME against an SMSC that sends receipts and MO, use the
+simulator (<<simulator>>).
+
 == Examples directory
 
 `examples/` holds complete, runnable programs that this manual's snippets

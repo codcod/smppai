@@ -29,6 +29,14 @@ uv run examples/client_basic.py  # in a separate command line
 
 Requires Python 3.10+. The only runtime dependency is `typing-extensions`. Optional: `uv add 'smppai[fast]'` for uvloop.
 
+To test an ESME without a carrier, run the simulator SMSC. It answers
+`submit_sm` with delivery receipts and injects MO from an HTTP `POST /mo`
+(see the user manual's simulator chapter):
+
+```bash
+uv run python -m smpp.sim --stat DELIVRD:9 --stat UNDELIV:1
+```
+
 ## Documentation
 
 The [user manual](docs/user-manual.adoc) covers everything: quick start,
