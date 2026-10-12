@@ -1,0 +1,2 @@
+Self-signed, test-only certificate and key (SAN localhost, 127.0.0.1) for the TLS tests. Never use it outside tests.
+Regenerate: openssl req -x509 -newkey rsa:2048 -nodes -days 36500 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" -keyout tests/fixtures/tls/key.pem -out tests/fixtures/tls/cert.pem

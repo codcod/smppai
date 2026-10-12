@@ -5,7 +5,7 @@ Peer-to-Peer) protocol v3.4 in Python.
 
 It provides an `SMPPClient` (ESME) and `SMPPServer` (SMSC), full PDU
 encoding/decoding with TLV optional parameters, GSM 7-bit encoding and
-message segmentation for concatenated SMS.
+message segmentation for concatenated SMS. Both sides can run over TCP or TLS.
 
 ## Installation
 

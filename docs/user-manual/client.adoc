@@ -104,6 +104,7 @@ client = SMPPClient(
     bind_timeout=30.0,
     enquire_link_interval=30.0,   # automatic keepalive; 0 disables it
     response_timeout=10.0,        # default timeout for bind/submit/enquire
+    ssl=None,                     # keyword-only; TLS, see "Connecting over TLS"
 )
 ----
 
@@ -164,6 +165,39 @@ keeps it open too. Many SMSCs close it after `unbind_resp`, and smppai's own
 error status, a timeout or an exception), the client closes the connection,
 since the SMSC may still consider the session bound. Call `connect()` again
 before binding. `on_unbind` fires either way.
+
+== Connecting over TLS
+
+The keyword-only `ssl` argument has the meaning it has in
+`asyncio.open_connection`. `None` (the default) is plain TCP. `True`
+verifies the SMSC's certificate against the system CAs. Pass an
+`ssl.SSLContext` for anything else. The certificate is checked against
+`host`. `smpp.connect(..., ssl=...)` forwards the argument to `SMPPClient`.
+
+[source,python]
+----
+import ssl
+
+# System CAs
+client = SMPPClient("smsc.example.com", 3550, "my_client", "my_pass", ssl=True)
+
+# A private CA
+ctx = ssl.create_default_context(cafile="smsc-ca.pem")
+client = SMPPClient("smsc.example.com", 3550, "my_client", "my_pass", ssl=ctx)
+
+# A client certificate, for SMSCs that require mutual TLS
+ctx = ssl.create_default_context(cafile="smsc-ca.pem")
+ctx.load_cert_chain("client.pem", "client.key")
+client = SMPPClient("smsc.example.com", 3550, "my_client", "my_pass", ssl=ctx)
+----
+
+WARNING: Turning verification off (`check_hostname = False`,
+`verify_mode = ssl.CERT_NONE`) lets anyone in the path read the bind
+password, which defeats the purpose of TLS.
+
+A failed handshake or certificate check raises `SMPPConnectionException`
+from `connect()`, and a handshake slower than `response_timeout` raises
+`SMPPTimeoutException`.
 
 == Sending a message
 

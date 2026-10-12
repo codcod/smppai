@@ -38,7 +38,7 @@ All of these are importable from the top-level `smpp` package, except
 | Exception | Raised for
 
 | `SMPPConnectionException`
-| TCP connect/disconnect failures.
+| TCP connect/disconnect failures, including TLS handshake and certificate verification failures.
 
 | `SMPPPDUException`
 | Malformed or invalid PDU data (encode/decode, field validation).

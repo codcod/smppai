@@ -79,9 +79,22 @@ server = SMPPServer(
     interface_version=0x34,
     max_connections=100,
     setup_signal_handlers=True,   # install SIGTERM/SIGINT handlers
+    ssl=None,                     # keyword-only; a server SSLContext serves TLS
 )
 
 await server.serve_forever()  # starts, blocks until shutdown, then stops
+----
+
+To serve SMPP over TLS, pass a server-side `ssl.SSLContext`. It goes
+straight to `asyncio.start_server`. `smpp.Server(..., ssl=ctx)` forwards it.
+
+[source,python]
+----
+import ssl
+
+ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+ctx.load_cert_chain("server.pem", "server.key")
+server = SMPPServer(host="0.0.0.0", port=3550, ssl=ctx)
 ----
 
 `serve_forever()` drives the whole lifecycle itself, so don't also wrap the

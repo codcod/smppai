@@ -7,6 +7,7 @@ that can connect to SMSC servers and perform SMS operations.
 
 import asyncio
 import logging
+import ssl
 import time
 from enum import Enum
 import typing as tp
@@ -91,6 +92,8 @@ class SMPPClient:
         bind_timeout: float = 30.0,
         enquire_link_interval: float = 60.0,
         response_timeout: float = 30.0,
+        *,
+        ssl: tp.Union[ssl.SSLContext, bool, None] = None,
     ):
         """
         Initialize SMPP Client
@@ -108,6 +111,8 @@ class SMPPClient:
             bind_timeout: Timeout for bind operations
             enquire_link_interval: Interval for enquire_link keepalive
             response_timeout: Default timeout for responses
+            ssl: Connect over TLS, as asyncio.open_connection's ssl argument: True
+                for the system CAs, an SSLContext for custom settings, None for plain TCP
         """
         self.host = host
         self.port = port
@@ -146,6 +151,7 @@ class SMPPClient:
             enquire_link_interval=enquire_link_interval,
             read_timeout=response_timeout,
             write_timeout=response_timeout,
+            ssl=ssl,
         )
 
         # Set connection event handlers

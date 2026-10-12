@@ -10,6 +10,7 @@ import inspect
 import itertools
 import logging
 import signal
+import ssl
 from dataclasses import dataclass, field
 import typing as tp
 
@@ -47,8 +48,12 @@ from ..protocol import (
     get_error_message,
 )
 from ..transport import SMPPConnection
+from ..transport.connection import close_writer
 
 logger = logging.getLogger(__name__)
+
+# Bound on closing a rejected connection whose peer never finishes the close
+_REJECT_CLOSE_TIMEOUT = 5.0
 
 
 async def _call(fn: tp.Callable[..., tp.Any], *args: tp.Any) -> tp.Any:
@@ -133,6 +138,8 @@ class SMPPServer:
         interface_version: int = 0x34,
         max_connections: int = 100,
         setup_signal_handlers: bool = True,
+        *,
+        ssl: tp.Optional[ssl.SSLContext] = None,
     ):
         """
         Initialize SMPP Server
@@ -144,6 +151,8 @@ class SMPPServer:
             interface_version: SMPP interface version
             max_connections: Maximum concurrent connections
             setup_signal_handlers: Whether to set up signal handlers for graceful shutdown
+            ssl: Server SSLContext to serve SMPP over TLS (passed to
+                asyncio.start_server); None for plain TCP
         """
         self.host = host
         self.port = port
@@ -159,6 +168,7 @@ class SMPPServer:
         self.interface_version = interface_version
         self.max_connections = max_connections
         self._setup_signals = setup_signal_handlers
+        self.ssl = ssl
 
         self._server: tp.Optional[asyncio.Server] = None
         self._running = False
@@ -290,7 +300,7 @@ class SMPPServer:
         logger.info(f'Starting SMPP server on {self.host}:{self.port}')
 
         self._server = await asyncio.start_server(
-            self._handle_client_connection, self.host, self.port
+            self._handle_client_connection, self.host, self.port, ssl=self.ssl
         )
 
         self._running = True
@@ -674,8 +684,7 @@ class SMPPServer:
         # Check if we're accepting new connections
         if not self._accept_new_connections:
             logger.info('Rejecting new connection - server shutdown in progress')
-            writer.close()
-            await writer.wait_closed()
+            await close_writer(writer, _REJECT_CLOSE_TIMEOUT)
             return
 
         client_addr = writer.get_extra_info('peername')
@@ -683,8 +692,7 @@ class SMPPServer:
 
         if len(self._clients) >= self.max_connections:
             logger.warning(f'Maximum connections exceeded, rejecting {client_addr}')
-            writer.close()
-            await writer.wait_closed()
+            await close_writer(writer, _REJECT_CLOSE_TIMEOUT)
             return
 
         # Create connection and session
@@ -721,8 +729,7 @@ class SMPPServer:
                 if self._clients.get(client_id) is session:
                     del self._clients[client_id]
                 logger.info(f'Closing {client_id} before accept')
-                writer.close()
-                await writer.wait_closed()
+                await close_writer(writer, _REJECT_CLOSE_TIMEOUT)
                 return
 
         # Mark connection as established and start its background tasks
