@@ -254,9 +254,11 @@ class SMSCServer:
 
             elif message == 'time':
                 # Send current time
-                import datetime
+                import datetime as dt
 
-                time_text = f'Server time: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                time_text = (
+                    f'Server time: {dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                )
                 await self._send_response(session, pdu, time_text)
 
             elif message == 'clients':
