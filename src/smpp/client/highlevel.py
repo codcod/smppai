@@ -252,7 +252,7 @@ async def connect(
     *,
     bind: tp.Literal['tx', 'rx', 'trx'] = 'trx',
     **client_kwargs,
-) -> tp.AsyncIterator[Client]:
+) -> tp.AsyncGenerator[Client, None]:
     """
     Connect and bind to an SMSC; unbind and disconnect on exit.
 
