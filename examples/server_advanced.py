@@ -119,6 +119,7 @@ class SMSCServer:
         """
         # Enhanced client credentials for demonstration (SMPP passwords must be <= 8 chars)
         valid_clients = {
+            'smppclient1': 'password',  # examples/client_*.py (opensmpp sim creds)
             'test_client': 'password',
             'test_receiver': 'password',
             'test_transmitter': 'password',
@@ -179,7 +180,7 @@ class SMSCServer:
         """Handle SMS message from client with enhanced logging and commands."""
         try:
             # Decode message
-            message = pdu.short_message.decode('utf-8', errors='ignore')
+            message = pdu.get_message_text()
 
             logger.info(f'Message received from {session.system_id}:')
             logger.info(f'   From: {pdu.source_addr} -> To: {pdu.destination_addr}')
