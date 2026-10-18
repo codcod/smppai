@@ -24,7 +24,7 @@ keywords = [
     "smpp",
     "smppv3.4",
 ]
-dependencies = ["typing-extensions>=4.0.0"]
+dependencies = []
 
 [project.optional-dependencies]
 fast = ["uvloop>=0.19; sys_platform != 'win32'"]
@@ -39,45 +39,14 @@ packages = ["src/smpp"]
 [dependency-groups]
 dev = [
   "bandit>=1.8.5",
-  "black>=25.1.0",
-  "build>=1.2.2.post1",
   "pytest-asyncio>=0.21.0",
-  "pytest-coverage>=0.0",
+  "pytest-cov>=7.1.0",
   "pytest>=7.0.0",
   "python-semantic-release>=9.0.0",
   "ruff>=0.12.0",
   "twine>=6.1.0",
   "ty==0.0.88",
 ]
-
-[tool.pyright]
-pythonVersion = "3.13"
-venv = ".venv"
-venvPath = "."
-typeCheckingMode = "basic" # Options: "off", "basic", "strict"
-
-include = ["src", "tests"]
-
-exclude = ["**/node_modules", "**/__pycache__", "**/*.pyc"]
-
-reportMissingImports = true # Report missing imports
-reportUnusedImports = true  # Report unused imports
-reportUnusedFunction = true # Report unused functions
-
-[tool.black]
-line-length = 88
-target-version = ["py313"]
-include = '\.pyi?$'
-exclude = '''(
-    /(
-        .git
-        | .pytest_cache
-        | build
-        | dist
-    )/
-)'''
-skip-string-normalization = true
-fast = false
 
 [tool.ruff]
 line-length = 88
@@ -92,12 +61,10 @@ quote-style = "single"
 skip-magic-trailing-comma = false
 
 [tool.ruff.lint]
-# select = ["E4", "E7", "E9", "F", "W", "E", "B", "I", "PL", "C90"]
 select = ["E4", "E7", "E9", "F", "ICN"]
 ignore = []
 
 fixable = ["ALL"]
-unfixable = ["B"]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 # `import typing as tp`, never `from typing import ...` (ICN001/ICN003)
@@ -106,14 +73,6 @@ banned-from = ["typing"]
 
 [tool.ruff.lint.flake8-import-conventions.extend-aliases]
 typing = "tp"
-
-[tool.ruff.lint.flake8-bugbear]
-# Allow default arguments like, e.g., `data: List[str] = fastapi.Query(None)`.
-extend-immutable-calls = [
-  "Depends",
-  "fastapi.Depends",
-  "fastapi.params.Depends",
-]
 
 [tool.pytest.ini_options]
 # https://docs.pytest.org/en/latest/reference/customize.html
