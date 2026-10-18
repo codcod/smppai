@@ -1,7 +1,7 @@
 = Installation
 
-{product} requires Python 3.10 or later (below 3.14) and depends only on
-`typing-extensions` at runtime.
+{product} requires Python 3.10 or later (below 3.14) and has no runtime
+dependencies.
 
 == From source
 
