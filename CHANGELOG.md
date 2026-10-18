@@ -1,6 +1,28 @@
 # CHANGELOG
 
 
+## v0.12.2 (2026-10-18)
+
+### Bug Fixes
+
+- **client**: Annotate connect() as AsyncGenerator for ty 0.0.86
+  ([`8134214`](https://github.com/codcod/smppai/commit/81342140f632beba786a2b286978e227c1b23792))
+
+- **examples**: Accept client creds in advanced server, decode by data_coding
+  ([`442cf6c`](https://github.com/codcod/smppai/commit/442cf6c6ed743f253a3cbe2dc967f928e9a282a2))
+
+### Chores
+
+- **deps-dev**: Bump black from 26.5.1 to 26.10.0
+  ([`1cd427c`](https://github.com/codcod/smppai/commit/1cd427ccb6fc4733a54ff3513bb1c42f4b4aaf6d))
+
+- **deps-dev**: Bump ruff from 0.16.10 to 0.17.0
+  ([`6b6fcad`](https://github.com/codcod/smppai/commit/6b6fcad46c5903b9a55b0daab5ef6b6d608cc021))
+
+- **deps-dev**: Bump ty from 0.0.84 to 0.0.88
+  ([`286e404`](https://github.com/codcod/smppai/commit/286e404e9ee6734b9d72c4caf7b65d95848f70bc))
+
+
 ## v0.12.1 (2026-10-12)
 
 ### Bug Fixes
