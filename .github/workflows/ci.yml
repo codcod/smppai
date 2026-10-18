@@ -33,10 +33,10 @@ jobs:
           python-version: ${{ env.PRIMARY_PYTHON_VERSION }}
 
       - name: Run ruff check
-        run: uv run ruff check src tests
+        run: uv run ruff check src tests examples
 
       - name: Run ruff format check
-        run: uv run ruff format --check src tests
+        run: uv run ruff format --check src tests examples
 
   type-check:
     runs-on: ubuntu-latest
