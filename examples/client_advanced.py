@@ -76,7 +76,7 @@ class SMSClient:
     def handle_deliver_sm(self, client: SMPPClient, pdu: DeliverSm) -> None:
         """Handle incoming deliver_sm with enhanced shutdown notification detection."""
         try:
-            message = pdu.short_message.decode('utf-8', errors='ignore')
+            message = pdu.get_message_text()
 
             # Check if this is a delivery receipt
             if pdu.esm_class & 0x04:  # Delivery receipt
