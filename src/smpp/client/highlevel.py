@@ -29,7 +29,13 @@ from ..message import (
     _split,
     _to_message,
 )
-from ..protocol import DataCoding, DataSm, DeliverSm, RegisteredDelivery
+from ..protocol import (
+    CommandStatus,
+    DataCoding,
+    DataSm,
+    DeliverSm,
+    RegisteredDelivery,
+)
 from ..protocol.codec import encode_message_with_encoding
 from .client import SMPPClient
 
@@ -61,7 +67,7 @@ class Client:
 
     def __init__(self, raw: SMPPClient):
         self.raw = raw
-        # Unbounded so terminal items always fit; _put caps the Messages.
+        # Unbounded so terminal items always fit; _on_message caps the Messages.
         self._queue: asyncio.Queue = asyncio.Queue()
         # key -> (first-arrival monotonic time, part_number -> pdu)
         self._parts: tp.Dict[
@@ -70,7 +76,7 @@ class Client:
         self._consuming = False
         self._closing = False
         self._ended = False  # a terminal item is queued
-        self._dropped = 0  # messages dropped in the current overflow episode
+        self._throttled = 0  # messages refused in the current overflow episode
         self._evicted = 0  # part sets evicted in the current cap episode
         raw.on_deliver_sm = self._on_message
         raw.on_data_sm = self._on_message
@@ -139,15 +145,32 @@ class Client:
         finally:
             self._consuming = False
 
-    def _on_message(self, raw: SMPPClient, pdu: tp.Union[DeliverSm, DataSm]) -> None:
+    def _on_message(
+        self, raw: SMPPClient, pdu: tp.Union[DeliverSm, DataSm]
+    ) -> tp.Optional[int]:
+        # Full: refuse before buffering anything, so the SMSC keeps the message and
+        # retries it later; acking it and dropping one would lose it for good.
+        if not self._ended and self._queue.qsize() >= _MAX_PENDING:
+            if not self._throttled:
+                logger.warning(
+                    'Inbound queue full (%d unread): throttling the SMSC',
+                    _MAX_PENDING,
+                )
+            self._throttled += 1
+            return CommandStatus.ESME_RTHROTTLED
+        if self._throttled:
+            logger.warning(
+                'Inbound queue has room again: throttled %d messages', self._throttled
+            )
+            self._throttled = 0
         info, content = _split(pdu)
         if (
             info is None
             or _is_receipt(pdu)
             or not 1 <= info.part_number <= info.total_parts
         ):
-            self._put(_to_message(pdu, _decode(content, pdu.data_coding)))
-            return
+            self._queue.put_nowait(_to_message(pdu, _decode(content, pdu.data_coding)))
+            return None
 
         now = time.monotonic()
         # ponytail: two sets sharing the 8-bit reference within the TTL still
@@ -187,7 +210,7 @@ class Client:
         received = self._parts.setdefault(key, (now, {}))[1]
         received[info.part_number] = pdu
         if len(received) < info.total_parts:
-            return
+            return None
         del self._parts[key]
         parts = [
             MessagePart(
@@ -202,29 +225,8 @@ class Client:
             text: tp.Optional[str] = reassemble_parts(parts, pdu.data_coding)
         except (ValueError, SMPPPDUException):
             text = None
-        self._put(_to_message(pdu, text))
-
-    def _put(self, msg: Message) -> None:
-        # Until a terminal item is queued every item is a Message, so the
-        # oldest can be evicted. After it, never evict: the terminal item must
-        # survive, and stragglers (already acked) stay bounded as the link is dead.
-        if self._ended:
-            self._queue.put_nowait(msg)
-            return
-        if self._queue.qsize() >= _MAX_PENDING:
-            self._queue.get_nowait()
-            if not self._dropped:
-                logger.warning(
-                    'Inbound queue full (%d unread): dropping oldest messages',
-                    _MAX_PENDING,
-                )
-            self._dropped += 1
-        elif self._dropped:
-            logger.warning(
-                'Inbound queue has room again: dropped %d messages', self._dropped
-            )
-            self._dropped = 0
-        self._queue.put_nowait(msg)
+        self._queue.put_nowait(_to_message(pdu, text))
+        return None
 
     def _on_connection_lost(self, raw: SMPPClient, error: Exception) -> None:
         if not self._closing:

@@ -11,6 +11,7 @@ import pytest_asyncio
 import smpp
 from smpp import (
     Address,
+    CommandStatus,
     DataCoding,
     DataSm,
     DeliverSm,
@@ -234,16 +235,18 @@ async def _drain(c):
 
 
 @pytest.mark.asyncio
-async def test_queue_drops_oldest_beyond_cap(monkeypatch):
+async def test_queue_throttles_beyond_cap(monkeypatch):
     from smpp.client import highlevel
 
     monkeypatch.setattr(highlevel, '_MAX_PENDING', 3)
     c = _client()
+    statuses = []
     for i in range(5):
         pdu = DeliverSm(source_addr='1', destination_addr='2')  # type: ignore[call-arg]
         pdu.set_message_text(f'm{i}')
-        c._on_message(c.raw, pdu)
-    assert [m.text for m in await _drain(c)] == ['m2', 'm3', 'm4']
+        statuses.append(c._on_message(c.raw, pdu))
+    assert statuses == [None] * 3 + [CommandStatus.ESME_RTHROTTLED] * 2
+    assert [m.text for m in await _drain(c)] == ['m0', 'm1', 'm2']
 
 
 @pytest.mark.asyncio
@@ -346,10 +349,10 @@ async def test_overflow_logs_once_per_episode(monkeypatch, caplog):
     c = _client()
     for i in range(6):
         c._on_message(c.raw, _text_pdu(f'm{i}'))
-    assert caplog.text.count('dropping oldest') == 1
+    assert caplog.text.count('throttling the SMSC') == 1
     for _ in range(3):
         c._queue.get_nowait()
-    c._on_message(c.raw, _text_pdu('m6'))
+    assert c._on_message(c.raw, _text_pdu('m6')) is None
     (room,) = [r for r in caplog.records if 'room again' in r.message]
     assert room.levelname == 'WARNING' and '3' in room.message
 

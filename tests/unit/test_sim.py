@@ -86,6 +86,28 @@ class TestReceipts:
             else:
                 await no_message(c)
 
+    async def test_throttled_receipt_is_resent(self, sim, monkeypatch):
+        from smpp import sim as sim_module
+        from smpp.client import highlevel
+
+        monkeypatch.setattr(highlevel, '_MAX_PENDING', 1)
+        monkeypatch.setattr(sim_module, '_RECEIPT_RETRY', 0.05)
+        async with smpp.connect('127.0.0.1', sim.port, 'u', 'p') as c:
+            sent = [
+                await c.send('+306900000001', f'm{i}', receipt=True) for i in range(3)
+            ]
+            await asyncio.sleep(0.2)  # receipts 2 and 3 meet a full queue
+            got = []
+
+            async def three():
+                async for m in c.messages():
+                    got.append(m.receipt.id)
+                    if len(got) == 3:
+                        return
+
+            await asyncio.wait_for(three(), 2)
+        assert sorted(got) == sorted(r.message_ids[0] for r in sent)
+
     @pytest.mark.parametrize('sim', [(('NONE', 1),)], indirect=True)
     async def test_stat_none_sends_no_receipt(self, sim):
         async with smpp.connect('127.0.0.1', sim.port, 'u', 'p') as c:

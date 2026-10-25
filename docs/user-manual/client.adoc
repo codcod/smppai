@@ -43,8 +43,10 @@ mid-sequence carries `.sent_message_ids`.
 An async iterator of inbound `Message` objects. Only one consumer may iterate
 at a time; a second concurrent `messages()` raises `RuntimeError`. Messages
 are queued from the moment `connect()` binds; up to 1000 unread messages are
-buffered, and beyond that the oldest are dropped. A warning is logged once
-when dropping starts, and once more, with the count, when there is room again.
+buffered. Beyond that, each new `deliver_sm` or `data_sm` is refused with
+`ESME_RTHROTTLED`, so the SMSC keeps it and resends it later; nothing already
+acknowledged is dropped. A warning is logged once when throttling starts, and
+once more, with the count, when there is room again.
 A concatenated message whose parts stay incomplete for 5 minutes is discarded.
 At most 1000 incomplete concatenated messages are held at once; beyond that
 the oldest is discarded.
@@ -331,15 +333,16 @@ required, and unset ones are simply skipped:
 | Handler | Signature
 
 | `on_deliver_sm`
-| `(client, pdu: DeliverSm) -> None` — inbound message or delivery receipt.
-  Check `pdu.esm_class & 0x04` to tell a delivery receipt from a
-  mobile-originated message. The client auto-acknowledges with
-  `deliver_sm_resp` before this handler runs.
+| `(client, pdu: DeliverSm) -> int | None` — inbound message or delivery
+  receipt. Check `pdu.esm_class & 0x04` to tell a delivery receipt from a
+  mobile-originated message. The client acknowledges with `deliver_sm_resp`
+  after this handler returns, with the `command_status` it returns, or
+  `ESME_ROK` for `None` (and when it raises).
 
 | `on_data_sm`
-| `(client, pdu: DataSm) -> None` — SMSC-initiated `data_sm`. When this
-  handler is set, the client auto-acknowledges with `data_sm_resp` before it
-  runs. Without a handler, the client refuses the `data_sm` with
+| `(client, pdu: DataSm) -> int | None` — SMSC-initiated `data_sm`. When this
+  handler is set, the client acknowledges with `data_sm_resp` after it
+  returns, with its status as for `on_deliver_sm`. Without a handler, the client refuses the `data_sm` with
   `data_sm_resp` `ESME_RX_R_APPN` ("receiver reject message"), so the SMSC knows
   it was not delivered. Read the
   content with `pdu.get_message_text()` or `pdu.get_message_payload()`.
