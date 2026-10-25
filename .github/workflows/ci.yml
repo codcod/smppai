@@ -110,6 +110,9 @@ jobs:
           - python-version: "3.12"
             os: "ubuntu-latest"
             coverage: false
+          - python-version: "3.14"
+            os: "ubuntu-latest"
+            coverage: false
           # --- Full test on latest
           - python-version: "3.13"
             os: "ubuntu-latest"

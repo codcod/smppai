@@ -3,7 +3,7 @@ name = "smppai"
 version = "0.12.3"
 description = "Async SMPP (Short Message Peer-to-Peer) Protocol v3.4 Implementation"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10,<3.15"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -14,6 +14,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Operating System :: OS Independent",
 ]
