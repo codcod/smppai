@@ -245,10 +245,11 @@ jobs:
     - name: Check package
       run: uv run twine check dist/*
 
+    # uv's Python, not the runner's: its default can be newer than requires-python
     - name: Test installation
-      run: |
-        pip install dist/*.whl
-        python -c "import smpp; print('Package installs correctly')"
+      run: >-
+        uv run --isolated --no-project --python ${{ env.PRIMARY_PYTHON_VERSION }}
+        --with dist/*.whl python -c "import smpp; print('Package installs correctly')"
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v7
