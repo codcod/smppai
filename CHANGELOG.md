@@ -1,6 +1,37 @@
 # CHANGELOG
 
 
+## v0.12.3 (2026-10-25)
+
+### Bug Fixes
+
+- **client**: Throttle the SMSC when the inbound queue is full
+  ([`ecf1be6`](https://github.com/codcod/smppai/commit/ecf1be61140428c3652b7db5e6a01ab147ef4bc0))
+
+### Build System
+
+- **deps**: Drop unused dependencies and dead tool config (SMP-031)
+  ([`0de32d1`](https://github.com/codcod/smppai/commit/0de32d16604389ab971421f3a84a1514a0955306))
+
+### Chores
+
+- **deps-dev**: Bump ruff from 0.17.0 to 0.17.1
+  ([`3c6dff1`](https://github.com/codcod/smppai/commit/3c6dff1db57f23f6e61b67409fd5137728604f44))
+
+### Code Style
+
+- **examples**: Alias datetime as dt for ruff 0.17 ICN001
+  ([`b733a64`](https://github.com/codcod/smppai/commit/b733a640a5ba02a1fa92bc39d8ed28e900901f50))
+
+### Continuous Integration
+
+- Lint and format-check examples
+  ([`bf04bfe`](https://github.com/codcod/smppai/commit/bf04bfec4539a414efe3e742ddf0f1f6a6dd1073))
+
+- Test the wheel install with uv's Python, not the runner's
+  ([`45e462c`](https://github.com/codcod/smppai/commit/45e462c4976a8ead4aedd05e3d3f5e724af53c9f))
+
+
 ## v0.12.2 (2026-10-18)
 
 ### Bug Fixes
