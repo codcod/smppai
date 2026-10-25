@@ -2,8 +2,8 @@
 Simulator SMSC, for testing an ESME without a carrier
 
 Accepts any bind, answers each submit_sm that asks for a delivery receipt
-with one after a delay and a weighted-random outcome, and injects MO from
-POST /mo. For testing only: binds and HTTP are unauthenticated.
+with one after a delay and a weighted-random outcome (resent while the ESME
+refuses it, up to 30 s), and injects MO from POST /mo. For testing only: binds and HTTP are unauthenticated.
 
     python -m smpp.sim --receipt-delay 0.5 --stat DELIVRD:9 --stat UNDELIV:1
     curl -X POST 'localhost:2776/mo?from=%2B306900000001&to=1234&text=hi'
@@ -40,6 +40,9 @@ logger = logging.getLogger(__name__)
 Stat = tp.Tuple[str, int]
 
 _DATE = '%y%m%d%H%M'
+# ponytail: fixed schedule; make it a Simulator argument if a test needs another
+_RECEIPT_TRIES = 30  # a refused (e.g. throttled) receipt is resent, like a real SMSC
+_RECEIPT_RETRY = 1.0  # seconds between tries
 
 
 class Simulator:
@@ -118,17 +121,22 @@ class Simulator:
             f'submit date:{submitted:{_DATE}} done date:{datetime.now():{_DATE}} '
             f'stat:{stat} err:{"000" if ok else "001"} text:{snippet}'
         )
-        sent = await self.server.raw.deliver_sm(
-            target_system_id=system_id,
-            source_addr=msg.to.addr,
-            destination_addr=msg.sender.addr,
-            short_message=text,
-            source_addr_ton=msg.to.ton,
-            source_addr_npi=msg.to.npi,
-            dest_addr_ton=msg.sender.ton,
-            dest_addr_npi=msg.sender.npi,
-            esm_class=0x04,
-        )
+        for attempt in range(_RECEIPT_TRIES):
+            if attempt:
+                await asyncio.sleep(_RECEIPT_RETRY)
+            sent = await self.server.raw.deliver_sm(
+                target_system_id=system_id,
+                source_addr=msg.to.addr,
+                destination_addr=msg.sender.addr,
+                short_message=text,
+                source_addr_ton=msg.to.ton,
+                source_addr_npi=msg.to.npi,
+                dest_addr_ton=msg.sender.ton,
+                dest_addr_npi=msg.sender.npi,
+                esm_class=0x04,
+            )
+            if sent:
+                break
         if sent:
             logger.info('receipt %s %s to %s', message_id, stat, system_id)
         else:

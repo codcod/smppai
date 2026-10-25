@@ -2272,3 +2272,16 @@ class TestDataSmLoopback:
             await client.disconnect()
         assert isinstance(resp, DataSmResp)
         assert resp.command_status == CommandStatus.ESME_RX_R_APPN
+
+    async def test_inbound_deliver_sm_resp_carries_handler_status(self, data_sm_server):
+        client = await self._client(data_sm_server)
+        client.on_deliver_sm = lambda c, pdu: CommandStatus.ESME_RTHROTTLED
+        try:
+            session = next(s for s in data_sm_server._clients.values() if s.bound)
+            pdu = DeliverSm(source_addr='222', destination_addr='111')
+            pdu.set_message_text('inbound')
+            resp = await session.connection.send_pdu(pdu, wait_response=True, timeout=2)
+        finally:
+            await client.disconnect()
+        assert isinstance(resp, DeliverSmResp)
+        assert resp.command_status == CommandStatus.ESME_RTHROTTLED

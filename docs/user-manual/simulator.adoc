@@ -63,8 +63,8 @@ depends on bits 0-1 of the submit's `registered_delivery` (SMPP 3.4
 The receipt is a `deliver_sm` with `esm_class=0x04`, from the submit's
 destination to its source, sent to a receiver or transceiver session bound
 with the same `system_id` as the submitter. If none is bound when the delay
-runs out, the receipt is logged and dropped: there is no retry and no
-queue. Its text follows SMPP 3.4 Appendix B, which smppai's client parses
+runs out, or the ESME refuses the receipt (`ESME_RTHROTTLED`, say), it is
+resent every second, up to 30 tries, then logged and dropped. Its text follows SMPP 3.4 Appendix B, which smppai's client parses
 into `msg.receipt`:
 
 ----

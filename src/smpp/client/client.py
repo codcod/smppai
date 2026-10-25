@@ -132,10 +132,13 @@ class SMPPClient:
         self._bound = False
 
         # Event handlers
+        # A handler may return a command_status for the resp; None = ESME_ROK
         self.on_deliver_sm: tp.Optional[
-            tp.Callable[['SMPPClient', DeliverSm], None]
+            tp.Callable[['SMPPClient', DeliverSm], tp.Optional[int]]
         ] = None
-        self.on_data_sm: tp.Optional[tp.Callable[['SMPPClient', DataSm], None]] = None
+        self.on_data_sm: tp.Optional[
+            tp.Callable[['SMPPClient', DataSm], tp.Optional[int]]
+        ] = None
         self.on_connection_lost: tp.Optional[
             tp.Callable[['SMPPClient', Exception], None]
         ] = None
@@ -881,15 +884,19 @@ class SMPPClient:
             'Received deliver_sm from %s to %s', pdu.source_addr, pdu.destination_addr
         )
 
-        # Send deliver_sm_resp automatically
-        asyncio.create_task(self._send_deliver_sm_resp(pdu.sequence_number))
-
-        # Trigger deliver_sm event
+        # The handler runs first, so its status (ESME_RTHROTTLED, say) goes in the resp
+        status = None
         if self.on_deliver_sm:
             try:
-                self.on_deliver_sm(self, pdu)
+                status = self.on_deliver_sm(self, pdu)
             except Exception as e:
                 logger.exception(f'Error in deliver_sm handler: {e}')
+        asyncio.create_task(
+            self._send_deliver_sm_resp(
+                pdu.sequence_number,
+                CommandStatus.ESME_ROK if status is None else status,
+            )
+        )
 
     def _handle_data_sm(self, pdu: DataSm) -> None:
         """Handle an SMSC-initiated data_sm: acknowledge (or refuse if unhandled), then notify"""
@@ -897,16 +904,20 @@ class SMPPClient:
             'Received data_sm from %s to %s', pdu.source_addr, pdu.destination_addr
         )
 
-        status = (
-            CommandStatus.ESME_ROK if self.on_data_sm else CommandStatus.ESME_RX_R_APPN
-        )
-        asyncio.create_task(self._send_data_sm_resp(pdu.sequence_number, status))
-
+        status = None
         if self.on_data_sm:
             try:
-                self.on_data_sm(self, pdu)
+                status = self.on_data_sm(self, pdu)
             except Exception as e:
                 logger.exception(f'Error in data_sm handler: {e}')
+        else:
+            status = CommandStatus.ESME_RX_R_APPN
+        asyncio.create_task(
+            self._send_data_sm_resp(
+                pdu.sequence_number,
+                CommandStatus.ESME_ROK if status is None else status,
+            )
+        )
 
     async def _send_data_sm_resp(
         self, sequence_number: int, status: int = CommandStatus.ESME_ROK
@@ -921,10 +932,14 @@ class SMPPClient:
         except Exception as e:
             logger.error(f'Failed to send data_sm_resp: {e}')
 
-    async def _send_deliver_sm_resp(self, sequence_number: int) -> None:
+    async def _send_deliver_sm_resp(
+        self, sequence_number: int, status: int = CommandStatus.ESME_ROK
+    ) -> None:
         """Send deliver_sm_resp"""
         try:
-            resp_pdu = DeliverSmResp(sequence_number=sequence_number)
+            resp_pdu = DeliverSmResp(
+                sequence_number=sequence_number, command_status=status
+            )
             if self._connection is not None:
                 await self._connection.send_pdu(resp_pdu, wait_response=False)
         except Exception as e:
