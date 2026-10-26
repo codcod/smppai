@@ -5,7 +5,13 @@ import pytest
 from smpp.exceptions import SMPPPDUException
 from smpp.protocol.constants import CommandId, CommandStatus
 from smpp.protocol.pdu.base import PDU
-from smpp.protocol.pdu.bind import BindTransmitter, BindTransmitterResp
+from smpp.protocol.pdu.bind import (
+    BindReceiver,
+    BindTransceiver,
+    BindTransmitter,
+    BindTransmitterResp,
+    Outbind,
+)
 from smpp.protocol.pdu.message import SubmitSm, SubmitSmResp
 from smpp.protocol.pdu.session import EnquireLink, EnquireLinkResp, GenericNack
 from smpp.protocol.pdu.factory import (
@@ -200,6 +206,14 @@ class TestCreateResponsePDU:
 class TestCreateErrorResponse:
     """Test create_error_response function."""
 
+    def test_request_without_response_type_gets_generic_nack(self):
+        nack = create_error_response(
+            Outbind(sequence_number=5), CommandStatus.ESME_RSYSERR
+        )
+        assert isinstance(nack, GenericNack)
+        assert nack.sequence_number == 5
+        assert nack.command_status == CommandStatus.ESME_RSYSERR
+
     def test_create_error_response_basic(self):
         """Test creating basic error response."""
         request = BindTransmitter(sequence_number=42, system_id='test')
@@ -300,6 +314,12 @@ class TestDecodePDU:
 
 class TestHelperFunctions:
     """Test helper factory functions."""
+
+    @pytest.mark.parametrize(
+        'bind_type,cls', [('receiver', BindReceiver), ('Transceiver', BindTransceiver)]
+    )
+    def test_create_bind_pdu_types(self, bind_type, cls):
+        assert isinstance(create_bind_pdu(bind_type, 'esme', 'pw'), cls)
 
     def test_create_bind_pdu(self):
         """Test create_bind_pdu helper."""

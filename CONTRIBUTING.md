@@ -172,7 +172,8 @@ uv run pytest tests/unit/test_specific.py::TestClass::test_method
 - Place unit tests in `tests/unit/`
 - Use descriptive test names
 - Follow the existing test patterns
-- Ensure good test coverage
+- Keep line coverage of `src/smpp` at or above 95%. `fail_under` in
+  `pyproject.toml` enforces it, and `make test-cov` and CI fail below it
 - Mock external dependencies
 
 ## 📋 Code Style

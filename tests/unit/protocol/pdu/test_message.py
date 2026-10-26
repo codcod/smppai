@@ -16,6 +16,16 @@ from smpp.protocol.pdu.message import (
 class TestStandardMessagePDU:
     """Test StandardMessagePDU base class."""
 
+    @pytest.mark.parametrize('cls', [SubmitSm, DeliverSm])
+    def test_truncated_body_raises_pdu_exception(self, cls):
+        """Every proper prefix of a valid body fails with SMPPPDUException only."""
+        body = cls(
+            source_addr='123', destination_addr='456', short_message=b'hi'
+        ).encode_body()
+        for n in range(len(body)):
+            with pytest.raises(SMPPPDUException):
+                cls().decode_body(body[:n])
+
     def test_encode_body_basic(self):
         """Test StandardMessagePDU body encoding with basic data."""
 
@@ -420,6 +430,12 @@ class TestSubmitSm:
 class TestSubmitSmResp:
     """Test SubmitSmResp PDU."""
 
+    def test_validate_rejects_long_message_id(self):
+        pdu = SubmitSmResp(message_id='x' * 65)
+        pdu.encode_body = lambda: b''  # encoder rejects it before validate's check
+        with pytest.raises(SMPPPDUException, match='message_id too long'):
+            pdu.validate()
+
     def test_init_default(self):
         """Test SubmitSmResp initialization."""
         pdu = SubmitSmResp()
@@ -473,6 +489,33 @@ class TestSubmitSmResp:
 class TestDeliverSm:
     """Test DeliverSm PDU."""
 
+    def test_mobile_originated_vs_receipt(self):
+        pdu = DeliverSm()
+        assert pdu.is_mobile_originated()
+        pdu.esm_class |= 0x04
+        assert not pdu.is_mobile_originated()
+
+    def test_parse_delivery_receipt_rejects_non_receipt(self):
+        with pytest.raises(SMPPPDUException, match='not a delivery receipt'):
+            DeliverSm().parse_delivery_receipt()
+
+    def test_create_delivery_receipt_round_trip(self):
+        pdu = DeliverSm()
+        pdu.create_delivery_receipt(
+            'abc123', 'DELIVRD', submit_date='2401020304', done_date='2401020305'
+        )
+        assert pdu.is_delivery_receipt()
+        assert pdu.parse_delivery_receipt() == {
+            'id': 'abc123',
+            'sub': '001',
+            'dlvrd': '001',
+            'submit_date': '2401020304',
+            'done_date': '2401020305',
+            'stat': 'DELIVRD',
+            'err': '000',
+            'text': '',
+        }
+
     def test_init_default(self):
         """Test DeliverSm initialization."""
         pdu = DeliverSm()
@@ -509,6 +552,12 @@ class TestDeliverSm:
 
 class TestDeliverSmResp:
     """Test DeliverSmResp PDU."""
+
+    def test_validate_rejects_long_message_id(self):
+        pdu = DeliverSmResp(message_id='x' * 65)
+        pdu.encode_body = lambda: b''  # encoder rejects it before validate's check
+        with pytest.raises(SMPPPDUException, match='message_id too long'):
+            pdu.validate()
 
     def test_init_default(self):
         """Test DeliverSmResp initialization."""

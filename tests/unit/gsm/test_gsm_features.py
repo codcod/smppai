@@ -2,6 +2,8 @@
 Unit tests for GSM functionality.
 """
 
+import codecs
+
 import pytest
 from smpp.gsm import (
     encode_gsm7,
@@ -14,7 +16,7 @@ from smpp.gsm import (
     ConcatenatedSMSHeader,
 )
 from smpp.exceptions import SMPPPDUException
-from smpp.gsm.encoding import GSM_7BIT_BASIC, GSM_7BIT_EXTENDED
+from smpp.gsm.encoding import GSM_7BIT_BASIC, GSM_7BIT_EXTENDED, decode_gsm0338
 from smpp.protocol.constants import DataCoding
 from smpp.protocol.pdu.message import SubmitSm
 
@@ -67,6 +69,14 @@ class TestGSM7BitEncoding:
 class TestGSM0338Codec:
     """Test the unpacked 'gsm0338' codec used for data_coding 0."""
 
+    def test_esc_before_high_byte_is_dropped(self):
+        # The ESC is dropped and the high byte goes to the error handler.
+        assert decode_gsm0338(b'\x1b\x80', errors='replace') == '\ufffd'
+
+    def test_codec_search_ignores_other_names(self):
+        with pytest.raises(LookupError):
+            codecs.lookup('not-a-real-codec-smppai')
+
     def test_round_trip_basic_table(self):
         text = GSM_7BIT_BASIC.replace('\x1b', '')
         encoded = text.encode('gsm0338')
@@ -103,6 +113,42 @@ class TestGSM0338Codec:
 
 class TestUDH:
     """Test UDH handling."""
+
+    def test_empty_udh(self):
+        udh = UDH()
+        assert udh.encode() == b''
+        assert udh.get_length() == 0
+
+    def test_get_length_matches_encoding(self):
+        udh = UDH()
+        udh.add_element(UDH.IEI_CONCATENATED_SMS_8BIT, b'\x01\x02\x01')
+        udh.add_element(UDH.IEI_APPLICATION_PORT_8BIT, b'\x10\x20')
+        assert udh.get_length() == len(udh.encode()) == 10
+
+    @pytest.mark.parametrize(
+        'data,match',
+        [
+            (b'', 'UDH length'),
+            (b'\x05\x00', 'UDH content'),
+            (b'\x01\x00', 'element header'),
+            (b'\x02\x00\x03', 'element data'),
+        ],
+    )
+    def test_decode_rejects_truncated(self, data, match):
+        with pytest.raises(ValueError, match=match):
+            UDH.decode(data)
+
+    @pytest.mark.parametrize(
+        'element,match',
+        [
+            (UDHElement(UDH.IEI_CONCATENATED_SMS_8BIT, b'\x01'), '8-bit'),
+            (UDHElement(UDH.IEI_CONCATENATED_SMS_16BIT, b'\x01'), '16-bit'),
+            (UDHElement(UDH.IEI_APPLICATION_PORT_8BIT, b'\x01\x02'), 'Invalid'),
+        ],
+    )
+    def test_concat_header_rejects_bad_element(self, element, match):
+        with pytest.raises(ValueError, match=match):
+            ConcatenatedSMSHeader.from_udh_element(element)
 
     def test_concatenated_sms_8bit(self):
         """Test 8-bit concatenated SMS UDH."""
