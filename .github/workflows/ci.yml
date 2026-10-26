@@ -8,7 +8,6 @@ on:
 
 env:
   PRIMARY_PYTHON_VERSION: '3.13'
-  UV_CACHE_DIR: ~/.cache/uv
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
 
