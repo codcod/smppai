@@ -107,7 +107,6 @@ class SMPPConnection:
         self._receive_task: tp.Optional[asyncio.Task] = None
         self._enquire_link_task: tp.Optional[asyncio.Task] = None
         self._cleanup_task: tp.Optional[asyncio.Task] = None
-        self._last_activity = time.time()
 
         # Event handlers
         self.on_pdu_received: tp.Optional[tp.Callable[[PDU], None]] = None
@@ -166,7 +165,6 @@ class SMPPConnection:
         """Mark the connection open and start its background tasks."""
         self._connected = True
         self._set_state(ConnectionState.OPEN)
-        self._last_activity = time.time()
 
         # Start background tasks
         self._receive_task = asyncio.create_task(self._receive_loop())
@@ -303,8 +301,6 @@ class SMPPConnection:
                 self._send_data(data), timeout=timeout or self.write_timeout
             )
 
-            self._last_activity = time.time()
-
             # Wait for response if requested
             if wait_response and response_future:
                 try:
@@ -415,7 +411,6 @@ class SMPPConnection:
 
             # Decode PDU
             pdu = decode_pdu(full_data)
-            self._last_activity = time.time()
 
             logger.debug(
                 'Received PDU: %s (seq=%d, len=%d)',
