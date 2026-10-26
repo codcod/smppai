@@ -21,6 +21,14 @@ from smpp.protocol.pdu.bind import (
 class TestBindTransmitter:
     """Test BindTransmitter PDU."""
 
+    def test_encode_body_wraps_validation_error(self):
+        with pytest.raises(SMPPPDUException, match='Invalid bind parameters'):
+            BindTransmitter(system_id='').encode_body()
+
+    def test_decode_body_truncated_fixed_fields(self):
+        with pytest.raises(SMPPPDUException, match='Insufficient data for bind fields'):
+            BindTransmitter().decode_body(b'esme\x00pw\x00\x00\x34')
+
     def test_init_default(self):
         """Test BindTransmitter initialization with defaults."""
         pdu = BindTransmitter()

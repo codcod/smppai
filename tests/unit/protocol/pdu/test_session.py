@@ -3,7 +3,7 @@
 import pytest
 
 from smpp.exceptions import SMPPPDUException
-from smpp.protocol.constants import CommandId, CommandStatus
+from smpp.protocol.constants import CommandId, CommandStatus, MessageState
 from smpp.protocol.pdu.factory import decode_pdu, get_pdu_class
 from smpp.protocol.pdu.session import (
     EnquireLink,
@@ -19,6 +19,37 @@ from smpp.protocol.pdu.session import (
     ReplaceSm,
     ReplaceSmResp,
 )
+
+
+def _validate_fields(pdu):
+    """Run pdu.validate() with the body encoder stubbed out.
+
+    PDU.validate measures the PDU by encoding it, and the encoders reject
+    over-long or out-of-range fields first. The stub lets the field checks
+    in each validate() run.
+    """
+    pdu.encode_body = lambda: b''
+    pdu.validate()
+
+
+_TRUNCATABLE = [
+    AlertNotification(source_addr='123', esme_addr='456'),
+    DataSm(source_addr='123', destination_addr='456'),
+    QuerySm(message_id='m1', source_addr='123'),
+    QuerySmResp(message_id='m1', final_date='', message_state=2),
+    CancelSm(message_id='m1', source_addr='123', destination_addr='456'),
+    ReplaceSm(message_id='m1', source_addr='123', short_message=b'hello'),
+]
+
+
+@pytest.mark.parametrize('pdu', _TRUNCATABLE, ids=lambda p: type(p).__name__)
+def test_truncated_body_raises_pdu_exception(pdu):
+    """Every proper prefix of a valid body fails with SMPPPDUException only."""
+    body = pdu.encode_body()
+    for n in range(len(body)):
+        with pytest.raises(SMPPPDUException):
+            type(pdu)().decode_body(body[:n])
+    assert type(pdu)().decode_body(body) == len(body)
 
 
 class TestEnquireLink:
@@ -141,6 +172,21 @@ class TestGenericNack:
 class TestAlertNotification:
     """Test AlertNotification PDU."""
 
+    @pytest.mark.parametrize(
+        'kwargs,match',
+        [
+            ({'source_addr': 'x' * 21}, 'source_addr too long'),
+            ({'esme_addr': 'x' * 21}, 'esme_addr too long'),
+            ({'source_addr_ton': 256}, 'invalid source_addr_ton'),
+            ({'source_addr_npi': 256}, 'invalid source_addr_npi'),
+            ({'esme_addr_ton': 256}, 'invalid esme_addr_ton'),
+            ({'esme_addr_npi': -1}, 'invalid esme_addr_npi'),
+        ],
+    )
+    def test_validate_rejects(self, kwargs, match):
+        with pytest.raises(SMPPPDUException, match=match):
+            _validate_fields(AlertNotification(**{**kwargs}))
+
     def test_init_default(self):
         """Test AlertNotification initialization."""
         pdu = AlertNotification()
@@ -215,6 +261,30 @@ class TestAlertNotification:
 class TestDataSm:
     """Test DataSm PDU."""
 
+    @pytest.mark.parametrize(
+        'kwargs,match',
+        [
+            ({'service_type': 'x' * 6}, 'service_type too long'),
+            ({'source_addr': 'x' * 21}, 'source_addr too long'),
+            ({'destination_addr': 'x' * 21}, 'destination_addr too long'),
+            ({'source_addr_ton': 256}, 'invalid source_addr_ton'),
+            ({'source_addr_npi': 256}, 'invalid source_addr_npi'),
+            ({'dest_addr_ton': 256}, 'invalid dest_addr_ton'),
+            ({'dest_addr_npi': 256}, 'invalid dest_addr_npi'),
+            ({'esm_class': 256}, 'invalid esm_class'),
+            ({'registered_delivery': 256}, 'invalid registered_delivery'),
+            ({'data_coding': 256}, 'invalid data_coding'),
+        ],
+    )
+    def test_validate_rejects(self, kwargs, match):
+        with pytest.raises(SMPPPDUException, match=match):
+            _validate_fields(DataSm(**{**kwargs}))
+
+    def test_get_message_text_replaces_undecodable_bytes(self):
+        pdu = DataSm(data_coding=0x08)  # UCS-2; an odd byte count can't decode
+        pdu.set_message_payload(b'\x00A\x00')
+        assert pdu.get_message_text() == 'A\ufffd'
+
     def test_init_default(self):
         """Test DataSm initialization."""
         pdu = DataSm()
@@ -275,6 +345,10 @@ class TestDataSm:
 class TestDataSmResp:
     """Test DataSmResp PDU."""
 
+    def test_validate_rejects_long_message_id(self):
+        with pytest.raises(SMPPPDUException, match='message_id too long'):
+            _validate_fields(DataSmResp(message_id='x' * 65))
+
     def test_init_default(self):
         """Test DataSmResp initialization."""
         pdu = DataSmResp()
@@ -311,6 +385,20 @@ class TestDataSmResp:
 
 class TestQuerySm:
     """Test QuerySm PDU."""
+
+    @pytest.mark.parametrize(
+        'kwargs,match',
+        [
+            ({'message_id': ''}, 'message_id cannot be empty'),
+            ({'message_id': 'x' * 65}, 'message_id too long'),
+            ({'source_addr': 'x' * 21}, 'source_addr too long'),
+            ({'source_addr_ton': 256}, 'invalid source_addr_ton'),
+            ({'source_addr_npi': 256}, 'invalid source_addr_npi'),
+        ],
+    )
+    def test_validate_rejects(self, kwargs, match):
+        with pytest.raises(SMPPPDUException, match=match):
+            _validate_fields(QuerySm(**{'message_id': 'm1', **kwargs}))
 
     def test_init_default(self):
         """Test QuerySm initialization."""
@@ -377,6 +465,32 @@ class TestQuerySm:
 
 class TestQuerySmResp:
     """Test QuerySmResp PDU."""
+
+    @pytest.mark.parametrize(
+        'kwargs,match',
+        [
+            ({'message_id': 'x' * 65}, 'message_id too long'),
+            ({'final_date': 'x' * 17}, 'final_date too long'),
+            ({'message_state': 256}, 'invalid message_state'),
+            ({'error_code': 256}, 'invalid error_code'),
+        ],
+    )
+    def test_validate_rejects(self, kwargs, match):
+        with pytest.raises(SMPPPDUException, match=match):
+            _validate_fields(QuerySmResp(**{**kwargs}))
+
+    @pytest.mark.parametrize('state', list(MessageState))
+    def test_get_message_state_name(self, state):
+        assert QuerySmResp(message_state=state).get_message_state_name() == state.name
+        assert QuerySmResp(message_state=int(state)).get_message_state_name() == (
+            state.name
+        )
+
+    @pytest.mark.parametrize('value', [0, 9, 200])
+    def test_get_message_state_name_unknown(self, value):
+        assert QuerySmResp(message_state=value).get_message_state_name() == (
+            f'UNKNOWN_{value}'
+        )
 
     def test_init_default(self):
         """Test QuerySmResp initialization."""
@@ -455,6 +569,24 @@ class TestQuerySmResp:
 
 class TestCancelSm:
     """Test CancelSm PDU."""
+
+    @pytest.mark.parametrize(
+        'kwargs,match',
+        [
+            ({'message_id': ''}, 'message_id cannot be empty'),
+            ({'message_id': 'x' * 65}, 'message_id too long'),
+            ({'service_type': 'x' * 6}, 'service_type too long'),
+            ({'source_addr': 'x' * 21}, 'source_addr too long'),
+            ({'destination_addr': 'x' * 21}, 'destination_addr too long'),
+            ({'source_addr_ton': 256}, 'invalid source_addr_ton'),
+            ({'source_addr_npi': 256}, 'invalid source_addr_npi'),
+            ({'dest_addr_ton': 256}, 'invalid dest_addr_ton'),
+            ({'dest_addr_npi': 256}, 'invalid dest_addr_npi'),
+        ],
+    )
+    def test_validate_rejects(self, kwargs, match):
+        with pytest.raises(SMPPPDUException, match=match):
+            _validate_fields(CancelSm(**{'message_id': 'm1', **kwargs}))
 
     def test_init_default(self):
         """Test CancelSm initialization."""
@@ -535,6 +667,23 @@ class TestCancelSmResp:
 
 class TestReplaceSm:
     """Test ReplaceSm PDU."""
+
+    @pytest.mark.parametrize(
+        'kwargs,match',
+        [
+            ({'message_id': ''}, 'message_id cannot be empty'),
+            ({'message_id': 'x' * 65}, 'message_id too long'),
+            ({'source_addr': 'x' * 21}, 'source_addr too long'),
+            ({'source_addr_ton': 256}, 'invalid source_addr_ton'),
+            ({'source_addr_npi': 256}, 'invalid source_addr_npi'),
+            ({'registered_delivery': 256}, 'invalid registered_delivery'),
+            ({'sm_default_msg_id': 256}, 'invalid sm_default_msg_id'),
+            ({'short_message': b'x' * 255}, 'short_message too long'),
+        ],
+    )
+    def test_validate_rejects(self, kwargs, match):
+        with pytest.raises(SMPPPDUException, match=match):
+            _validate_fields(ReplaceSm(**{'message_id': 'm1', **kwargs}))
 
     def test_init_default(self):
         """Test ReplaceSm initialization."""

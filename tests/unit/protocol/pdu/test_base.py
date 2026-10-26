@@ -5,7 +5,37 @@ import struct
 
 from smpp.exceptions import SMPPPDUException, SMPPValidationException
 from smpp.protocol.constants import CommandStatus, OptionalTag
-from smpp.protocol.pdu.base import TLVParameter, PDU, BindRequestPDU, MessagePDU
+from smpp.gsm.udh import UDH
+from smpp.protocol.pdu import (
+    EnquireLink,
+    EnquireLinkResp,
+    SubmitSm,
+)
+from smpp.protocol.pdu.base import (
+    TLVParameter,
+    PDU,
+    BindRequestPDU,
+    BindResponsePDU,
+    MessagePDU,
+)
+
+
+class _BareBind(BindRequestPDU):
+    # Empty body: the Standard* encoders validate on their own and would
+    # raise before BindRequestPDU.validate's checks run.
+    def encode_body(self):
+        return b''
+
+    def decode_body(self, data, offset=0):
+        return offset
+
+
+class _BareBindResp(BindResponsePDU):
+    def encode_body(self):
+        return b''
+
+    def decode_body(self, data, offset=0):
+        return offset
 
 
 class TestTLVParameter:
@@ -454,6 +484,186 @@ class TestMessagePDU:
         assert pdu.sm_default_msg_id == 0
         assert pdu.short_message == b'Hello World'
 
+    @pytest.mark.parametrize(
+        'field,value,match',
+        [
+            ('service_type', 'x' * 7, 'service_type too long'),
+            ('source_addr', 'x' * 22, 'source_addr too long'),
+            ('destination_addr', 'x' * 22, 'destination_addr too long'),
+            ('short_message', b'x' * 255, 'short_message too long'),
+            ('source_addr_ton', 256, 'invalid source_addr_ton'),
+            ('source_addr_npi', -1, 'invalid source_addr_npi'),
+            ('dest_addr_ton', 256, 'invalid dest_addr_ton'),
+            ('dest_addr_npi', 256, 'invalid dest_addr_npi'),
+            ('esm_class', 256, 'invalid esm_class'),
+            ('protocol_id', 256, 'invalid protocol_id'),
+            ('priority_flag', 4, 'invalid priority_flag'),
+            ('registered_delivery', 256, 'invalid registered_delivery'),
+            ('replace_if_present_flag', 2, 'invalid replace_if_present_flag'),
+            ('data_coding', 256, 'invalid data_coding'),
+            ('sm_default_msg_id', 256, 'invalid sm_default_msg_id'),
+        ],
+    )
+    def test_validate_rejects(self, field, value, match):
+        # Empty body, so PDU.validate's length check doesn't run the
+        # SubmitSm encoder (which has its own validation) first.
+        class TestMessage(MessagePDU):
+            def encode_body(self):
+                return b''
+
+            def decode_body(self, data, offset=0):
+                return offset
+
+        with pytest.raises(SMPPPDUException, match=match):
+            TestMessage(**{field: value}).validate()
+
+    def test_set_udh_prefixes_content_and_sets_flag(self):
+        pdu = SubmitSm(short_message=b'hi')
+        udh = UDH()
+        udh.add_element(UDH.IEI_CONCATENATED_SMS_8BIT, b'\x01\x02\x01')
+        pdu.set_udh(udh)
+        assert pdu.esm_class & 0x40
+        assert pdu.short_message == udh.encode() + b'hi'
+        assert pdu.get_message_content() == b'hi'
+
+    def test_concatenated_info_16bit(self):
+        pdu = SubmitSm()
+        udh = UDH()
+        udh.add_element(UDH.IEI_CONCATENATED_SMS_16BIT, b'\x01\x02\x03\x01')
+        pdu.set_udh(udh)
+        info = pdu.get_concatenated_info()
+        assert (info.reference, info.total_parts, info.part_number) == (0x0102, 3, 1)
+        assert info.use_16bit_ref
+
+    def test_concatenated_info_none_without_concat_element(self):
+        pdu = SubmitSm()
+        udh = UDH()
+        udh.add_element(UDH.IEI_APPLICATION_PORT_8BIT, b'\x01\x02')
+        pdu.set_udh(udh)
+        assert pdu.get_concatenated_info() is None
+
+    def test_malformed_udh_falls_back(self):
+        # UDH flag set, but the length byte claims more data than there is.
+        pdu = SubmitSm(esm_class=0x40, short_message=b'\x09ab')
+        assert pdu.get_udh() is None
+        assert pdu.get_message_content() == b'\x09ab'
+
+
+class TestPDUHelpers:
+    """Optional-parameter helpers, request/response mapping and dunders."""
+
+    def test_has_and_clear_optional_parameters(self):
+        pdu = EnquireLink()
+        pdu.add_optional_parameter(0x1400, b'\x01')
+        assert pdu.has_optional_parameter(0x1400)
+        assert not pdu.has_optional_parameter(0x1401)
+        pdu.clear_optional_parameters()
+        assert pdu.optional_parameters == []
+
+    def test_remove_optional_parameter(self):
+        pdu = EnquireLink()
+        pdu.add_optional_parameter(0x1400, b'\x01')
+        assert pdu.remove_optional_parameter(0x1400) is True
+        assert pdu.remove_optional_parameter(0x1400) is False
+
+    def test_corresponding_command_ids(self):
+        req, resp = EnquireLink(), EnquireLinkResp()
+        assert req.get_corresponding_response_command_id() == resp.command_id
+        assert resp.get_corresponding_request_command_id() == req.command_id
+        with pytest.raises(SMPPPDUException, match='already a response'):
+            resp.get_corresponding_response_command_id()
+        with pytest.raises(SMPPPDUException, match='already a request'):
+            req.get_corresponding_request_command_id()
+
+    def test_repr_eq_hash(self):
+        # @dataclass subclasses generate their own __repr__/__eq__ and set
+        # __hash__ = None, so PDU's versions only run on a plain subclass.
+        a = _BareBindResp(command_id=0x80000002, sequence_number=7)
+        b = _BareBindResp(command_id=0x80000002, sequence_number=7)
+        assert repr(a) == (
+            '_BareBindResp(command_id=0x80000002, command_status=0x00000000, '
+            'sequence_number=7, optional_parameters=0)'
+        )
+        assert a == b and hash(a) == hash(b)
+        assert a != _BareBindResp(command_id=0x80000002, sequence_number=8)
+        assert a != 'not a pdu'
+
+    def test_validate_rejects_negative_response_status(self):
+        with pytest.raises(SMPPPDUException, match='Invalid command status'):
+            EnquireLinkResp(command_status=-1).validate()
+
+    def test_validate_rejects_oversized_pdu(self):
+        pdu = EnquireLink()
+        pdu.add_optional_parameter(0x1400, b'x' * 40000)
+        pdu.add_optional_parameter(0x1401, b'x' * 40000)
+        with pytest.raises(SMPPPDUException, match='PDU too large'):
+            pdu.validate()
+
+    def test_validate_rejects_mutated_tlv_tag(self):
+        pdu = EnquireLink()
+        pdu.add_optional_parameter(0x1400, b'\x01')
+        pdu.optional_parameters[0].tag = 0x10000
+        with pytest.raises(SMPPPDUException, match='Invalid TLV tag'):
+            pdu.validate()
+
+
+class TestPDUEncodeDecodeErrors:
+    """Error paths in PDU.encode and PDU.decode."""
+
+    def test_encode_wraps_body_error(self):
+        with pytest.raises(SMPPPDUException, match='Failed to encode PDU body'):
+            SubmitSm(short_message=b'x' * 255).encode()
+
+    @staticmethod
+    def _header(length, command_id=0x00000015):
+        return struct.pack('>LLLL', length, command_id, 0, 1)
+
+    def test_decode_length_mismatch(self):
+        with pytest.raises(SMPPPDUException, match='PDU length mismatch'):
+            PDU.decode(self._header(100))
+
+    def test_decode_length_exceeds_maximum(self):
+        data = self._header(65537) + b'\x00' * (65537 - 16)
+        with pytest.raises(SMPPPDUException, match='exceeds maximum'):
+            PDU.decode(data)
+
+    def test_decode_length_below_header(self):
+        with pytest.raises(SMPPPDUException, match='Invalid PDU length'):
+            PDU.decode(self._header(8))
+
+    def test_decode_unknown_command_id(self):
+        with pytest.raises(SMPPPDUException, match='Unknown command ID'):
+            PDU.decode(self._header(16, command_id=0x0000ABCD))
+
+
+class TestBindValidate:
+    """BindRequestPDU and BindResponsePDU validate()."""
+
+    @pytest.mark.parametrize(
+        'kwargs,match',
+        [
+            ({'system_id': ''}, 'system_id cannot be empty'),
+            ({'system_id': 'x' * 16}, 'system_id too long'),
+            ({'password': 'x' * 9}, 'password too long'),
+            ({'system_type': 'x' * 13}, 'system_type too long'),
+            ({'interface_version': 0x50}, 'unsupported interface_version'),
+            ({'addr_ton': 256}, 'invalid addr_ton'),
+            ({'addr_npi': 256}, 'invalid addr_npi'),
+            ({'address_range': 'x' * 41}, 'address_range too long'),
+        ],
+    )
+    def test_request_rejects(self, kwargs, match):
+        pdu = _BareBind(**{'system_id': 'esme', **kwargs})
+        with pytest.raises(SMPPPDUException, match=match):
+            pdu.validate()
+
+    def test_request_accepts_valid(self):
+        _BareBind(system_id='esme', password='pw').validate()
+
+    def test_response_rejects_long_system_id(self):
+        with pytest.raises(SMPPPDUException, match='system_id too long'):
+            _BareBindResp(system_id='x' * 16).validate()
+
 
 class TestTypedTLV:
     """Typed get_tlv/set_tlv accessors over TLV_SPEC"""
@@ -519,6 +729,7 @@ class TestTypedTLV:
             (OptionalTag.RECEIPTED_MESSAGE_ID, 'x' * 65),
             (OptionalTag.RECEIPTED_MESSAGE_ID, 'é'),
             (OptionalTag.RECEIPTED_MESSAGE_ID, 'a\tb'),
+            (OptionalTag.RECEIPTED_MESSAGE_ID, 1),
             (OptionalTag.NETWORK_ERROR_CODE, b'\x00'),
             (OptionalTag.NETWORK_ERROR_CODE, 'abc'),
         ],

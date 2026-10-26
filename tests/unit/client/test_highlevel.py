@@ -20,7 +20,7 @@ from smpp import (
     OptionalTag,
     TonType,
 )
-from smpp.message import _parse_receipt, _to_message
+from smpp.message import _decode, _parse_receipt, _to_message
 from smpp.gsm import make_parts
 from smpp.server import SMPPServer
 
@@ -36,7 +36,19 @@ def _receipt_pdu(text: str) -> DeliverSm:
     return pdu
 
 
+class TestDecode:
+    def test_unsupported_data_coding_yields_none(self):
+        assert _decode(b'ab', 0x05) is None  # stateful codec, unsupported
+
+    def test_supported_data_coding(self):
+        assert _decode(b'ab', 0x00) == 'ab'
+
+
 class TestAddressParse:
+    def test_address_passes_through(self):
+        addr = Address('123', TonType.UNKNOWN, NpiType.UNKNOWN)
+        assert Address.parse(addr) is addr
+
     def test_international(self):
         assert Address.parse('+306900000000') == Address(
             '306900000000', TonType.INTERNATIONAL, NpiType.ISDN
