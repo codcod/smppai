@@ -278,10 +278,6 @@ class SMPPServer:
         """Check if server is running"""
         return self._running and self._server is not None
 
-    def _ensure_shutdown_event(self) -> asyncio.Event:
-        """Get shutdown event (always exists now)"""
-        return self._shutdown_event
-
     @property
     def shutdown_requested(self) -> bool:
         """Check if shutdown has been requested"""

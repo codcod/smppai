@@ -23,8 +23,6 @@ from .constants import (
 
 # Compiled regex patterns for better performance
 SYSTEM_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_]+$')
-ADDRESS_PATTERN = re.compile(r'^[0-9+]+$')
-PASSWORD_PATTERN = re.compile(r'^[a-zA-Z0-9!@#$%^&*()_+-=]+$')
 
 # Built once; validated per PDU on the hot path.
 _COMMAND_IDS = frozenset(cmd.value for cmd in CommandId)
