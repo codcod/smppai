@@ -17,7 +17,7 @@ jobs:
     name: Lint & Format check
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Cache pre-commit hooks (only needed for lint job)
       - name: Cache pre-commit
@@ -42,7 +42,7 @@ jobs:
     name: Type check
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python with uv
         uses: ./.github/actions/setup-python-uv
@@ -57,7 +57,7 @@ jobs:
     name: Security Check
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python with uv
         uses: ./.github/actions/setup-python-uv
@@ -79,7 +79,7 @@ jobs:
     name: TLA+ model check
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download TLA+ tools
         run: |
@@ -126,7 +126,7 @@ jobs:
     name: Unit tests Python ${{ matrix.python-version }} on ${{ matrix.os }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python with uv
         uses: ./.github/actions/setup-python-uv
@@ -163,7 +163,7 @@ jobs:
     name: Integration Tests on Python 3.13 and ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python with uv
         uses: ./.github/actions/setup-python-uv
@@ -205,7 +205,7 @@ jobs:
     if: always() && needs.unit-tests.result == 'success'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download coverage from Python ${{ env.PRIMARY_PYTHON_VERSION }}
         uses: actions/download-artifact@v8
@@ -234,7 +234,7 @@ jobs:
     needs: [lint, type-check]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Set up Python with uv
       uses: ./.github/actions/setup-python-uv
