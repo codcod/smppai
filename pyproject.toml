@@ -46,7 +46,7 @@ dev = [
   "python-semantic-release>=9.0.0",
   "ruff>=0.12.0",
   "twine>=6.1.0",
-  "ty==0.0.95",
+  "ty==0.0.98",
 ]
 
 [tool.ruff]
